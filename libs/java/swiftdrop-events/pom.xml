@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>lk.swiftdrop</groupId>
+        <artifactId>swiftdrop-parent</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+        <relativePath>../swiftdrop-parent/pom.xml</relativePath>
+    </parent>
+
+    <artifactId>swiftdrop-events</artifactId>
+    <name>SwiftDrop :: Events</name>
+    <description>Kafka event contracts (envelope, payload records, topic names). Plain Java records — no framework dependency.
+        The JSON Schemas in /contracts/events are the source of truth; EventContractTest keeps both in sync.</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>tools.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.networknt</groupId>
+            <artifactId>json-schema-validator</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <testResources>
+            <testResource>
+                <directory>src/test/resources</directory>
+            </testResource>
+            <!-- Validate the Java records against the shared JSON Schemas -->
+            <testResource>
+                <directory>${project.basedir}/../../../contracts/events</directory>
+                <targetPath>contracts/events</targetPath>
+            </testResource>
+        </testResources>
+    </build>
+</project>

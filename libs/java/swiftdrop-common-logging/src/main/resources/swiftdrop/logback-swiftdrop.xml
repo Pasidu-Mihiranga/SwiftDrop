@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Shared Logback setup. Each service's logback-spring.xml contains only:
+      <configuration><include resource="swiftdrop/logback-swiftdrop.xml"/></configuration>
+
+  Spring profiles "docker" / "k8s" -> one JSON object per line (shipped to Loki by Alloy).
+  Any other profile                -> human-readable text for local development.
+  Both formats mask PII (emails, phone numbers, passwords, bearer tokens).
+-->
+<included>
+    <springProperty scope="context" name="SERVICE_NAME" source="spring.application.name" defaultValue="swiftdrop-service"/>
+
+    <conversionRule conversionWord="maskedMsg" class="lk.swiftdrop.common.logging.MaskingMessageConverter"/>
+    <conversionRule conversionWord="maskedEx" class="lk.swiftdrop.common.logging.MaskingThrowableConverter"/>
+
+    <appender name="CONSOLE_TEXT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %highlight(%-5level) %magenta([%X{correlationId:-no-corr}]) %cyan(%logger{36}) - %maskedMsg%n%maskedEx</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+            <layout class="lk.swiftdrop.common.logging.JsonLogLayout">
+                <service>${SERVICE_NAME}</service>
+            </layout>
+        </encoder>
+    </appender>
+
+    <logger name="org.apache.kafka" level="WARN"/>
+    <logger name="org.hibernate.SQL" level="WARN"/>
+
+    <springProfile name="docker | k8s">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE_JSON"/>
+        </root>
+    </springProfile>
+    <springProfile name="!(docker | k8s)">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE_TEXT"/>
+        </root>
+    </springProfile>
+</included>
