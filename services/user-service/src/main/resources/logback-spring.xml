@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Shared SwiftDrop logging (JSON in docker/k8s, text locally, PII masked): libs/java/swiftdrop-common-logging -->
+<configuration>
+    <include resource="swiftdrop/logback-swiftdrop.xml"/>
+</configuration>
