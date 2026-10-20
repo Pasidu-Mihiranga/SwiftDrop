@@ -143,7 +143,7 @@ services:
       kafka: { condition: service_healthy }
 
   kafka-ui:
-    image: kafbat/kafka-ui:v1.4.2
+    image: kafbat/kafka-ui:v1.5.0
     profiles: ["infra"]
     restart: unless-stopped
     environment:
