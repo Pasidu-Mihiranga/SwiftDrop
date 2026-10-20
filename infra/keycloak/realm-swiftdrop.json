@@ -1,0 +1,270 @@
+{
+  "realm": "swiftdrop",
+  "displayName": "SwiftDrop",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "verifyEmail": false,
+  "bruteForceProtected": true,
+  "failureFactor": 5,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "passwordPolicy": "length(8) and upperCase(1) and lowerCase(1) and digits(1) and notUsername",
+  "smtpServer": {
+    "host": "mailpit",
+    "port": "1025",
+    "from": "no-reply@swiftdrop.lk",
+    "fromDisplayName": "SwiftDrop"
+  },
+  "roles": {
+    "realm": [
+      { "name": "CUSTOMER", "description": "Sends and tracks parcels" },
+      { "name": "MERCHANT", "description": "Merchant portal user (approved business)" },
+      { "name": "MERCHANT_API", "description": "Merchant machine client (OAuth2 client credentials)" },
+      { "name": "COURIER", "description": "Picks up and delivers parcels" },
+      { "name": "DISPATCHER", "description": "Assigns parcels to couriers" },
+      { "name": "ADMIN", "description": "Manages users, merchants, zones and pricing" },
+      { "name": "offline_access", "description": "Offline access" },
+      { "name": "uma_authorization", "description": "UMA authorization" },
+      {
+        "name": "default-roles-swiftdrop",
+        "description": "Roles every new user receives (self sign-up and Google login become CUSTOMER)",
+        "composite": true,
+        "composites": {
+          "realm": ["offline_access", "uma_authorization", "CUSTOMER"],
+          "client": { "account": ["view-profile", "manage-account"] }
+        }
+      }
+    ]
+  },
+  "defaultRole": { "name": "default-roles-swiftdrop", "composite": true, "clientRole": false },
+  "clients": [
+    {
+      "clientId": "swiftdrop-web",
+      "name": "SwiftDrop Web (Next.js BFF)",
+      "description": "Confidential client used server-side by Auth.js. Tokens never reach browser JavaScript.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KC_WEB_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:3000/api/auth/callback/keycloak"],
+      "webOrigins": ["http://localhost:3000"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3000/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "audience-swiftdrop-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.custom.audience": "swiftdrop-api", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" }
+        },
+        {
+          "name": "merchant-id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": { "user.attribute": "merchant_id", "claim.name": "merchant_id", "jsonType.label": "String", "access.token.claim": "true", "id.token.claim": "true", "userinfo.token.claim": "true", "introspection.token.claim": "true" }
+        }
+      ]
+    },
+    {
+      "clientId": "swiftdrop-api",
+      "name": "SwiftDrop API (resource server)",
+      "description": "Audience of every access token accepted by the gateway and the services.",
+      "enabled": true,
+      "bearerOnly": true,
+      "publicClient": false,
+      "standardFlowEnabled": false
+    },
+    {
+      "clientId": "user-service-admin",
+      "name": "user-service (Keycloak Admin API)",
+      "description": "Service account used by user-service to create couriers/dispatchers and manage users.",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KC_USER_SERVICE_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true
+    },
+    {
+      "clientId": "merchant-service-admin",
+      "name": "merchant-service (Keycloak Admin API)",
+      "description": "Service account used by merchant-service to provision merchant API clients and grant the MERCHANT role.",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KC_MERCHANT_SERVICE_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true
+    },
+    {
+      "clientId": "merchant-demo",
+      "name": "Demo merchant API client",
+      "description": "Pre-provisioned client-credentials client for the demo merchant (used by tools/merchant-simulator).",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KC_DEMO_MERCHANT_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "audience-swiftdrop-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.custom.audience": "swiftdrop-api", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" }
+        },
+        {
+          "name": "merchant-id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "config": { "claim.name": "merchant_id", "claim.value": "00000000-0000-4000-8000-000000000001", "jsonType.label": "String", "access.token.claim": "true", "id.token.claim": "false", "userinfo.token.claim": "false", "introspection.token.claim": "true" }
+        }
+      ]
+    },
+    {
+      "clientId": "swiftdrop-mcp",
+      "name": "SwiftDrop MCP clients",
+      "description": "Public PKCE client for external MCP clients talking to the AI assistant.",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://localhost:6274/*"],
+      "webOrigins": ["+"],
+      "attributes": { "pkce.code.challenge.method": "S256" },
+      "protocolMappers": [
+        {
+          "name": "audience-swiftdrop-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.custom.audience": "swiftdrop-api", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" }
+        }
+      ]
+    },
+    {
+      "clientId": "swiftdrop-test",
+      "name": "DEV ONLY - test client",
+      "description": "DEV/TEST ONLY: password grant for Postman, integration and E2E tests. Must be disabled outside local environments.",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "audience-swiftdrop-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.custom.audience": "swiftdrop-api", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" }
+        },
+        {
+          "name": "merchant-id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": { "user.attribute": "merchant_id", "claim.name": "merchant_id", "jsonType.label": "String", "access.token.claim": "true", "id.token.claim": "true", "userinfo.token.claim": "true", "introspection.token.claim": "true" }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "admin@swiftdrop.lk", "email": "admin@swiftdrop.lk", "firstName": "Amara", "lastName": "Admin",
+      "enabled": true, "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "${KC_SEED_USER_PASSWORD}", "temporary": false }],
+      "realmRoles": ["default-roles-swiftdrop", "ADMIN"]
+    },
+    {
+      "username": "dispatcher@swiftdrop.lk", "email": "dispatcher@swiftdrop.lk", "firstName": "Dilan", "lastName": "Dispatcher",
+      "enabled": true, "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "${KC_SEED_USER_PASSWORD}", "temporary": false }],
+      "realmRoles": ["default-roles-swiftdrop", "DISPATCHER"]
+    },
+    {
+      "username": "courier1@swiftdrop.lk", "email": "courier1@swiftdrop.lk", "firstName": "Chamath", "lastName": "Courier",
+      "enabled": true, "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "${KC_SEED_USER_PASSWORD}", "temporary": false }],
+      "realmRoles": ["default-roles-swiftdrop", "COURIER"]
+    },
+    {
+      "username": "courier2@swiftdrop.lk", "email": "courier2@swiftdrop.lk", "firstName": "Kasun", "lastName": "Courier",
+      "enabled": true, "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "${KC_SEED_USER_PASSWORD}", "temporary": false }],
+      "realmRoles": ["default-roles-swiftdrop", "COURIER"]
+    },
+    {
+      "username": "customer@swiftdrop.lk", "email": "customer@swiftdrop.lk", "firstName": "Nimali", "lastName": "Customer",
+      "enabled": true, "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "${KC_SEED_USER_PASSWORD}", "temporary": false }],
+      "realmRoles": ["default-roles-swiftdrop"]
+    },
+    {
+      "username": "merchant@swiftdrop.lk", "email": "merchant@swiftdrop.lk", "firstName": "Malith", "lastName": "Merchant",
+      "enabled": true, "emailVerified": true,
+      "attributes": { "merchant_id": ["00000000-0000-4000-8000-000000000001"] },
+      "credentials": [{ "type": "password", "value": "${KC_SEED_USER_PASSWORD}", "temporary": false }],
+      "realmRoles": ["default-roles-swiftdrop", "MERCHANT"]
+    },
+    {
+      "username": "service-account-user-service-admin", "enabled": true,
+      "serviceAccountClientId": "user-service-admin",
+      "clientRoles": { "realm-management": ["manage-users", "view-users", "query-users", "query-groups"] }
+    },
+    {
+      "username": "service-account-merchant-service-admin", "enabled": true,
+      "serviceAccountClientId": "merchant-service-admin",
+      "clientRoles": { "realm-management": ["manage-clients", "view-clients", "query-clients", "manage-users", "view-users", "query-users"] }
+    },
+    {
+      "username": "service-account-merchant-demo", "enabled": true,
+      "serviceAccountClientId": "merchant-demo",
+      "realmRoles": ["MERCHANT_API"]
+    }
+  ],
+  "identityProviders": [
+    {
+      "alias": "google",
+      "displayName": "Google",
+      "providerId": "google",
+      "enabled": true,
+      "trustEmail": true,
+      "storeToken": false,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "config": {
+        "clientId": "${GOOGLE_CLIENT_ID}",
+        "clientSecret": "${GOOGLE_CLIENT_SECRET}",
+        "defaultScope": "openid profile email",
+        "syncMode": "IMPORT",
+        "guiOrder": "1"
+      }
+    }
+  ],
+  "components": {
+    "org.keycloak.userprofile.UserProfileProvider": [
+      {
+        "providerId": "declarative-user-profile",
+        "subComponents": {},
+        "config": {
+          "kc.user.profile.config": [
+            "{\"attributes\":[{\"name\":\"username\",\"displayName\":\"Username\",\"validations\":{\"length\":{\"min\":3,\"max\":255},\"username-prohibited-characters\":{},\"up-username-not-idn-homograph\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"email\",\"displayName\":\"Email\",\"validations\":{\"email\":{},\"length\":{\"max\":255}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"firstName\",\"displayName\":\"First name\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"lastName\",\"displayName\":\"Last name\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"merchant_id\",\"displayName\":\"Merchant ID\",\"validations\":{\"pattern\":{\"pattern\":\"^[0-9a-fA-F-]{36}$\",\"error-message\":\"Merchant ID must be a UUID\"}},\"permissions\":{\"view\":[\"admin\"],\"edit\":[\"admin\"]},\"multivalued\":false}],\"groups\":[{\"name\":\"user-metadata\",\"displayHeader\":\"User metadata\",\"displayDescription\":\"Attributes, which refer to user metadata\"}]}"
+          ]
+        }
+      }
+    ]
+  }
+}
