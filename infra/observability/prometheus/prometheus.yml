@@ -1,0 +1,47 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: alloy
+    static_configs:
+      - targets: ["alloy:12345"]
+
+  - job_name: kafka
+    static_configs:
+      - targets: ["kafka-exporter:9308"]
+
+  # Spring Boot services (Micrometer → /actuator/prometheus)
+  - job_name: java-services
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - api-gateway:8080
+          - user-service:8081
+          - merchant-service:8082
+          - pricing-service:8083
+          - parcel-service:8084
+          - dispatch-service:8085
+          - reporting-service:8086
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: "([^:]+):.*"
+        target_label: service
+
+  # NestJS + FastAPI services (prom-client / instrumentator → /metrics)
+  - job_name: node-python-services
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - tracking-service:8090
+          - notification-service:8091
+          - webhook-service:8092
+          - ai-assistant-service:8095
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: "([^:]+):.*"
+        target_label: service
