@@ -1,0 +1,400 @@
+# =====================================================================
+# SwiftDrop — local orchestration
+#
+#   pnpm env:init                     # once: create .env with generated secrets
+#   pnpm infra:up                     # Kafka, Keycloak, Postgres, Mongo, Redis, RustFS, Mailpit
+#   pnpm obs:up                       # + Grafana / Loki / Tempo / Prometheus / Alloy
+#   pnpm stack:up                     # + every SwiftDrop service and the web app
+#
+# Profiles: infra | observability | apps
+# Host ports are configurable in .env (defaults avoid clashing with other local Postgres/Redis/MinIO stacks).
+# =====================================================================
+name: swiftdrop
+
+x-healthcheck-defaults: &healthcheck-defaults
+  interval: 10s
+  timeout: 5s
+  retries: 30
+  start_period: 20s
+
+# Settings shared by the application containers (profile "apps")
+x-keycloak-env: &keycloak-env
+  KEYCLOAK_ISSUER: ${KEYCLOAK_PUBLIC_URL}/realms/${KEYCLOAK_REALM}
+  KEYCLOAK_JWKS_URI: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+
+x-java-env: &java-env
+  <<: *keycloak-env
+  SPRING_PROFILES_ACTIVE: docker
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_PASSWORD: ${SWIFTDROP_DB_PASSWORD}
+  KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_PASSWORD: ${REDIS_PASSWORD}
+
+x-node-env: &node-env
+  <<: *keycloak-env
+  NODE_ENV: production
+  KAFKA_BROKERS: kafka:19092
+  REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+
+x-app: &app
+  profiles: ["apps"]
+  restart: unless-stopped
+  mem_limit: 512m
+  depends_on:
+    keycloak: { condition: service_healthy }
+    postgres: { condition: service_healthy }
+    kafka-init: { condition: service_completed_successfully }
+
+services:
+  # ------------------------------------------------------------------ INFRA
+  postgres:
+    image: postgres:16.15-alpine
+    profiles: ["infra"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      SWIFTDROP_DB_PASSWORD: ${SWIFTDROP_DB_PASSWORD}
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    ports: ["${POSTGRES_HOST_PORT:-15432}:5432"]
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d postgres"]
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.1
+    profiles: ["infra"]
+    restart: unless-stopped
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      # Browser-facing URL = token issuer. Containers reach Keycloak at http://keycloak:8080 (dynamic backchannel).
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      KC_LOG_CONSOLE_OUTPUT: json
+      JAVA_OPTS_KC_HEAP: "-XX:MaxRAMPercentage=70"
+      # Placeholders resolved while importing infra/keycloak/realm-swiftdrop.json
+      KC_WEB_CLIENT_SECRET: ${KC_WEB_CLIENT_SECRET}
+      KC_USER_SERVICE_CLIENT_SECRET: ${KC_USER_SERVICE_CLIENT_SECRET}
+      KC_MERCHANT_SERVICE_CLIENT_SECRET: ${KC_MERCHANT_SERVICE_CLIENT_SECRET}
+      KC_DEMO_MERCHANT_CLIENT_SECRET: ${KC_DEMO_MERCHANT_CLIENT_SECRET}
+      KC_SEED_USER_PASSWORD: ${KC_SEED_USER_PASSWORD}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-not-configured}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-not-configured}
+    volumes:
+      - ./infra/keycloak/realm-swiftdrop.json:/opt/keycloak/data/import/realm-swiftdrop.json:ro
+    ports: ["${KEYCLOAK_HOST_PORT:-8180}:8080"]
+    mem_limit: 1g
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      <<: *healthcheck-defaults
+      start_period: 60s
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+
+  kafka:
+    image: apache/kafka:4.1.2
+    profiles: ["infra"]
+    restart: unless-stopped
+    environment:
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk   # base64 UUID; any fixed value works for a single dev node
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      # INTERNAL → other containers (kafka:19092), EXTERNAL → your machine (localhost:9092)
+      KAFKA_LISTENERS: INTERNAL://:19092,EXTERNAL://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:19092,EXTERNAL://localhost:${KAFKA_HOST_PORT:-9092}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
+    ports: ["${KAFKA_HOST_PORT:-9092}:9092"]
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server kafka:19092 > /dev/null 2>&1"]
+
+  kafka-init:
+    image: apache/kafka:4.1.2
+    profiles: ["infra"]
+    restart: "no"
+    entrypoint: ["bash", "/scripts/create-topics.sh", "kafka:19092"]
+    volumes:
+      - ./infra/kafka/create-topics.sh:/scripts/create-topics.sh:ro
+    depends_on:
+      kafka: { condition: service_healthy }
+
+  kafka-ui:
+    image: kafbat/kafka-ui:v1.4.2
+    profiles: ["infra"]
+    restart: unless-stopped
+    environment:
+      KAFKA_CLUSTERS_0_NAME: swiftdrop
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092
+      DYNAMIC_CONFIG_ENABLED: "false"
+    ports: ["${KAFKA_UI_HOST_PORT:-8088}:8080"]
+    depends_on:
+      kafka: { condition: service_healthy }
+
+  mongo:
+    image: mongo:7.0.45
+    profiles: ["infra"]
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+    volumes:
+      - mongo-data:/data/db
+    ports: ["${MONGO_HOST_PORT:-27018}:27017"]
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+
+  redis:
+    image: redis:7.4.11-alpine
+    profiles: ["infra"]
+    restart: unless-stopped
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - redis-data:/data
+    ports: ["${REDIS_HOST_PORT:-6380}:6379"]
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+
+  # S3-compatible object storage for proof-of-delivery photos (RustFS, Apache-2.0).
+  object-storage:
+    image: rustfs/rustfs:1.0.3
+    profiles: ["infra"]
+    restart: unless-stopped
+    environment:
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_KEY}
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+    volumes:
+      - object-data:/data
+    ports: ["${S3_HOST_PORT:-9010}:9000", "${S3_CONSOLE_HOST_PORT:-9011}:9001"]
+
+  mailpit:
+    image: axllent/mailpit:v1.31.6
+    profiles: ["infra"]
+    restart: unless-stopped
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    ports: ["${MAILPIT_UI_HOST_PORT:-8026}:8025", "${MAILPIT_SMTP_HOST_PORT:-1026}:1025"]
+
+  # ---------------------------------------------------------- OBSERVABILITY
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    profiles: ["observability"]
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+      - --web.enable-remote-write-receiver
+      - --enable-feature=exemplar-storage
+    volumes:
+      - ./infra/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports: ["${PROMETHEUS_HOST_PORT:-9090}:9090"]
+
+  loki:
+    image: grafana/loki:3.6.18
+    profiles: ["observability"]
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/loki.yml"]
+    volumes:
+      - ./infra/observability/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki-data:/loki
+    ports: ["${LOKI_HOST_PORT:-3100}:3100"]
+
+  tempo:
+    image: grafana/tempo:2.10.8
+    profiles: ["observability"]
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo/tempo.yml"]
+    volumes:
+      - ./infra/observability/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+    ports: ["${TEMPO_HOST_PORT:-3200}:3200"]
+
+  alloy:
+    image: grafana/alloy:v1.21.0
+    profiles: ["observability"]
+    restart: unless-stopped
+    command: ["run", "--server.http.listen-addr=0.0.0.0:12345", "--storage.path=/var/lib/alloy/data", "/etc/alloy/config.alloy"]
+    volumes:
+      - ./infra/observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "12345:12345"   # Alloy UI
+      - "4317:4317"     # OTLP gRPC  (services → traces)
+      - "4318:4318"     # OTLP HTTP
+    depends_on: [loki, tempo]
+
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.9.0
+    profiles: ["observability"]
+    restart: unless-stopped
+    command: ["--kafka.server=kafka:19092"]
+    depends_on:
+      kafka: { condition: service_healthy }
+
+  grafana:
+    image: grafana/grafana:12.4.13
+    profiles: ["observability"]
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    volumes:
+      - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports: ["${GRAFANA_HOST_PORT:-3001}:3000"]
+    depends_on: [prometheus, loki, tempo]
+
+  # ------------------------------------------------------------------- APPS
+  # Build context is the repo root for every image (services use the shared libs).
+  api-gateway:
+    <<: *app
+    build: { context: ., dockerfile: services/api-gateway/Dockerfile }
+    environment:
+      <<: *keycloak-env
+      SPRING_PROFILES_ACTIVE: docker
+      WEB_ORIGIN: http://localhost:3000
+      USER_SERVICE_URL: http://user-service:8081
+      MERCHANT_SERVICE_URL: http://merchant-service:8082
+      PRICING_SERVICE_URL: http://pricing-service:8083
+      PARCEL_SERVICE_URL: http://parcel-service:8084
+      DISPATCH_SERVICE_URL: http://dispatch-service:8085
+      REPORTING_SERVICE_URL: http://reporting-service:8086
+      TRACKING_SERVICE_URL: http://tracking-service:8090
+      TRACKING_SERVICE_WS_URL: ws://tracking-service:8090
+      NOTIFICATION_SERVICE_URL: http://notification-service:8091
+      WEBHOOK_SERVICE_URL: http://webhook-service:8092
+      AI_ASSISTANT_SERVICE_URL: http://ai-assistant-service:8095
+    ports: ["${GATEWAY_HOST_PORT:-8080}:8080"]
+
+  user-service:
+    <<: *app
+    build: { context: ., dockerfile: services/user-service/Dockerfile }
+    environment: { <<: *java-env, DB_NAME: users_db, DB_USER: user_svc }
+
+  merchant-service:
+    <<: *app
+    build: { context: ., dockerfile: services/merchant-service/Dockerfile }
+    environment: { <<: *java-env, DB_NAME: merchants_db, DB_USER: merchant_svc }
+
+  pricing-service:
+    <<: *app
+    build: { context: ., dockerfile: services/pricing-service/Dockerfile }
+    environment: { <<: *java-env, DB_NAME: pricing_db, DB_USER: pricing_svc }
+
+  parcel-service:
+    <<: *app
+    build: { context: ., dockerfile: services/parcel-service/Dockerfile }
+    environment:
+      <<: *java-env
+      DB_NAME: parcels_db
+      DB_USER: parcel_svc
+      S3_ENDPOINT: http://object-storage:9000
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_BUCKET_PROOFS: ${S3_BUCKET_PROOFS}
+      PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY}
+
+  dispatch-service:
+    <<: *app
+    build: { context: ., dockerfile: services/dispatch-service/Dockerfile }
+    environment: { <<: *java-env, DB_NAME: dispatch_db, DB_USER: dispatch_svc }
+
+  reporting-service:
+    <<: *app
+    build: { context: ., dockerfile: services/reporting-service/Dockerfile }
+    environment: { <<: *java-env, DB_NAME: reporting_db, DB_USER: reporting_svc }
+
+  tracking-service:
+    <<: *app
+    mem_limit: 256m
+    build: { context: ., dockerfile: services/tracking-service/Dockerfile }
+    environment:
+      <<: *node-env
+      MONGO_URI: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@mongo:27017/tracking?authSource=admin
+
+  notification-service:
+    <<: *app
+    mem_limit: 256m
+    build: { context: ., dockerfile: services/notification-service/Dockerfile }
+    environment:
+      <<: *node-env
+      MONGO_URI: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@mongo:27017/notifications?authSource=admin
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+
+  webhook-service:
+    <<: *app
+    mem_limit: 256m
+    build: { context: ., dockerfile: services/webhook-service/Dockerfile }
+    environment:
+      <<: *node-env
+      MONGO_URI: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@mongo:27017/webhooks?authSource=admin
+
+  ai-assistant-service:
+    <<: *app
+    mem_limit: 256m
+    build: { context: ., dockerfile: services/ai-assistant-service/Dockerfile }
+    environment:
+      <<: *keycloak-env
+      GATEWAY_URL: http://api-gateway:8080
+      LLM_PROVIDER: ${LLM_PROVIDER}
+      LLM_MODEL: ${LLM_MODEL}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+
+  web:
+    <<: *app
+    build: { context: ., dockerfile: apps/web/Dockerfile }
+    environment:
+      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_URL: http://localhost:${WEB_HOST_PORT:-3000}
+      AUTH_KEYCLOAK_ID: swiftdrop-web
+      AUTH_KEYCLOAK_SECRET: ${KC_WEB_CLIENT_SECRET}
+      # Browser-facing issuer vs. the URL the Next.js server uses inside the Docker network
+      AUTH_KEYCLOAK_ISSUER: ${KEYCLOAK_PUBLIC_URL}/realms/${KEYCLOAK_REALM}
+      AUTH_KEYCLOAK_INTERNAL_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}
+      GATEWAY_URL: http://api-gateway:8080
+    ports: ["${WEB_HOST_PORT:-3000}:3000"]
+
+volumes:
+  postgres-data:
+  mongo-data:
+  redis-data:
+  object-data:
+  prometheus-data:
+  loki-data:
+  grafana-data:
