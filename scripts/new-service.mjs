@@ -35,7 +35,7 @@ const { values: args } = parseArgs({
 });
 
 function fail(message) {
-  console.error(`✖ ${message}`);
+  console.error(`Error: ${message}`);
   process.exit(1);
 }
 
@@ -94,11 +94,11 @@ if (args.type === "java") {
   const moduleLine = `<module>services/${args.name}</module>`;
   if (!pom.includes(moduleLine)) {
     writeFileSync(pomPath, pom.replace(/(\s*)<\/modules>/, `\n        ${moduleLine}$1</modules>`));
-    console.log(`✔ registered ${moduleLine} in pom.xml`);
+    console.log(`OK: registered ${moduleLine} in pom.xml`);
   }
 }
 
-console.log(`✔ created services/${args.name} (${created.length} files)`);
+console.log(`OK: created services/${args.name} (${created.length} files)`);
 console.log(`
 Next steps:
   1. Add a route in services/api-gateway/src/main/resources/application.yml for /api/v1/${args.route}/**

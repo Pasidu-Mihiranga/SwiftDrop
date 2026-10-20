@@ -1,0 +1,60 @@
+name: Repository rules
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+  push:
+    branches: [main]
+  issues:
+    types: [opened, edited]
+
+jobs:
+  no-emoji:
+    name: no-emoji
+    if: github.event_name != 'issues'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Files contain no emojis
+        run: python3 scripts/check-no-emoji.py
+
+      - name: Commit messages contain no emojis
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if git cat-file -e "$BASE" 2>/dev/null; then
+            git log --format=%B "$BASE..$HEAD" | python3 scripts/check-no-emoji.py --stdin
+          else
+            git log --format=%B -1 "$HEAD" | python3 scripts/check-no-emoji.py --stdin
+          fi
+
+      - name: Pull request title and description contain no emojis
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: python3 scripts/check-no-emoji.py --text "$PR_TITLE" --text "$PR_BODY"
+
+  issue-no-emoji:
+    name: issue-no-emoji
+    if: github.event_name == 'issues'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: Ask the author to remove emojis
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          if ! python3 scripts/check-no-emoji.py --text "$ISSUE_TITLE" --text "$ISSUE_BODY"; then
+            gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY"               --body "This repository does not allow emojis (see CONTRIBUTING.md). Please edit the title and description to remove them."
+            exit 1
+          fi

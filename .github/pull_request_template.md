@@ -13,6 +13,7 @@
 - [ ] Authorization rules tested (who may / may not call this)
 - [ ] API change reflected in `contracts/openapi/*`; event change in `contracts/events/*` (+ example)
 - [ ] No secrets, no personal data in logs or error messages
+- [ ] No emojis in code, docs, commit messages or this description (see CONTRIBUTING.md)
 - [ ] Config via environment variables; `.env.example` updated if needed
 - [ ] Dockerfile / compose / Helm values updated if needed
 - [ ] Screenshots for UI changes

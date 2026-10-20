@@ -152,5 +152,8 @@ cd services/ai-assistant-service && uv run pytest
 
 ## Git workflow
 
-Branch per feature: `feat/m<N>-<topic>`; PR into `main` with one review and green CI (see
-`.github/pull_request_template.md`). Conventional Commits (`feat:`, `fix:`, `test:` …).
+Read [CONTRIBUTING.md](CONTRIBUTING.md) first. In short:
+
+- `main` is protected: changes only through pull requests with one approving review and a green `no-emoji` check.
+- Branch per feature: `feat/m<N>-<topic>`; Conventional Commits (`feat:`, `fix:`, `test:` …).
+- **No emojis** anywhere in the repository, commits, pull requests or issues (`python scripts/check-no-emoji.py`).
