@@ -1,0 +1,178 @@
+%% SwiftDrop logical ER diagram v1 (Phase 0 contract).
+%% One diagram across all services; each block lives in its own service database.
+%% Cross-service links (dotted, "ref") are IDs only — never foreign keys.
+erDiagram
+    %% ---------------- user-service (users_db) ----------------
+    USER_PROFILE {
+        string id PK "Keycloak subject"
+        string full_name
+        string email
+        string phone_enc "AES-GCM encrypted"
+        string status
+        timestamp created_at
+    }
+    ROLE {
+        string code PK "CUSTOMER, MERCHANT, COURIER, DISPATCHER, ADMIN"
+    }
+    USER_ROLE {
+        string user_id FK
+        string role_code FK
+    }
+    ADDRESS {
+        uuid id PK
+        string user_id FK
+        string label
+        string line1_enc
+        string line2_enc
+        string city
+        string district
+        string postal_code
+    }
+    COURIER_PROFILE {
+        string user_id PK, FK
+        string vehicle_type
+        string home_zone_code "ref pricing ZONE"
+        int max_daily_capacity
+        boolean active
+    }
+    USER_PROFILE ||--o{ USER_ROLE : has
+    ROLE ||--o{ USER_ROLE : grants
+    USER_PROFILE ||--o{ ADDRESS : saves
+    USER_PROFILE ||--o| COURIER_PROFILE : "is a courier"
+
+    %% ---------------- merchant-service (merchants_db) ----------------
+    MERCHANT {
+        uuid id PK
+        string owner_user_id "ref USER_PROFILE"
+        string business_name
+        string br_number
+        string contact_email
+        string phone_enc
+        string status "PENDING, APPROVED, REJECTED, SUSPENDED"
+        string reviewed_by
+        timestamp reviewed_at
+    }
+    API_CREDENTIAL {
+        uuid id PK
+        uuid merchant_id FK
+        string keycloak_client_id
+        timestamp created_at
+        timestamp revoked_at
+    }
+    MERCHANT ||--o{ API_CREDENTIAL : owns
+
+    %% ---------------- pricing-service (pricing_db) ----------------
+    ZONE {
+        string code PK
+        string name
+        boolean active
+    }
+    DISTRICT_ZONE {
+        string district PK
+        string zone_code FK
+    }
+    SIZE_CLASS {
+        string code PK "S, M, L, XL"
+        decimal max_weight_kg
+        decimal multiplier
+    }
+    RATE_CARD {
+        uuid id PK
+        string from_zone FK
+        string to_zone FK
+        decimal base_fee
+        decimal per_kg_fee
+        decimal express_multiplier
+        date effective_from
+        date effective_to
+    }
+    ZONE ||--o{ DISTRICT_ZONE : covers
+    ZONE ||--o{ RATE_CARD : "from / to"
+
+    %% ---------------- parcel-service (parcels_db) ----------------
+    PARCEL {
+        uuid id PK
+        string tracking_number UK
+        string source "CUSTOMER, MERCHANT"
+        string customer_id "ref USER_PROFILE"
+        uuid merchant_id "ref MERCHANT"
+        string merchant_order_ref
+        jsonb pickup_address_enc
+        jsonb dropoff_address_enc
+        string recipient_name
+        string recipient_phone_enc
+        decimal weight_kg
+        string size_class "ref SIZE_CLASS"
+        decimal fee
+        string status
+        string courier_id "ref USER_PROFILE"
+        int version
+    }
+    PARCEL_STATUS_HISTORY {
+        uuid id PK
+        uuid parcel_id FK
+        string from_status
+        string to_status
+        string actor_id
+        string actor_role
+        string failure_reason
+        string note
+        timestamp occurred_at
+    }
+    DELIVERY_PROOF {
+        uuid id PK
+        uuid parcel_id FK
+        string type "NAME, PHOTO, SIGNATURE"
+        string received_by
+        string object_key "S3"
+    }
+    IDEMPOTENCY_RECORD {
+        string key PK
+        uuid merchant_id
+        uuid parcel_id FK
+        string request_hash
+    }
+    OUTBOX_EVENT {
+        uuid id PK "eventId"
+        string topic
+        string message_key
+        jsonb payload
+        timestamp published_at
+    }
+    PARCEL ||--|{ PARCEL_STATUS_HISTORY : records
+    PARCEL ||--o{ DELIVERY_PROOF : "proved by"
+    PARCEL ||--o| IDEMPOTENCY_RECORD : "created by"
+
+    %% ---------------- dispatch-service (dispatch_db) ----------------
+    PARCEL_SUMMARY {
+        uuid parcel_id PK "read model of PARCEL"
+        string tracking_number
+        string pickup_zone
+        string dropoff_zone
+        string status
+    }
+    ASSIGNMENT {
+        uuid id PK
+        uuid parcel_id FK
+        string courier_id "ref USER_PROFILE"
+        string assigned_by
+        date run_date
+        string status "ACTIVE, COMPLETED, REASSIGNED"
+    }
+    COURIER_WORKLOAD {
+        string courier_id PK
+        int active_count
+        int delivered_today
+        int failed_today
+    }
+    PARCEL_SUMMARY ||--o{ ASSIGNMENT : "assigned in"
+
+    %% ---------------- reporting-service (reporting_db) ----------------
+    DAILY_DELIVERY_STATS {
+        date day PK
+        string zone_code PK
+        int created
+        int delivered
+        int failed
+        int cancelled
+    }
