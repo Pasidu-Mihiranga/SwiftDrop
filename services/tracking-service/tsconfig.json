@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node", "jest"],
+    // Type-check and test against the shared library's sources (no build needed).
+    // Production builds (tsconfig.build.json) use the compiled package instead.
+    "paths": {
+      "@swiftdrop/common": ["../../libs/node/swiftdrop-common/src"],
+      "@swiftdrop/common/nest": ["../../libs/node/swiftdrop-common/src/nest"]
+    }
+  },
+  "include": ["src", "test"]
+}
