@@ -1,0 +1,110 @@
+# api-gateway — routes /api/v1/** to the owning service. Service URLs come from env vars
+# (docker-compose / Kubernetes DNS names); defaults point at locally running services.
+spring:
+  application:
+    name: api-gateway
+  config:
+    import:
+      - optional:file:.env[.properties]
+      - optional:file:../../.env[.properties]
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER:http://localhost:${KEYCLOAK_HOST_PORT:8180}/realms/swiftdrop}
+          jwk-set-uri: ${KEYCLOAK_JWKS_URI:http://localhost:${KEYCLOAK_HOST_PORT:8180}/realms/swiftdrop/protocol/openid-connect/certs}
+          audiences: swiftdrop-api
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            connect-timeout: 2000
+            response-timeout: 30s
+          default-filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials X-Correlation-Id, RETAIN_FIRST
+          globalcors:
+            cors-configurations:
+              "[/**]":
+                allowed-origins: ${WEB_ORIGIN:http://localhost:3000}
+                allowed-methods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+                allowed-headers: ["*"]
+                exposed-headers: [X-Correlation-Id]
+                allow-credentials: true
+                max-age: 3600
+          routes:
+            - id: user-service
+              uri: ${USER_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/api/v1/users/**,/api/v1/admin/users/**,/api/v1/admin/couriers/**
+            - id: merchant-service
+              uri: ${MERCHANT_SERVICE_URL:http://localhost:8082}
+              predicates:
+                - Path=/api/v1/merchants/**,/api/v1/admin/merchants/**
+            - id: pricing-service
+              uri: ${PRICING_SERVICE_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/v1/pricing/**,/api/v1/admin/pricing/**
+            - id: parcel-service
+              uri: ${PARCEL_SERVICE_URL:http://localhost:8084}
+              predicates:
+                - Path=/api/v1/parcels/**,/api/v1/courier/parcels/**,/api/v1/merchant/orders/**
+            - id: dispatch-service
+              uri: ${DISPATCH_SERVICE_URL:http://localhost:8085}
+              predicates:
+                - Path=/api/v1/dispatch/**,/api/v1/courier/run-sheet/**
+            - id: reporting-service
+              uri: ${REPORTING_SERVICE_URL:http://localhost:8086}
+              predicates:
+                - Path=/api/v1/reports/**
+            - id: tracking-service
+              uri: ${TRACKING_SERVICE_URL:http://localhost:8090}
+              predicates:
+                - Path=/api/v1/tracking/**
+            - id: tracking-websocket
+              uri: ${TRACKING_SERVICE_WS_URL:ws://localhost:8090}
+              predicates:
+                - Path=/ws/tracking/**
+            - id: notification-service
+              uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8091}
+              predicates:
+                - Path=/api/v1/notifications/**,/api/v1/admin/notifications/**
+            - id: webhook-service
+              uri: ${WEBHOOK_SERVICE_URL:http://localhost:8092}
+              predicates:
+                - Path=/api/v1/webhooks/**,/api/v1/admin/webhooks/**
+            - id: ai-assistant-service
+              uri: ${AI_ASSISTANT_SERVICE_URL:http://localhost:8095}
+              predicates:
+                - Path=/api/v1/assistant/**,/mcp/**
+
+swiftdrop:
+  gateway:
+    # Everything else requires a valid Keycloak access token.
+    public-paths:
+      - /actuator/health/**
+      - /actuator/info
+      - /actuator/prometheus
+      - /api/v1/tracking/public/**   # public tracking page (PII-masked)
+      - /api/v1/pricing/quotes       # fee estimate before signing up
+      - /api/v1/pricing/zones
+      - /api/v1/assistant/**         # assistant serves anonymous users with public tools only
+      - /mcp/**                      # MCP server authenticates its own clients
+      - /ws/tracking/**              # Socket.IO authenticates in its handshake
+
+server:
+  port: ${PORT:8080}
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,gateway
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      service: ${spring.application.name}
