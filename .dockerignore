@@ -1,0 +1,16 @@
+# Keep Docker build contexts small (context = repo root for every image)
+.git
+**/node_modules
+**/target
+**/.next
+**/dist
+**/coverage
+**/.venv
+**/__pycache__
+**/.pytest_cache
+.env
+.env.*
+!.env.example
+doc
+tests
+infra/helm

@@ -1,0 +1,25 @@
+{
+  "name": "swiftdrop",
+  "private": true,
+  "description": "SwiftDrop — parcel delivery & courier management platform (monorepo)",
+  "packageManager": "pnpm@10.23.0",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "env:init": "node scripts/init-env.mjs",
+    "infra:up": "docker compose --profile infra up -d",
+    "obs:up": "docker compose --profile infra --profile observability up -d",
+    "stack:up": "docker compose --profile infra --profile observability --profile apps up -d --build",
+    "stack:down": "docker compose --profile infra --profile observability --profile apps down",
+    "stack:ps": "docker compose --profile infra --profile observability --profile apps ps",
+    "keycloak:reimport": "node scripts/keycloak-reimport.mjs",
+    "new-service": "node scripts/new-service.mjs",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "java:verify": "mvn -B verify",
+    "ai:test": "cd services/ai-assistant-service && uv run pytest",
+    "web:dev": "pnpm --filter @swiftdrop/web dev"
+  }
+}

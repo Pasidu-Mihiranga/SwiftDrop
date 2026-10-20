@@ -1,0 +1,13 @@
+# Node/TypeScript packages in the monorepo (Java and Python services are ignored: no package.json).
+packages:
+  - apps/*
+  - services/*
+  - libs/node/*
+  - tools/merchant-simulator
+
+# Packages allowed to run install scripts (pnpm blocks them by default).
+onlyBuiltDependencies:
+  - "@nestjs/core"
+  - "@tailwindcss/oxide"
+  - sharp
+  - unrs-resolver
