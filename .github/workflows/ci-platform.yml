@@ -1,0 +1,29 @@
+name: CI · Platform config
+
+on:
+  push:
+    branches: [main]
+    paths: ["docker-compose.yml", ".env.example", "infra/**", "contracts/**", ".github/workflows/ci-platform.yml"]
+  pull_request:
+    paths: ["docker-compose.yml", ".env.example", "infra/**", "contracts/**", ".github/workflows/ci-platform.yml"]
+
+jobs:
+  validate:
+    name: compose · realm · contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: docker compose config (all profiles)
+        run: |
+          cp .env.example .env
+          docker compose --profile infra --profile observability --profile apps config --quiet
+      - name: Keycloak realm is valid JSON
+        run: python3 -m json.tool infra/keycloak/realm-swiftdrop.json > /dev/null
+      - name: Event schemas and examples are valid JSON
+        run: for f in contracts/events/*.json contracts/events/examples/*.json; do python3 -m json.tool "$f" > /dev/null || exit 1; done
+      - name: OpenAPI drafts parse
+        run: |
+          pip install --quiet pyyaml
+          python3 -c "import glob,yaml; [yaml.safe_load(open(f)) for f in glob.glob('contracts/openapi/*.yaml')]"
+      - name: Shell scripts are valid
+        run: bash -n infra/kafka/create-topics.sh && bash -n infra/postgres/init/01-create-databases.sh

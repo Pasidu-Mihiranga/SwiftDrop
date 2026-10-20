@@ -1,0 +1,48 @@
+# Each feature owner reviews changes to their area (see doc/03-team-contribution.md).
+# Replace the @m1 … @m10 placeholders with the members' GitHub usernames.
+
+# Platform & shared code: any two owners of dependent services
+/pom.xml                              @m3 @m1
+/libs/java/                           @m3 @m1
+/libs/node/                           @m6 @m8
+/libs/python/                         @m10
+/contracts/events/                    @m3 @m5 @m6
+/contracts/openapi/                   @m7
+/docker-compose.yml                   @m1 @m9
+/infra/keycloak/                      @m1
+/infra/kafka/                         @m5
+/infra/observability/                 @m9
+/infra/helm/                          @m2
+/.github/                             @m1 @m10
+
+# M1 Identity & Access
+/services/api-gateway/                @m1
+/services/user-service/               @m1
+/apps/web/src/auth.ts                 @m1
+/apps/web/src/proxy.ts                @m1
+
+# M2 Pricing & Zones
+/services/pricing-service/            @m2
+
+# M3 Customer booking + M4 courier status (shared service)
+/services/parcel-service/             @m3 @m4
+
+# M5 Dispatch
+/services/dispatch-service/           @m5
+
+# M6 Real-time tracking
+/services/tracking-service/           @m6
+
+# M7 Merchant onboarding & API
+/services/merchant-service/           @m7
+
+# M8 Webhooks
+/services/webhook-service/            @m8
+/tools/merchant-simulator/            @m8
+
+# M9 Notifications
+/services/notification-service/       @m9
+
+# M10 Reporting & AI
+/services/reporting-service/          @m10
+/services/ai-assistant-service/       @m10
