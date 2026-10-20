@@ -1,0 +1,28 @@
+[project]
+name = "swiftdrop-common"
+version = "0.1.0"
+description = "Shared building blocks for SwiftDrop Python services: PII-masking JSON logs, Keycloak JWT verification, FastAPI problem+json and correlation ids."
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "pyjwt[crypto]>=2.10",
+    "prometheus-client>=0.21",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "httpx>=0.28",
+]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/swiftdrop_common"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=swiftdrop_common --cov-report=term-missing --cov-report=xml --cov-fail-under=70"
