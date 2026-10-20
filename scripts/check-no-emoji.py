@@ -14,17 +14,18 @@ import re
 import subprocess
 import sys
 
-# Emoji and pictograph blocks, dingbats/symbols used as emoji, flags, variation selector 16 and ZWJ.
-EMOJI = re.compile(
-    "["
-    "\U0001F000-\U0001FAFF"  # pictographs, emoticons, transport, symbols & pictographs extended
-    "\U0001F1E6-\U0001F1FF"  # regional indicators (flags)
-    "☀-➿"          # misc symbols + dingbats (check marks, crosses, stars, ...)
-    "⬀-⯿"          # misc symbols and arrows used as emoji (stars, circles)
-    "⌚⌛⏩-⏺"  # watch, hourglass, media buttons
-    "️‍"           # emoji presentation selector, zero-width joiner
-    "]"
-)
+# Built from code points so this file itself stays plain ASCII.
+_RANGES = [
+    (0x1F000, 0x1FAFF),  # pictographs, emoticons, transport, symbols and pictographs extended
+    (0x1F1E6, 0x1F1FF),  # regional indicators (flags)
+    (0x2600, 0x27BF),    # misc symbols + dingbats (check marks, crosses, stars, ...)
+    (0x2B00, 0x2BFF),    # misc symbols and arrows used as emoji (stars, circles)
+    (0x231A, 0x231B),    # watch, hourglass
+    (0x23E9, 0x23FA),    # media buttons
+    (0xFE0F, 0xFE0F),    # emoji presentation selector
+    (0x200D, 0x200D),    # zero-width joiner
+]
+EMOJI = re.compile("[" + "".join(f"{chr(a)}-{chr(b)}" for a, b in _RANGES) + "]")
 
 BINARY_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".jar", ".woff", ".woff2", ".ttf")
 
@@ -43,6 +44,8 @@ def tracked_files() -> list[str]:
 
 
 def main() -> int:
+    # Report offending characters even on consoles that are not UTF-8 (e.g. Windows cp1252).
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--text", action="append", default=[], help="text to check (repeatable)")
     parser.add_argument("--stdin", action="store_true", help="check text read from standard input")
