@@ -263,7 +263,7 @@ services:
       kafka: { condition: service_healthy }
 
   grafana:
-    image: grafana/grafana:12.4.13
+    image: grafana/grafana:13.2.4
     profiles: ["observability"]
     restart: unless-stopped
     environment:
