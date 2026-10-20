@@ -1,0 +1,30 @@
+{
+  "eventId": "6f1c7a52-3d0b-4c43-9a8e-0f6a2c1d9b10",
+  "eventType": "ParcelCreated",
+  "eventVersion": 1,
+  "occurredAt": "2026-10-20T08:15:30Z",
+  "correlationId": "c0ffee00-1234-4abc-8def-001122334455",
+  "producer": "parcel-service",
+  "data": {
+    "parcelId": "0b6f4a9e-7c1d-4e2f-9a3b-5c6d7e8f9a0b",
+    "trackingNumber": "SD261020K7Q2M9X",
+    "source": "MERCHANT",
+    "customerId": null,
+    "merchantId": "00000000-0000-4000-8000-000000000001",
+    "merchantOrderRef": "ORD-10045",
+    "pickup": { "city": "Colombo 03", "district": "Colombo", "zoneCode": "WP-COL" },
+    "dropoff": { "city": "Kandy", "district": "Kandy", "zoneCode": "CP-KDY" },
+    "sizeClass": "S",
+    "weightKg": 2.0,
+    "serviceLevel": "STANDARD",
+    "fee": { "amount": 650.00, "currency": "LKR" },
+    "contacts": {
+      "senderName": "Lanka Books (Pvt) Ltd",
+      "senderEmail": "orders@lankabooks.lk",
+      "senderPhone": null,
+      "recipientName": "Kamal Perera",
+      "recipientPhone": "+94771234567"
+    },
+    "createdAt": "2026-10-20T08:15:29Z"
+  }
+}

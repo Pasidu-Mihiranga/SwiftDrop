@@ -1,0 +1,194 @@
+openapi: 3.1.0
+info:
+  title: SwiftDrop parcel-service API
+  version: 1.0.0-draft
+  description: Parcel booking, status lifecycle, proof of delivery, receipts and the merchant order API. Owners — M3 (booking), M4 (status/courier), M7 (merchant orders), M9 (receipts).
+servers: [{ url: http://localhost:8080 }]
+security: [{ bearerAuth: [] }]
+paths:
+  /api/v1/parcels:
+    post:
+      summary: Create a delivery (customer) from a confirmed quote
+      tags: [Customer]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateParcelRequest" }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Parcel" } } } }
+        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+        "422": { $ref: "common.v1.yaml#/components/responses/UnprocessableContent" }
+  /api/v1/parcels/mine:
+    get:
+      summary: The caller's parcels (history)
+      tags: [Customer]
+      parameters:
+        - $ref: "common.v1.yaml#/components/parameters/Page"
+        - $ref: "common.v1.yaml#/components/parameters/Size"
+        - { name: status, in: query, schema: { $ref: "common.v1.yaml#/components/schemas/ParcelStatus" } }
+      responses:
+        "200": { description: Page of parcels, content: { application/json: { schema: { $ref: "#/components/schemas/ParcelPage" } } } }
+  /api/v1/parcels/{parcelId}:
+    get:
+      summary: Parcel details (owner, assigned courier, merchant or staff)
+      parameters: [{ $ref: "#/components/parameters/ParcelId" }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Parcel" } } } }
+        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
+  /api/v1/parcels/{parcelId}/cancel:
+    post:
+      summary: Cancel a parcel that has not been picked up
+      parameters: [{ $ref: "#/components/parameters/ParcelId" }]
+      responses:
+        "200": { description: Cancelled, content: { application/json: { schema: { $ref: "#/components/schemas/Parcel" } } } }
+        "422": { $ref: "common.v1.yaml#/components/responses/UnprocessableContent" }
+  /api/v1/parcels/{parcelId}/receipt:
+    get:
+      summary: Delivery receipt (PDF)
+      parameters: [{ $ref: "#/components/parameters/ParcelId" }]
+      responses:
+        "200": { description: PDF, content: { application/pdf: { schema: { type: string, format: binary } } } }
+  /api/v1/courier/parcels/{parcelId}/status:
+    patch:
+      summary: Courier moves an assigned parcel to its next status
+      tags: [Courier]
+      parameters: [{ $ref: "#/components/parameters/ParcelId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StatusUpdateRequest" }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/Parcel" } } } }
+        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
+        "422": { description: Invalid transition (e.g. CREATED → DELIVERED) or missing proof/reason }
+  /api/v1/courier/parcels/{parcelId}/proof-upload-url:
+    post:
+      summary: Pre-signed URL to upload a proof-of-delivery photo (JPEG/PNG, ≤5 MB)
+      tags: [Courier]
+      parameters: [{ $ref: "#/components/parameters/ParcelId" }]
+      responses:
+        "200":
+          description: Upload instructions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  proofId: { type: string }
+                  uploadUrl: { type: string, format: uri }
+                  expiresAt: { type: string, format: date-time }
+  /api/v1/merchant/orders:
+    post:
+      summary: Merchant system creates a delivery order (OAuth2 client credentials)
+      tags: [Merchant API]
+      security: [{ keycloak: [] }]
+      parameters: [{ $ref: "common.v1.yaml#/components/parameters/IdempotencyKey" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MerchantOrderRequest" }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Parcel" } } } }
+        "200": { description: Replay of an earlier request with the same Idempotency-Key }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+    get:
+      summary: The merchant's orders (portal and API)
+      tags: [Merchant API]
+      parameters:
+        - $ref: "common.v1.yaml#/components/parameters/Page"
+        - $ref: "common.v1.yaml#/components/parameters/Size"
+        - { name: status, in: query, schema: { $ref: "common.v1.yaml#/components/schemas/ParcelStatus" } }
+      responses:
+        "200": { description: Page of orders, content: { application/json: { schema: { $ref: "#/components/schemas/ParcelPage" } } } }
+  /api/v1/parcels/meta/whoami:
+    get:
+      summary: Smoke test (gateway → service → JWT)
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "common.v1.yaml#/components/schemas/WhoAmI" } } } }
+components:
+  securitySchemes:
+    bearerAuth: { $ref: "common.v1.yaml#/components/securitySchemes/bearerAuth" }
+    keycloak: { $ref: "common.v1.yaml#/components/securitySchemes/keycloak" }
+  parameters:
+    ParcelId:
+      name: parcelId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  schemas:
+    Contact:
+      type: object
+      required: [name, phone]
+      properties:
+        name: { type: string, maxLength: 100 }
+        phone: { type: string, pattern: "^(\\+94|0)7[0-9]{8}$" }
+        email: { type: string, format: email }
+    CreateParcelRequest:
+      type: object
+      required: [quoteId, pickup, dropoff, recipient]
+      properties:
+        quoteId: { type: string, description: From POST /api/v1/pricing/quotes (valid 15 min) }
+        pickup: { $ref: "common.v1.yaml#/components/schemas/Address" }
+        dropoff: { $ref: "common.v1.yaml#/components/schemas/Address" }
+        recipient: { $ref: "#/components/schemas/Contact" }
+        notes: { type: string, maxLength: 300 }
+    MerchantOrderRequest:
+      type: object
+      required: [merchantOrderRef, pickup, dropoff, recipient, weightKg, sizeClass]
+      properties:
+        merchantOrderRef: { type: string, maxLength: 100 }
+        pickup: { $ref: "common.v1.yaml#/components/schemas/Address" }
+        dropoff: { $ref: "common.v1.yaml#/components/schemas/Address" }
+        recipient: { $ref: "#/components/schemas/Contact" }
+        weightKg: { type: number, exclusiveMinimum: 0, maximum: 100 }
+        sizeClass: { $ref: "common.v1.yaml#/components/schemas/SizeClass" }
+        serviceLevel: { type: string, enum: [STANDARD, EXPRESS], default: STANDARD }
+        codAmount: { type: number, minimum: 0 }
+    StatusUpdateRequest:
+      type: object
+      required: [toStatus]
+      properties:
+        toStatus: { $ref: "common.v1.yaml#/components/schemas/ParcelStatus" }
+        note: { type: string, maxLength: 500 }
+        failureReason: { type: string, enum: [RECIPIENT_UNAVAILABLE, WRONG_ADDRESS, REFUSED, DAMAGED, OTHER] }
+        proof:
+          type: object
+          properties:
+            type: { type: string, enum: [NAME, PHOTO, SIGNATURE] }
+            receivedBy: { type: string, maxLength: 100 }
+            proofId: { type: string }
+        location: { type: object, properties: { lat: { type: number }, lng: { type: number } } }
+    StatusHistoryEntry:
+      type: object
+      properties:
+        fromStatus: { $ref: "common.v1.yaml#/components/schemas/ParcelStatus" }
+        toStatus: { $ref: "common.v1.yaml#/components/schemas/ParcelStatus" }
+        note: { type: string }
+        failureReason: { type: string }
+        actorRole: { type: string }
+        occurredAt: { type: string, format: date-time }
+    Parcel:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        trackingNumber: { type: string, example: SD261020K7Q2M9X }
+        status: { $ref: "common.v1.yaml#/components/schemas/ParcelStatus" }
+        source: { type: string, enum: [CUSTOMER, MERCHANT] }
+        merchantOrderRef: { type: string }
+        pickup: { $ref: "common.v1.yaml#/components/schemas/Address" }
+        dropoff: { $ref: "common.v1.yaml#/components/schemas/Address" }
+        recipient: { $ref: "#/components/schemas/Contact" }
+        weightKg: { type: number }
+        sizeClass: { $ref: "common.v1.yaml#/components/schemas/SizeClass" }
+        fee: { $ref: "common.v1.yaml#/components/schemas/Money" }
+        courierId: { type: [string, "null"] }
+        history: { type: array, items: { $ref: "#/components/schemas/StatusHistoryEntry" } }
+        createdAt: { type: string, format: date-time }
+    ParcelPage:
+      type: object
+      properties:
+        content: { type: array, items: { $ref: "#/components/schemas/Parcel" } }
+        page: { $ref: "common.v1.yaml#/components/schemas/PageMeta" }

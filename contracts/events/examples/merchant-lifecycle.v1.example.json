@@ -1,0 +1,19 @@
+{
+  "eventId": "3e4f5a6b-7c8d-4e9f-a0b1-c2d3e4f5a6b7",
+  "eventType": "MerchantLifecycleChanged",
+  "eventVersion": 1,
+  "occurredAt": "2026-10-19T11:30:00Z",
+  "correlationId": "0a1b2c3d-4e5f-4a6b-8c7d-8e9f0a1b2c3d",
+  "producer": "merchant-service",
+  "data": {
+    "merchantId": "00000000-0000-4000-8000-000000000001",
+    "businessName": "Lanka Books (Pvt) Ltd",
+    "ownerUserId": "5f6e7d8c-0000-4000-8000-00000000a001",
+    "contactEmail": "orders@lankabooks.lk",
+    "previousStatus": "PENDING",
+    "status": "APPROVED",
+    "reason": null,
+    "changedBy": { "userId": "ad111111-0000-4000-8000-000000000ad1", "role": "ADMIN" },
+    "changedAt": "2026-10-19T11:29:59Z"
+  }
+}

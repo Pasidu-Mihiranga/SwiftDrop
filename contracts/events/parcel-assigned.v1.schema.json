@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://swiftdrop.lk/contracts/events/parcel-assigned.v1.schema.json",
+  "title": "ParcelAssigned v1",
+  "description": "Topic swiftdrop.dispatch.parcel-assigned.v1 · key = parcelId · producer dispatch-service (outbox). Consumers: parcel (sets courierId), tracking, notification.",
+  "allOf": [{ "$ref": "envelope.schema.json" }],
+  "properties": {
+    "eventType": { "const": "ParcelAssigned" },
+    "eventVersion": { "const": 1 },
+    "producer": { "const": "dispatch-service" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assignmentId", "parcelId", "trackingNumber", "courierId", "runDate", "assignedBy", "assignedAt"],
+      "properties": {
+        "assignmentId": { "$ref": "envelope.schema.json#/$defs/uuid" },
+        "parcelId": { "$ref": "envelope.schema.json#/$defs/uuid" },
+        "trackingNumber": { "$ref": "envelope.schema.json#/$defs/trackingNumber" },
+        "courierId": { "type": "string", "minLength": 1 },
+        "previousCourierId": { "type": ["string", "null"], "description": "Set when this is a re-assignment." },
+        "runDate": { "type": "string", "format": "date" },
+        "assignedBy": { "$ref": "envelope.schema.json#/$defs/actor" },
+        "assignedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

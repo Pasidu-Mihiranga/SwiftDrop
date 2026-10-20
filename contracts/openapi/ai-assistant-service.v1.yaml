@@ -1,0 +1,32 @@
+openapi: 3.1.0
+info:
+  title: SwiftDrop ai-assistant-service API
+  version: 1.0.0-draft
+  description: |
+    Delivery assistant chat. Anonymous callers may use public tools (tracking, quotes); signed-in callers' tokens are forwarded
+    so the assistant only sees what the user may see. MCP (streamable HTTP) is served at /mcp. Owner — M10.
+servers: [{ url: http://localhost:8080 }]
+paths:
+  /api/v1/assistant/chat:
+    post:
+      summary: Ask the assistant (Server-Sent Events stream)
+      security: [{}, { bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message: { type: string, maxLength: 2000, example: "How much to send 2 kg to Kandy?" }
+                conversationId: { type: string }
+      responses:
+        "200":
+          description: "SSE stream: `event: token` (text chunks), `event: tool` (tool call summary), `event: done`"
+          content: { text/event-stream: { schema: { type: string } } }
+  /api/v1/assistant/meta/provider:
+    get: { summary: Configured LLM provider and model, security: [], responses: { "200": { description: OK } } }
+components:
+  securitySchemes:
+    bearerAuth: { $ref: "common.v1.yaml#/components/securitySchemes/bearerAuth" }

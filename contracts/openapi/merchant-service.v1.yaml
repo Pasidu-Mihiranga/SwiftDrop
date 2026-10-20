@@ -1,0 +1,63 @@
+openapi: 3.1.0
+info:
+  title: SwiftDrop merchant-service API
+  version: 1.0.0-draft
+  description: Merchant registration, admin approval and API credentials (Keycloak client credentials). Owner — M7.
+servers: [{ url: http://localhost:8080 }]
+security: [{ bearerAuth: [] }]
+paths:
+  /api/v1/merchants/register:
+    post:
+      summary: Apply to become a merchant (any signed-in user)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [businessName, brNumber, contactEmail, contactPhone, pickupAddress]
+              properties:
+                businessName: { type: string, maxLength: 150 }
+                brNumber: { type: string, description: Business registration number, maxLength: 30 }
+                contactEmail: { type: string, format: email }
+                contactPhone: { type: string }
+                website: { type: string, format: uri }
+                pickupAddress: { $ref: "common.v1.yaml#/components/schemas/Address" }
+      responses:
+        "201": { description: Application created (status PENDING) }
+        "409": { $ref: "common.v1.yaml#/components/responses/Conflict" }
+  /api/v1/merchants/me:
+    get: { summary: The caller's merchant profile and status, responses: { "200": { description: OK }, "404": { $ref: "common.v1.yaml#/components/responses/NotFound" } } }
+  /api/v1/merchants/me/credentials/rotate:
+    post:
+      summary: Issue a new client secret (shown once)
+      responses:
+        "200":
+          description: New credentials
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  clientId: { type: string }
+                  clientSecret: { type: string }
+                  tokenUrl: { type: string, format: uri }
+  /api/v1/admin/merchants:
+    get:
+      summary: Merchant applications (ADMIN)
+      parameters: [{ name: status, in: query, schema: { type: string, enum: [PENDING, APPROVED, REJECTED, SUSPENDED] } }]
+      responses: { "200": { description: OK } }
+  /api/v1/admin/merchants/{merchantId}/approve:
+    post:
+      summary: Approve — grants MERCHANT role and provisions an API client (publishes MerchantLifecycleChanged)
+      parameters: [{ name: merchantId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { "200": { description: Approved }, "422": { $ref: "common.v1.yaml#/components/responses/UnprocessableContent" } }
+  /api/v1/admin/merchants/{merchantId}/reject:
+    post:
+      summary: Reject with a reason
+      parameters: [{ name: merchantId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, maxLength: 500 } } } } } }
+      responses: { "200": { description: Rejected } }
+components:
+  securitySchemes:
+    bearerAuth: { $ref: "common.v1.yaml#/components/securitySchemes/bearerAuth" }

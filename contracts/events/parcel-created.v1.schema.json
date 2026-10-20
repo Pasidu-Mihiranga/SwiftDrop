@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://swiftdrop.lk/contracts/events/parcel-created.v1.schema.json",
+  "title": "ParcelCreated v1",
+  "description": "Topic swiftdrop.parcel.created.v1 · key = parcelId · producer parcel-service (outbox). Consumers: dispatch, tracking, notification, webhook, reporting.",
+  "allOf": [{ "$ref": "envelope.schema.json" }],
+  "properties": {
+    "eventType": { "const": "ParcelCreated" },
+    "eventVersion": { "const": 1 },
+    "producer": { "const": "parcel-service" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["parcelId", "trackingNumber", "source", "pickup", "dropoff", "sizeClass", "weightKg", "serviceLevel", "fee", "contacts", "createdAt"],
+      "properties": {
+        "parcelId": { "$ref": "envelope.schema.json#/$defs/uuid" },
+        "trackingNumber": { "$ref": "envelope.schema.json#/$defs/trackingNumber" },
+        "source": { "enum": ["CUSTOMER", "MERCHANT"] },
+        "customerId": { "type": ["string", "null"] },
+        "merchantId": { "type": ["string", "null"] },
+        "merchantOrderRef": { "type": ["string", "null"], "maxLength": 100 },
+        "pickup": { "$ref": "envelope.schema.json#/$defs/location" },
+        "dropoff": { "$ref": "envelope.schema.json#/$defs/location" },
+        "sizeClass": { "enum": ["S", "M", "L", "XL"] },
+        "weightKg": { "type": "number", "exclusiveMinimum": 0, "maximum": 100 },
+        "serviceLevel": { "enum": ["STANDARD", "EXPRESS"] },
+        "fee": { "$ref": "envelope.schema.json#/$defs/money" },
+        "contacts": {
+          "description": "Minimum contact data the notification-service needs. Masked in every log; stripped from merchant webhooks.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["recipientName", "recipientPhone"],
+          "properties": {
+            "senderName": { "type": ["string", "null"] },
+            "senderEmail": { "type": ["string", "null"], "format": "email" },
+            "senderPhone": { "type": ["string", "null"] },
+            "recipientName": { "type": "string", "minLength": 1 },
+            "recipientPhone": { "type": "string", "minLength": 9 }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

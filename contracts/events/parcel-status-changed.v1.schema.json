@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://swiftdrop.lk/contracts/events/parcel-status-changed.v1.schema.json",
+  "title": "ParcelStatusChanged v1",
+  "description": "Topic swiftdrop.parcel.status-changed.v1 · key = parcelId (per-parcel ordering) · producer parcel-service (outbox). Consumers: tracking, notification, webhook, dispatch, reporting.",
+  "allOf": [{ "$ref": "envelope.schema.json" }],
+  "properties": {
+    "eventType": { "const": "ParcelStatusChanged" },
+    "eventVersion": { "const": 1 },
+    "producer": { "const": "parcel-service" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["parcelId", "trackingNumber", "toStatus", "changedBy", "changedAt"],
+      "properties": {
+        "parcelId": { "$ref": "envelope.schema.json#/$defs/uuid" },
+        "trackingNumber": { "$ref": "envelope.schema.json#/$defs/trackingNumber" },
+        "customerId": { "type": ["string", "null"] },
+        "merchantId": { "type": ["string", "null"] },
+        "courierId": { "type": ["string", "null"] },
+        "fromStatus": {
+          "oneOf": [{ "$ref": "envelope.schema.json#/$defs/parcelStatus" }, { "type": "null" }]
+        },
+        "toStatus": { "$ref": "envelope.schema.json#/$defs/parcelStatus" },
+        "note": { "type": ["string", "null"], "maxLength": 500 },
+        "failureReason": {
+          "oneOf": [{ "$ref": "envelope.schema.json#/$defs/failureReason" }, { "type": "null" }]
+        },
+        "proof": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["type"],
+              "properties": {
+                "type": { "enum": ["NAME", "PHOTO", "SIGNATURE"] },
+                "receivedBy": { "type": ["string", "null"] },
+                "proofId": { "type": ["string", "null"] }
+              }
+            }
+          ]
+        },
+        "location": {
+          "oneOf": [{ "$ref": "envelope.schema.json#/$defs/location" }, { "type": "null" }]
+        },
+        "changedBy": { "$ref": "envelope.schema.json#/$defs/actor" },
+        "changedAt": { "type": "string", "format": "date-time" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "toStatus": { "const": "FAILED" } } },
+          "then": { "required": ["failureReason"], "properties": { "failureReason": { "$ref": "envelope.schema.json#/$defs/failureReason" } } }
+        },
+        {
+          "if": { "properties": { "toStatus": { "const": "DELIVERED" } } },
+          "then": { "required": ["proof"], "properties": { "proof": { "type": "object" } } }
+        }
+      ]
+    }
+  }
+}

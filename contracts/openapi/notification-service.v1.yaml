@@ -1,0 +1,34 @@
+openapi: 3.1.0
+info:
+  title: SwiftDrop notification-service API
+  version: 1.0.0-draft
+  description: In-app notifications, preferences and the demo SMS inbox. Email/SMS are triggered by Kafka events, not by HTTP. Owner — M9.
+servers: [{ url: http://localhost:8080 }]
+security: [{ bearerAuth: [] }]
+paths:
+  /api/v1/notifications/me:
+    get:
+      summary: The caller's notifications (newest first)
+      parameters: [{ $ref: "common.v1.yaml#/components/parameters/Page" }, { $ref: "common.v1.yaml#/components/parameters/Size" }]
+      responses: { "200": { description: OK } }
+  /api/v1/notifications/me/{notificationId}/read:
+    post: { summary: Mark as read, parameters: [{ name: notificationId, in: path, required: true, schema: { type: string } }], responses: { "204": { description: Done } } }
+  /api/v1/notifications/preferences:
+    get: { summary: Channel preferences, responses: { "200": { description: OK } } }
+    put:
+      summary: Update channel preferences
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: boolean }
+                sms: { type: boolean }
+                events: { type: array, items: { $ref: "common.v1.yaml#/components/schemas/ParcelStatus" } }
+      responses: { "200": { description: Saved } }
+  /api/v1/admin/notifications/sms-inbox:
+    get: { summary: "Mock SMS messages sent (ADMIN, demo)", responses: { "200": { description: OK } } }
+components:
+  securitySchemes:
+    bearerAuth: { $ref: "common.v1.yaml#/components/securitySchemes/bearerAuth" }

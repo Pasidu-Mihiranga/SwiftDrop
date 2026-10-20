@@ -1,0 +1,119 @@
+openapi: 3.1.0
+info:
+  title: SwiftDrop shared API components
+  version: 1.0.0
+  description: |
+    Components referenced by every service contract. Conventions:
+    - URI versioning: /api/v1/...
+    - Auth: Keycloak access token (Bearer JWT, audience "swiftdrop-api"); merchants' systems use OAuth2 client credentials.
+    - Errors: RFC 9457 application/problem+json with `code`, `traceId`, `timestamp` (and `errors` for validation).
+    - Every response carries X-Correlation-Id. Lists use `page`/`size` query params and the Page envelope.
+    - Money is LKR with two decimals. Timestamps are ISO-8601 UTC.
+paths: {}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    keycloak:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: http://localhost:8180/realms/swiftdrop/protocol/openid-connect/auth
+          tokenUrl: http://localhost:8180/realms/swiftdrop/protocol/openid-connect/token
+          scopes: { openid: OpenID Connect }
+        clientCredentials:
+          tokenUrl: http://localhost:8180/realms/swiftdrop/protocol/openid-connect/token
+          scopes: {}
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 0, default: 0 }
+    Size:
+      name: size
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Client-generated unique key; repeating a request with the same key returns the original result.
+      schema: { type: string, minLength: 8, maxLength: 100 }
+  schemas:
+    ProblemDetail:
+      type: object
+      required: [type, title, status, code]
+      properties:
+        type: { type: string, format: uri, example: https://api.swiftdrop.lk/problems/parcel-not-found }
+        title: { type: string, example: Not Found }
+        status: { type: integer, example: 404 }
+        detail: { type: string, example: Parcel 0b6f4a9e-... was not found }
+        instance: { type: string, example: /api/v1/parcels/0b6f4a9e-... }
+        code: { type: string, example: PARCEL_NOT_FOUND }
+        traceId: { type: string }
+        timestamp: { type: string, format: date-time }
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field: { type: string, example: dropoff.city }
+              message: { type: string, example: must not be blank }
+    PageMeta:
+      type: object
+      properties:
+        page: { type: integer }
+        size: { type: integer }
+        totalElements: { type: integer }
+        totalPages: { type: integer }
+    Money:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount: { type: number, example: 650.0 }
+        currency: { type: string, example: LKR }
+    Address:
+      type: object
+      required: [line1, city, district]
+      properties:
+        line1: { type: string, maxLength: 120 }
+        line2: { type: string, maxLength: 120 }
+        city: { type: string, maxLength: 60, example: Kandy }
+        district: { type: string, maxLength: 40, example: Kandy }
+        postalCode: { type: string, pattern: "^[0-9]{5}$" }
+        lat: { type: number }
+        lng: { type: number }
+    ParcelStatus:
+      type: string
+      enum: [CREATED, PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED, FAILED, CANCELLED]
+    SizeClass:
+      type: string
+      enum: [S, M, L, XL]
+    WhoAmI:
+      type: object
+      properties:
+        service: { type: string }
+        userId: { type: string }
+        roles: { type: array, items: { type: string } }
+        merchantId: { type: [string, "null"] }
+  responses:
+    BadRequest:
+      description: Invalid input
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/ProblemDetail" } } }
+    Unauthorized:
+      description: Missing or invalid token
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/ProblemDetail" } } }
+    Forbidden:
+      description: Authenticated but not allowed
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/ProblemDetail" } } }
+    NotFound:
+      description: Not found (also returned for resources the caller does not own)
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/ProblemDetail" } } }
+    Conflict:
+      description: Conflicts with current state
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/ProblemDetail" } } }
+    UnprocessableContent:
+      description: Breaks a business rule
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/ProblemDetail" } } }

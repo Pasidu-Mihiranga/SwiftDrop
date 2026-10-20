@@ -1,0 +1,23 @@
+{
+  "eventId": "9a2e5b1c-8d3f-4e6a-b7c8-d9e0f1a2b3c4",
+  "eventType": "ParcelStatusChanged",
+  "eventVersion": 1,
+  "occurredAt": "2026-10-20T14:02:11Z",
+  "correlationId": "5e4d3c2b-1a09-4f8e-9d7c-6b5a49382716",
+  "producer": "parcel-service",
+  "data": {
+    "parcelId": "0b6f4a9e-7c1d-4e2f-9a3b-5c6d7e8f9a0b",
+    "trackingNumber": "SD261020K7Q2M9X",
+    "customerId": null,
+    "merchantId": "00000000-0000-4000-8000-000000000001",
+    "courierId": "a1b2c3d4-0000-4000-8000-00000000c001",
+    "fromStatus": "OUT_FOR_DELIVERY",
+    "toStatus": "DELIVERED",
+    "note": "Handed over at the front gate",
+    "failureReason": null,
+    "proof": { "type": "PHOTO", "receivedBy": "K. Perera", "proofId": "proofs/0b6f4a9e/3f9c.jpg" },
+    "location": { "city": "Kandy", "district": "Kandy", "zoneCode": "CP-KDY" },
+    "changedBy": { "userId": "a1b2c3d4-0000-4000-8000-00000000c001", "role": "COURIER" },
+    "changedAt": "2026-10-20T14:02:10Z"
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://swiftdrop.lk/contracts/events/envelope.schema.json",
+  "title": "SwiftDrop event envelope",
+  "description": "Every Kafka message value is an envelope. Consumers de-duplicate on eventId (at-least-once delivery) and propagate correlationId into logs and follow-up events.",
+  "type": "object",
+  "required": ["eventId", "eventType", "eventVersion", "occurredAt", "producer", "data"],
+  "properties": {
+    "eventId": { "type": "string", "format": "uuid" },
+    "eventType": { "type": "string", "pattern": "^[A-Z][A-Za-z]+$" },
+    "eventVersion": { "type": "integer", "minimum": 1 },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "correlationId": { "type": ["string", "null"] },
+    "producer": { "type": "string", "pattern": "^[a-z-]+$" },
+    "data": { "type": "object" }
+  },
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "trackingNumber": { "type": "string", "pattern": "^SD[0-9A-Z]{8,20}$" },
+    "parcelStatus": {
+      "enum": ["CREATED", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED", "CANCELLED"]
+    },
+    "failureReason": {
+      "enum": ["RECIPIENT_UNAVAILABLE", "WRONG_ADDRESS", "REFUSED", "DAMAGED", "OTHER"]
+    },
+    "location": {
+      "description": "Coarse location only — full street addresses never travel on Kafka.",
+      "type": "object",
+      "required": ["city", "district"],
+      "additionalProperties": false,
+      "properties": {
+        "city": { "type": "string", "minLength": 1 },
+        "district": { "type": "string", "minLength": 1 },
+        "zoneCode": { "type": ["string", "null"] }
+      }
+    },
+    "money": {
+      "type": "object",
+      "required": ["amount", "currency"],
+      "additionalProperties": false,
+      "properties": {
+        "amount": { "type": "number", "minimum": 0 },
+        "currency": { "type": "string", "pattern": "^[A-Z]{3}$" }
+      }
+    },
+    "actor": {
+      "type": "object",
+      "required": ["userId", "role"],
+      "additionalProperties": false,
+      "properties": {
+        "userId": { "type": "string" },
+        "role": { "enum": ["CUSTOMER", "MERCHANT", "MERCHANT_API", "COURIER", "DISPATCHER", "ADMIN", "SYSTEM"] }
+      }
+    }
+  }
+}

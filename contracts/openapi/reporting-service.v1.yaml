@@ -1,0 +1,38 @@
+openapi: 3.1.0
+info:
+  title: SwiftDrop reporting-service API
+  version: 1.0.0-draft
+  description: Event-driven delivery statistics (DISPATCHER/ADMIN). Owner — M10.
+servers: [{ url: http://localhost:8080 }]
+security: [{ bearerAuth: [] }]
+paths:
+  /api/v1/reports/daily:
+    get:
+      summary: Created / delivered / failed / cancelled per day (optionally per zone)
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+        - { name: zone, in: query, schema: { type: string } }
+      responses: { "200": { description: Series } }
+  /api/v1/reports/success-rate:
+    get:
+      summary: Delivery success vs failure rate for a period
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: Rates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  delivered: { type: integer }
+                  failed: { type: integer }
+                  successRate: { type: number, example: 0.94 }
+  /api/v1/reports/couriers:
+    get: { summary: Per-courier delivered/failed counts, responses: { "200": { description: OK } } }
+components:
+  securitySchemes:
+    bearerAuth: { $ref: "common.v1.yaml#/components/securitySchemes/bearerAuth" }

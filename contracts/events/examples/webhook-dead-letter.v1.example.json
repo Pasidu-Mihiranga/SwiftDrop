@@ -1,0 +1,19 @@
+{
+  "eventId": "4f5a6b7c-8d9e-4fa0-b1c2-d3e4f5a6b7c8",
+  "eventType": "WebhookDeliveryDeadLettered",
+  "eventVersion": 1,
+  "occurredAt": "2026-10-20T20:05:00Z",
+  "correlationId": "5e4d3c2b-1a09-4f8e-9d7c-6b5a49382716",
+  "producer": "webhook-service",
+  "data": {
+    "deliveryId": "whd_01J9Z8K3M4N5P6Q7R8S9T0V1W2",
+    "merchantId": "00000000-0000-4000-8000-000000000001",
+    "endpointId": "whe_01J9Z7A1B2C3D4E5F6G7H8J9K0",
+    "sourceEventId": "9a2e5b1c-8d3f-4e6a-b7c8-d9e0f1a2b3c4",
+    "sourceEventType": "ParcelStatusChanged",
+    "attempts": 7,
+    "lastHttpStatus": 503,
+    "lastError": "Merchant endpoint returned 503 Service Unavailable",
+    "deadLetteredAt": "2026-10-20T20:04:59Z"
+  }
+}

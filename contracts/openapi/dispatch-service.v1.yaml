@@ -1,0 +1,67 @@
+openapi: 3.1.0
+info:
+  title: SwiftDrop dispatch-service API
+  version: 1.0.0-draft
+  description: Unassigned pool, courier assignment, run sheets and workloads (DISPATCHER/ADMIN; run sheet for COURIER). Owner — M5.
+servers: [{ url: http://localhost:8080 }]
+security: [{ bearerAuth: [] }]
+paths:
+  /api/v1/dispatch/unassigned:
+    get:
+      summary: Parcels waiting for a courier
+      parameters:
+        - { name: zone, in: query, schema: { type: string } }
+        - $ref: "common.v1.yaml#/components/parameters/Page"
+        - $ref: "common.v1.yaml#/components/parameters/Size"
+      responses:
+        "200": { description: Page of parcel summaries }
+  /api/v1/dispatch/assignments:
+    post:
+      summary: Assign a parcel to a courier (publishes ParcelAssigned)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [parcelId, courierId]
+              properties:
+                parcelId: { type: string, format: uuid }
+                courierId: { type: string }
+                runDate: { type: string, format: date }
+      responses:
+        "201": { description: Assigned }
+        "409": { $ref: "common.v1.yaml#/components/responses/Conflict" }
+  /api/v1/dispatch/assignments/{assignmentId}/reassign:
+    post:
+      summary: Move an assignment to another courier
+      parameters: [{ name: assignmentId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody:
+        content: { application/json: { schema: { type: object, required: [courierId], properties: { courierId: { type: string } } } } }
+      responses: { "200": { description: Reassigned } }
+  /api/v1/dispatch/workloads:
+    get:
+      summary: Active deliveries, delivered and failed today, per courier
+      responses:
+        "200":
+          description: Workloads
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    courierId: { type: string }
+                    courierName: { type: string }
+                    activeCount: { type: integer }
+                    deliveredToday: { type: integer }
+                    failedToday: { type: integer }
+  /api/v1/courier/run-sheet:
+    get:
+      summary: The calling courier's assignments for a day (COURIER, own data only)
+      parameters: [{ name: date, in: query, schema: { type: string, format: date } }]
+      responses: { "200": { description: Run sheet } }
+components:
+  securitySchemes:
+    bearerAuth: { $ref: "common.v1.yaml#/components/securitySchemes/bearerAuth" }

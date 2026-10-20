@@ -1,0 +1,84 @@
+openapi: 3.1.0
+info:
+  title: SwiftDrop pricing-service API
+  version: 1.0.0-draft
+  description: Zones, district→zone mapping, rate cards and fee quotes. Owner — M2.
+servers: [{ url: http://localhost:8080 }]
+security: [{ bearerAuth: [] }]
+paths:
+  /api/v1/pricing/quotes:
+    post:
+      summary: Fee estimate (public). The returned quoteId is valid for 15 minutes.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fromDistrict, toDistrict, weightKg, sizeClass]
+              properties:
+                fromCity: { type: string, example: Colombo 03 }
+                fromDistrict: { type: string, example: Colombo }
+                toCity: { type: string, example: Kandy }
+                toDistrict: { type: string, example: Kandy }
+                weightKg: { type: number, exclusiveMinimum: 0, maximum: 100, example: 2 }
+                sizeClass: { $ref: "common.v1.yaml#/components/schemas/SizeClass" }
+                serviceLevel: { type: string, enum: [STANDARD, EXPRESS], default: STANDARD }
+                codAmount: { type: number, minimum: 0 }
+      responses:
+        "200":
+          description: Quote
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  quoteId: { type: string }
+                  fee: { $ref: "common.v1.yaml#/components/schemas/Money" }
+                  breakdown:
+                    type: array
+                    description: One line per pricing rule applied (base, weight, size, express, COD)
+                    items: { type: object, properties: { rule: { type: string }, amount: { type: number } } }
+                  fromZone: { type: string }
+                  toZone: { type: string }
+                  expiresAt: { type: string, format: date-time }
+        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+  /api/v1/pricing/quotes/{quoteId}:
+    get:
+      summary: Validate a quote (used by parcel-service)
+      parameters: [{ name: quoteId, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200": { description: Quote still valid }
+        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
+  /api/v1/pricing/zones:
+    get:
+      summary: Service zones and their districts (public)
+      security: []
+      responses:
+        "200":
+          description: Zones
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Zone" } }
+  /api/v1/admin/pricing/zones:
+    get: { summary: List zones (admin), responses: { "200": { description: OK } } }
+    post: { summary: Create zone (ADMIN), responses: { "201": { description: Created } } }
+  /api/v1/admin/pricing/zones/{zoneId}:
+    put: { summary: Update zone (ADMIN), parameters: [{ name: zoneId, in: path, required: true, schema: { type: string } }], responses: { "200": { description: OK } } }
+  /api/v1/admin/pricing/rate-cards:
+    get: { summary: List rate cards (ADMIN), responses: { "200": { description: OK } } }
+    post: { summary: Create rate card (ADMIN), responses: { "201": { description: Created } } }
+  /api/v1/admin/pricing/size-classes:
+    get: { summary: Size classes and multipliers (ADMIN), responses: { "200": { description: OK } } }
+components:
+  securitySchemes:
+    bearerAuth: { $ref: "common.v1.yaml#/components/securitySchemes/bearerAuth" }
+  schemas:
+    Zone:
+      type: object
+      properties:
+        code: { type: string, example: CP-KDY }
+        name: { type: string, example: Central — Kandy }
+        districts: { type: array, items: { type: string } }
+        active: { type: boolean }

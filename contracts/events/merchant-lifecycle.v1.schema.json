@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://swiftdrop.lk/contracts/events/merchant-lifecycle.v1.schema.json",
+  "title": "MerchantLifecycleChanged v1",
+  "description": "Topic swiftdrop.merchant.lifecycle.v1 · key = merchantId · producer merchant-service (outbox). Consumers: notification (registration/approval emails), webhook (stop deliveries to suspended merchants), parcel (merchant status cache).",
+  "allOf": [{ "$ref": "envelope.schema.json" }],
+  "properties": {
+    "eventType": { "const": "MerchantLifecycleChanged" },
+    "eventVersion": { "const": 1 },
+    "producer": { "const": "merchant-service" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["merchantId", "businessName", "ownerUserId", "contactEmail", "status", "changedBy", "changedAt"],
+      "properties": {
+        "merchantId": { "$ref": "envelope.schema.json#/$defs/uuid" },
+        "businessName": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "ownerUserId": { "type": "string" },
+        "contactEmail": { "type": "string", "format": "email" },
+        "previousStatus": {
+          "oneOf": [{ "enum": ["PENDING", "APPROVED", "REJECTED", "SUSPENDED"] }, { "type": "null" }]
+        },
+        "status": { "enum": ["PENDING", "APPROVED", "REJECTED", "SUSPENDED"] },
+        "reason": { "type": ["string", "null"], "maxLength": 500 },
+        "changedBy": { "$ref": "envelope.schema.json#/$defs/actor" },
+        "changedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

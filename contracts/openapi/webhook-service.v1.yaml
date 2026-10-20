@@ -1,0 +1,45 @@
+openapi: 3.1.0
+info:
+  title: SwiftDrop webhook-service API
+  version: 1.0.0-draft
+  description: |
+    Merchant webhook subscriptions and delivery logs (MERCHANT, scoped to the token's merchant_id). Owner — M8.
+
+    Outgoing webhook: `POST <endpoint url>` with JSON body
+    `{ "id", "type": "parcel.created|parcel.status_changed", "createdAt", "data": { trackingNumber, merchantOrderRef, status, ... } }`
+    and header `X-SwiftDrop-Signature: t=<unix seconds>,v1=<hex HMAC-SHA256(secret, "<t>.<raw body>")>`.
+    Receivers must reject signatures older than 5 minutes. Non-2xx or timeout (10 s) → retries after 30s, 2m, 10m, 30m, 2h, 6h,
+    then the delivery is dead-lettered and can be replayed by an admin.
+servers: [{ url: http://localhost:8080 }]
+security: [{ bearerAuth: [] }]
+paths:
+  /api/v1/webhooks/endpoints:
+    get: { summary: The merchant's webhook endpoints, responses: { "200": { description: OK } } }
+    post:
+      summary: Register an endpoint (the signing secret is returned once)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, eventTypes]
+              properties:
+                url: { type: string, format: uri }
+                eventTypes: { type: array, items: { type: string, enum: [parcel.created, parcel.status_changed] } }
+      responses: { "201": { description: Created } }
+  /api/v1/webhooks/endpoints/{endpointId}:
+    delete: { summary: Remove endpoint, parameters: [{ name: endpointId, in: path, required: true, schema: { type: string } }], responses: { "204": { description: Removed } } }
+  /api/v1/webhooks/endpoints/{endpointId}/test:
+    post: { summary: Send a signed test ping, parameters: [{ name: endpointId, in: path, required: true, schema: { type: string } }], responses: { "202": { description: Queued } } }
+  /api/v1/webhooks/deliveries:
+    get:
+      summary: Delivery log with attempts (merchant)
+      parameters: [{ name: status, in: query, schema: { type: string, enum: [PENDING, DELIVERED, RETRYING, DEAD] } }]
+      responses: { "200": { description: OK } }
+  /api/v1/admin/webhooks/deliveries:
+    get: { summary: "All deliveries, e.g. status=DEAD (ADMIN)", responses: { "200": { description: OK } } }
+  /api/v1/admin/webhooks/deliveries/{deliveryId}/replay:
+    post: { summary: Replay a dead-lettered delivery (ADMIN), parameters: [{ name: deliveryId, in: path, required: true, schema: { type: string } }], responses: { "202": { description: Queued } } }
+components:
+  securitySchemes:
+    bearerAuth: { $ref: "common.v1.yaml#/components/securitySchemes/bearerAuth" }

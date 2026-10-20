@@ -1,0 +1,53 @@
+openapi: 3.1.0
+info:
+  title: SwiftDrop user-service API
+  version: 1.0.0-draft
+  description: Profiles (created on first call from the token), address book, couriers and admin user management. Owner — M1.
+servers: [{ url: http://localhost:8080 }]
+security: [{ bearerAuth: [] }]
+paths:
+  /api/v1/users/me:
+    get: { summary: The caller's profile (created on first call), responses: { "200": { description: OK } } }
+    put:
+      summary: Update name / phone
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fullName: { type: string, maxLength: 100 }
+                phone: { type: string, pattern: "^(\\+94|0)7[0-9]{8}$" }
+      responses: { "200": { description: Updated } }
+  /api/v1/users/me/addresses:
+    get: { summary: Saved addresses, responses: { "200": { description: OK } } }
+    post:
+      summary: Save an address
+      requestBody: { content: { application/json: { schema: { $ref: "common.v1.yaml#/components/schemas/Address" } } } }
+      responses: { "201": { description: Created } }
+  /api/v1/users/me/addresses/{addressId}:
+    put: { summary: Update address, parameters: [{ name: addressId, in: path, required: true, schema: { type: string } }], responses: { "200": { description: OK } } }
+    delete: { summary: Delete address, parameters: [{ name: addressId, in: path, required: true, schema: { type: string } }], responses: { "204": { description: Deleted } } }
+  /api/v1/admin/users:
+    get: { summary: Search users (ADMIN), responses: { "200": { description: OK } } }
+    post:
+      summary: Create a courier or dispatcher account (ADMIN)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, fullName, role]
+              properties:
+                email: { type: string, format: email }
+                fullName: { type: string }
+                phone: { type: string }
+                role: { type: string, enum: [COURIER, DISPATCHER, ADMIN] }
+      responses: { "201": { description: "Created; a temporary password is emailed" } }
+  /api/v1/admin/users/{userId}:
+    patch: { summary: Enable/disable user or change roles (ADMIN), parameters: [{ name: userId, in: path, required: true, schema: { type: string } }], responses: { "200": { description: OK } } }
+  /api/v1/admin/couriers:
+    get: { summary: "Couriers with vehicle, home zone and capacity", responses: { "200": { description: OK } } }
+components:
+  securitySchemes:
+    bearerAuth: { $ref: "common.v1.yaml#/components/securitySchemes/bearerAuth" }

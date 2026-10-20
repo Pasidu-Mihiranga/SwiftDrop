@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://swiftdrop.lk/contracts/events/webhook-dead-letter.v1.schema.json",
+  "title": "WebhookDeliveryDeadLettered v1",
+  "description": "Topic swiftdrop.webhook.dead-letter.v1 · key = deliveryId · producer webhook-service after the last retry fails. Consumed by monitoring; admins replay from the webhook delivery log.",
+  "allOf": [{ "$ref": "envelope.schema.json" }],
+  "properties": {
+    "eventType": { "const": "WebhookDeliveryDeadLettered" },
+    "eventVersion": { "const": 1 },
+    "producer": { "const": "webhook-service" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["deliveryId", "merchantId", "endpointId", "sourceEventId", "sourceEventType", "attempts", "lastError", "deadLetteredAt"],
+      "properties": {
+        "deliveryId": { "type": "string" },
+        "merchantId": { "$ref": "envelope.schema.json#/$defs/uuid" },
+        "endpointId": { "type": "string" },
+        "sourceEventId": { "$ref": "envelope.schema.json#/$defs/uuid" },
+        "sourceEventType": { "type": "string" },
+        "attempts": { "type": "integer", "minimum": 1 },
+        "lastHttpStatus": { "type": ["integer", "null"] },
+        "lastError": { "type": "string", "maxLength": 500 },
+        "deadLetteredAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}
