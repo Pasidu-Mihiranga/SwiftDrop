@@ -29,7 +29,7 @@
         <springdoc.version>3.1.1</springdoc.version>
         <archunit.version>1.5.1</archunit.version>
         <mapstruct.version>1.6.3</mapstruct.version>
-        <json-schema-validator.version>1.5.9</json-schema-validator.version>
+        <json-schema-validator.version>3.0.8</json-schema-validator.version>
         <jacoco.version>0.8.14</jacoco.version>
 
         <!-- Coverage gate (line ratio). Services may override, never below 0.70 for the submission. -->
