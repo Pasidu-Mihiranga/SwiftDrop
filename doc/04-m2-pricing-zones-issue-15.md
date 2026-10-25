@@ -97,6 +97,9 @@ detail.
 - [x] Add domain models and persistence adapters for zones, district mapping,
       size classes, and rate cards using the existing layered package layout.
       The `domain` layer stays free of Spring, JPA and Hibernate types.
+- [x] Track the four outbound repository interfaces under `application/port/out`
+      by exempting that source directory from the generic `out/` ignore rule.
+      A clean Maven compile succeeds with the interfaces present.
 - [x] Implement public active-zone lookup and admin zone/district maintenance,
       and declare the public pricing paths in the service's own
       `swiftdrop.security.public-paths`.
