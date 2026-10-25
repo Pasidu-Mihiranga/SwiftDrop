@@ -154,12 +154,18 @@ detail.
       effective-date visibility, and permission-aware navigation. Pricing
       administration is ADMIN-only, so it needs a narrower route rule than the
       shared `/admin` prefix.
-- [ ] Reuse the existing web design system and CSS color variables; keep
-      controls accessible on phone and desktop viewports.
+- [x] Reuse the existing web design system and CSS color variables; keep
+      controls accessible on phone and desktop viewports. Pricing notices and
+      status labels use shared Tailwind utilities, narrow layouts keep form
+      controls usable, and validation and action failures are announced.
 - [x] Keep testable pricing logic in `apps/web/src/lib` so it counts toward the
       web coverage gate, and add the component-test setup the widget needs.
 - [ ] Hand the quote ID to the customer booking flow using the agreed M3
       contract, without taking ownership of parcel booking logic.
+      The fee widget exposes `onQuote(quote)`, whose `quoteId` is required by
+      `CreateParcelRequest` in `contracts/openapi/parcel-service.v1.yaml`.
+      M3 has not added a customer booking page or confirmed its route yet, so
+      there is no destination to wire without creating a broken journey.
 
 ## Phase 4: Kubernetes and Helm
 
@@ -198,13 +204,14 @@ quotes with a configurable lifetime, authenticated quote lookup for M3, and
 ADMIN maintenance of zones, districts, rate cards and size classes. Every path in
 the OpenAPI contract is implemented.
 
-The `/quote` page, fee widget, and admin pricing screens are implemented in the
-uncommitted web worktree. Web type checking, 78 tests, and a production webpack
-build pass. The native Turbopack build cannot bind its worker port in this
-environment, so it has not been verified. The remaining web work is a styling
-and responsive review plus the quote-to-booking handoff once M3 provides its
-booking form and confirms the quote-lookup response shape. Helm charts in
-`infra/helm` and the delivery items remain open.
+The `/quote` page, fee widget, and admin pricing screens are implemented. The
+pricing UI uses shared status styles and responsive layouts; web type checking,
+80 tests, and a production webpack build pass. A live browser viewport review
+has not been possible in this environment. The native Turbopack build cannot
+bind its worker port here, so it has not been verified. The quote-to-booking
+handoff remains open until M3 provides a booking page and confirms the
+quote-lookup response shape. Helm charts in `infra/helm` and the delivery items
+remain open.
 
 Note for local runs: this machine's active Docker context is Colima, which
 Testcontainers does not discover on its own. Integration tests need
