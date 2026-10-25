@@ -9,33 +9,101 @@ This checklist follows the [architecture](01-architecture.md),
 [team ownership](03-team-contribution.md), and
 [`pricing-service` OpenAPI contract](../contracts/openapi/pricing-service.v1.yaml).
 Complete it in small steps and keep checked items tied to actual repository work.
+Each phase below is a review gate: finish it, report it, and wait for sign-off
+before starting the next one.
 
-## Before pricing rules
+## Phase 0: Recorded decisions
+
+The questions that previously blocked this checklist are now settled. The table
+is the authoritative record for the design PDF; the rows below it capture the
+detail.
+
+| Decision | Agreed answer |
+|---|---|
+| Zone scheme | Nine province zones (`WP`, `CP`, `SP`, `NP`, `EP`, `NWP`, `NCP`, `UP`, `SGP`) covering all 25 districts; 81 ordered rate-card pairs |
+| Currency and arithmetic | LKR, `BigDecimal`, scale 2, `HALF_UP` applied per breakdown line so the lines sum exactly to the total |
+| Fee formula and order | `BASE` + `WEIGHT`, then `SIZE`, then `EXPRESS`, then `COD` (see below) |
+| Rate-card precedence | Newest `effective_from` that is still in force on the quote date wins; two matches is a configuration error, never a silent pick |
+| Issued quotes vs admin edits | The quote is honoured. Redis holds the computed snapshot and lookup never recalculates; edits apply to new quotes only |
+| Quote lookup contract | Full schema defined now in the OpenAPI contract and proposed to M3; unknown and expired both answer `404 QUOTE_NOT_FOUND` |
+| Web approach | Client-side fee-estimate widget over the existing BFF path, with pure logic in `apps/web/src/lib` for the coverage gate |
+| Helm scope | Library chart, umbrella chart and thin service charts, with Postgres, Redis and Keycloak as chart dependencies; Strimzi and RustFS documented as prerequisites |
 
 - [x] Create the M2 feature branch and issue-specific agent guidance.
-- [ ] Agree on the currency, fee formula and operation order (base, weight,
-      size, express, COD), decimal precision, and rounding with the team.
-- [ ] Agree on rate-card precedence for effective dates and how edits affect
-      quotes already issued.
-- [ ] Agree on zone codes and the authoritative mapping of all 25 Sri Lankan
-      districts. Store those assignments as reviewed seed/configuration data.
-- [ ] Confirm with M3 the quote lookup response, authentication, expiry
-      behavior, and fields the parcel service must validate at booking.
-- [ ] Resolve draft API gaps for admin updates, district assignments, size
-      class management, error responses, and request/response schemas.
+- [x] Currency, fee formula, operation order, precision and rounding agreed.
+      Fees are LKR with two decimals. For a quote the service computes
+      `subtotal = base_fee + per_kg_fee * ceil(weightKg)`, then
+      `SIZE = subtotal * (size_class.multiplier - 1)`, then
+      `EXPRESS = (subtotal + SIZE) * (express_multiplier - 1)`, then
+      `COD = codAmount * cod_fee_pct`. The breakdown returns one line per rule
+      in the order `BASE`, `WEIGHT`, `SIZE`, `EXPRESS`, `COD`; omitted rules are
+      omitted rather than returned as zero. Every line is rounded to two
+      decimals with `HALF_UP` before the total is summed, so the breakdown
+      always reconciles with `fee`.
+- [x] Rate-card precedence and the effect of edits on issued quotes agreed.
+      A rate card applies when `effective_from <= quoteDate` and
+      `effective_to` is null or after the quote date; if several rows match, the
+      latest `effective_from` wins and an exact tie is rejected as ambiguous
+      rather than resolved arbitrarily. Admin edits close the current row by
+      setting `effective_to` and insert a new row; rows are never hard-deleted.
+      Quotes already issued keep the fee they were given, because the Redis
+      snapshot is returned verbatim and never recomputed.
+- [x] Zone codes and the authoritative 25-district mapping agreed. The nine
+      zones follow the provinces and are stored as reviewed seed data in the
+      pricing database, not in Java or frontend code:
+
+      | Code | Zone | Districts |
+      |---|---|---|
+      | `WP` | Western | Colombo, Gampaha, Kalutara |
+      | `CP` | Central | Kandy, Matale, Nuwara Eliya |
+      | `SP` | Southern | Galle, Matara, Hambantota |
+      | `NP` | Northern | Jaffna, Kilinochchi, Mannar, Mullaitivu, Vavuniya |
+      | `EP` | Eastern | Ampara, Batticaloa, Trincomalee |
+      | `NWP` | North Western | Kurunegala, Puttalam |
+      | `NCP` | North Central | Anuradhapura, Polonnaruwa |
+      | `UP` | Uva | Badulla, Monaragala |
+      | `SGP` | Sabaragamuwa | Kegalle, Ratnapura |
+
+- [x] Quote lookup response, authentication, expiry behavior and the fields
+      parcel-service validates are defined in the contract. `GET
+      /api/v1/pricing/quotes/{quoteId}` requires a bearer token, returns the
+      stored snapshot (fee, breakdown, zones, districts, weight, size class,
+      service level, COD amount, issue and expiry times) and answers `404
+      QUOTE_NOT_FOUND` for both unknown and expired identifiers so expiry is not
+      distinguishable from a guess. The response is derived only from the stored
+      snapshot; request data is never substituted into it. **Proposed to M3 and
+      awaiting the parcel-service owner's confirmation.**
+- [x] Draft API gaps resolved in `contracts/openapi/pricing-service.v1.yaml`:
+      admin zone create/update, district assignment, rate-card create/close,
+      size-class read/update, request and response schemas, and problem+json
+      error responses for every endpoint.
 
 ## Phase 1: Pricing data and zones
 
 - [x] Add a new Flyway migration for `zone` and `district_zone`, including
       keys, referential integrity, and the zone lookup index.
-- [ ] Add migrations for `size_class` and `rate_card`, including sensible
+- [x] Add migrations for `size_class` and `rate_card`, including sensible
       uniqueness, effective-date, and nonnegative-fee constraints.
-- [ ] Add domain models and persistence adapters for zones, district mapping,
+      `V3__create_size_class.sql` and `V4__create_rate_card.sql`.
+- [x] Add reviewed seed migrations for the nine zones, all 25 district
+      assignments, the four size classes, and the 81 rate-card pairs. Keep every
+      fee and district literal in SQL; none may appear in Java or frontend code.
+      `V5__seed_zones_and_districts.sql` and
+      `V6__seed_size_classes_and_rate_cards.sql`. Rate cards are priced by the
+      number of province borders a parcel crosses, computed as the shortest path
+      over an adjacency list declared in the seed file, so a one-province trip
+      such as Colombo to Kandy is not charged the same as Colombo to Jaffna.
+      Both seed files are idempotent and the matrix is symmetric.
+- [x] Add domain models and persistence adapters for zones, district mapping,
       size classes, and rate cards using the existing layered package layout.
-- [ ] Add reviewed zone and 25-district seed/configuration data; do not place
-      these assignments in frontend code.
-- [ ] Implement public active-zone lookup and admin zone/district maintenance.
-- [ ] Cover persistence and invalid/duplicate mapping behavior.
+      The `domain` layer stays free of Spring, JPA and Hibernate types.
+- [x] Implement public active-zone lookup and admin zone/district maintenance,
+      and declare the public pricing paths in the service's own
+      `swiftdrop.security.public-paths`.
+- [x] Cover persistence, the seeded row counts, and invalid/duplicate mapping
+      behavior, plus anonymous read and non-admin rejection on the controllers.
+      71 tests green (52 unit including ArchUnit, 19 integration on
+      Testcontainers Postgres and Redis); JaCoCo line coverage 86 per cent.
 
 ## Phase 2: Quotes and rate administration
 
@@ -60,9 +128,13 @@ Complete it in small steps and keep checked items tied to actual repository work
 - [ ] Load zones from the pricing API through the existing BFF/gateway path.
       Never duplicate zone lists, rates, or API hostnames in the browser.
 - [ ] Add admin zone/district and rate-card views with create/edit flows,
-      effective-date visibility, and permission-aware navigation.
+      effective-date visibility, and permission-aware navigation. Pricing
+      administration is ADMIN-only, so it needs a narrower route rule than the
+      shared `/admin` prefix.
 - [ ] Reuse the existing web design system and CSS color variables; keep
       controls accessible on phone and desktop viewports.
+- [ ] Keep testable pricing logic in `apps/web/src/lib` so it counts toward the
+      web coverage gate, and add the component-test setup the widget needs.
 - [ ] Hand the quote ID to the customer booking flow using the agreed M3
       contract, without taking ownership of parcel booking logic.
 
@@ -86,7 +158,8 @@ Complete it in small steps and keep checked items tied to actual repository work
 - [ ] Add focused unit and integration coverage for calculations, persistence,
       expiry, authorization, and the web workflows; meet the project 70% gate.
 - [ ] Add pricing/zones ER detail, pricing strategy class diagram, and the
-      Kubernetes deployment diagram under `doc/diagrams`.
+      Kubernetes deployment diagram under `doc/diagrams`, and reconcile
+      `doc/diagrams/er-v1.mmd` with the surrogate-key pricing schema.
 - [ ] Add a pricing Grafana panel/metric and update service/Helm README docs.
 - [ ] Demonstrate an anonymous estimate, an admin rate change, quote expiry,
       and a valid quote being consumed by parcel-service.
@@ -96,8 +169,13 @@ Complete it in small steps and keep checked items tied to actual repository work
 
 ## Current boundary
 
-The repository currently has the pricing service scaffold, gateway/Compose
-wiring, Dockerfile, and draft API contract. Pricing business endpoints, the
-remaining tables, web pages, and Helm charts are still to be built. The first
-code step on this branch establishes the zone schema only; repositories, rates,
-and district assignments remain for later steps.
+The pricing schema is complete and seeded: zones, district mapping, size classes
+and rate cards, with the public coverage endpoint and ADMIN zone/district
+maintenance in place behind the layered package structure. Quotes are the next
+step, and nothing writes to Redis yet. The web pages and Helm charts are still to
+be built, and `infra/helm` holds only its README.
+
+Note for local runs: this machine's active Docker context is Colima, which
+Testcontainers does not discover on its own. Integration tests need
+`DOCKER_HOST=unix://$HOME/.colima/default/docker.sock` and
+`TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock` in the environment.
