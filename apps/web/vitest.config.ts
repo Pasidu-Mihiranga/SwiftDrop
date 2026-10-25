@@ -12,7 +12,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/lib/**/*.ts"],
-      // Server-only modules are exercised by the pages, not by unit tests.
+      // The pure browser/shared library gate excludes server entry points; actions have focused tests.
       exclude: ["src/lib/gateway.ts", "src/lib/pricing-api.ts", "src/lib/pricing-actions.ts"],
       reporter: ["text-summary", "lcov", "cobertura"],
       thresholds: { lines: 70 },

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { auth } from "@/auth";
 import { gatewayFetch } from "@/lib/gateway";
 import type { Problem } from "@/lib/bff";
 
@@ -122,6 +123,11 @@ function emptyToNull(value: FormDataEntryValue | null): string | null {
 
 /** One place that knows how to call the service and read a problem+json failure. */
 async function send(path: string, method: "POST" | "PUT", body: unknown): Promise<ActionState> {
+  const session = await auth();
+  if (!session || session.error || !session.user.roles.includes("ADMIN")) {
+    return { status: "error", message: "You do not have permission to change pricing." };
+  }
+
   let response: Response;
   try {
     response = await gatewayFetch(path, {
