@@ -7,6 +7,8 @@ import org.springframework.stereotype.Repository;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
+import java.util.Optional;
+import java.util.UUID;
 
 /** A single atomic Redis SET stores the complete snapshot with its expiry. */
 @Repository
@@ -25,5 +27,11 @@ public class RedisQuoteStore implements QuoteStore {
     @Override
     public void save(QuoteSnapshot quote, Duration ttl) {
         redis.opsForValue().set(KEY_PREFIX + quote.quoteId(), mapper.writeValueAsString(quote), ttl);
+    }
+
+    @Override
+    public Optional<QuoteSnapshot> findById(UUID quoteId) {
+        String json = redis.opsForValue().get(KEY_PREFIX + quoteId);
+        return Optional.ofNullable(json).map(value -> mapper.readValue(value, QuoteSnapshot.class));
     }
 }

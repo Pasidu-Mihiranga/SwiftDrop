@@ -118,7 +118,7 @@ detail.
       active coverage at the API boundary.
 - [x] Store quote data in Redis under an opaque ID with a configurable
       15-minute TTL; return the ID, fee, breakdown, zones, and expiry.
-- [ ] Implement quote lookup for parcel-service validation. Define 404 for
+- [x] Implement quote lookup for parcel-service validation. Define 404 for
       unknown/expired quotes and prevent request data from being substituted.
 - [ ] Implement ADMIN-only zone, rate-card, and size-class management APIs.
 - [ ] Keep OpenAPI and generated Swagger behavior aligned with each endpoint.

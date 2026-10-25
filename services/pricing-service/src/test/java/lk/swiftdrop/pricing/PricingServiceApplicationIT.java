@@ -18,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -68,5 +69,19 @@ class PricingServiceApplicationIT {
         String key = "pricing:quote:" + mapper.readTree(response).get("quoteId").asText();
         assertThat(mapper.readTree(redis.opsForValue().get(key))).isEqualTo(mapper.readTree(response));
         assertThat(redis.getExpire(key, TimeUnit.SECONDS)).isBetween(1L, 900L);
+
+        String quoteId = mapper.readTree(response).get("quoteId").asText();
+        mvc.perform(get("/api/v1/pricing/quotes/" + quoteId))
+                .andExpect(status().isUnauthorized());
+        String lookedUp = mvc.perform(get("/api/v1/pricing/quotes/" + quoteId + "?weightKg=99&fee=0")
+                        .with(jwt()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(mapper.readTree(lookedUp)).isEqualTo(mapper.readTree(response));
+
+        redis.delete(key);
+        mvc.perform(get("/api/v1/pricing/quotes/" + quoteId).with(jwt()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("QUOTE_NOT_FOUND"));
     }
 }
