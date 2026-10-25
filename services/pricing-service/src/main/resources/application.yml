@@ -42,6 +42,9 @@ swiftdrop:
     public-paths:
       - /api/v1/pricing/quotes
       - /api/v1/pricing/zones
+  pricing:
+    quote-ttl: ${PRICING_QUOTE_TTL:PT15M}
+    quote-zone-id: ${PRICING_QUOTE_ZONE_ID:Asia/Colombo}
 
 server:
   port: ${PORT:8083}

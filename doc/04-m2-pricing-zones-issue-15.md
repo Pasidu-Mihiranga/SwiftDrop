@@ -112,11 +112,11 @@ detail.
 
 - [x] Implement deterministic rate-card selection for two active zones and
       the quote date. Reject missing or ambiguous rates clearly.
-- [ ] Implement pricing rules as domain strategies/decorators with a monetary
+- [x] Implement pricing rules as domain strategies/decorators with a monetary
       breakdown. Use decimal arithmetic and the agreed rounding policy.
-- [ ] Validate weight, size class, service level, COD amount, districts, and
+- [x] Validate weight, size class, service level, COD amount, districts, and
       active coverage at the API boundary.
-- [ ] Store quote data in Redis under an opaque ID with a configurable
+- [x] Store quote data in Redis under an opaque ID with a configurable
       15-minute TTL; return the ID, fee, breakdown, zones, and expiry.
 - [ ] Implement quote lookup for parcel-service validation. Define 404 for
       unknown/expired quotes and prevent request data from being substituted.
