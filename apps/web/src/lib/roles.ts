@@ -10,9 +10,12 @@ interface AreaRule {
   roles: Role[] | "any-authenticated";
 }
 
-/** Most specific prefix first. */
+/** Most specific prefix first: the first match wins. */
 const AREAS: AreaRule[] = [
   { prefix: "/merchant/register", roles: "any-authenticated" },
+  // Pricing configuration is administrator-only, which is narrower than the rest of /admin.
+  // pricing-service enforces the same rule, so this only keeps the page out of the way.
+  { prefix: "/admin/pricing", roles: ["ADMIN"] },
   { prefix: "/customer", roles: ["CUSTOMER"] },
   { prefix: "/merchant", roles: ["MERCHANT"] },
   { prefix: "/courier", roles: ["COURIER"] },
@@ -58,6 +61,20 @@ export function navigationFor(roles: readonly string[]): { href: string; label: 
   if (roles.includes("MERCHANT")) items.push({ href: "/merchant", label: "Merchant portal" });
   if (roles.includes("COURIER")) items.push({ href: "/courier", label: "Today's runs" });
   if (roles.includes("DISPATCHER") || roles.includes("ADMIN")) items.push({ href: "/admin", label: "Operations" });
+  return items;
+}
+
+/** Links inside the operations area, filtered to what the signed-in roles may open. */
+export function adminNavigationFor(roles: readonly string[]): { href: string; label: string }[] {
+  const items: { href: string; label: string }[] = [];
+  if (roles.includes("DISPATCHER") || roles.includes("ADMIN")) {
+    items.push({ href: "/admin", label: "Overview" });
+    items.push({ href: "/admin/dispatch", label: "Dispatch" });
+  }
+  if (roles.includes("ADMIN")) {
+    items.push({ href: "/admin/pricing/zones", label: "Zones & districts" });
+    items.push({ href: "/admin/pricing/rate-cards", label: "Rate cards" });
+  }
   return items;
 }
 
