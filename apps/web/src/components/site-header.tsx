@@ -15,6 +15,7 @@ export async function SiteHeader() {
         </Link>
         <nav className="flex flex-1 flex-wrap items-center gap-1 text-sm">
           <Link href="/track" className="rounded-md px-3 py-2 text-slate-600 hover:bg-slate-100">Track</Link>
+          <Link href="/quote" className="rounded-md px-3 py-2 text-slate-600 hover:bg-slate-100">Get a price</Link>
           {user &&
             navigationFor(user.roles).map((item) => (
               <Link key={item.href} href={item.href} className="rounded-md px-3 py-2 text-slate-600 hover:bg-slate-100">
