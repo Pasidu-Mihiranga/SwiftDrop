@@ -21,8 +21,8 @@ export default async function QuotePage() {
         </p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-        <div className="card">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <div className="card min-w-0">
           <FeeEstimateWidget zones={zones} coverageError={error} />
         </div>
 
@@ -37,7 +37,7 @@ export default async function QuotePage() {
                   <li key={zone.code} className="py-2">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium">{zone.name}</span>
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{zone.code}</span>
+                      <span className="status-pill-neutral">{zone.code}</span>
                     </div>
                     <p className="mt-1 text-xs text-slate-500">{zone.districts.join(", ")}</p>
                   </li>

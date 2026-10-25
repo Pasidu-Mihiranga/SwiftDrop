@@ -79,6 +79,7 @@ describe("FeeEstimateWidget", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("We could not load our service areas.");
     expect(screen.getByLabelText("Collect from")).toBeDisabled();
     expect(screen.getByLabelText("Deliver to")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Get estimate" })).toBeDisabled();
     expect(screen.getAllByText("Coverage unavailable")).toHaveLength(2);
   });
 

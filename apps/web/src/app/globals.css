@@ -36,3 +36,43 @@
 @utility input {
   @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100;
 }
+
+@utility notice {
+  @apply rounded-lg p-3 text-sm;
+}
+
+@utility notice-info {
+  @apply notice bg-brand-50 text-brand-700;
+}
+
+@utility notice-warning {
+  @apply notice bg-amber-50 text-amber-900;
+}
+
+@utility notice-error {
+  @apply notice bg-red-50 text-red-800;
+}
+
+@utility notice-success {
+  @apply notice bg-emerald-50 text-emerald-800;
+}
+
+@utility status-pill {
+  @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
+}
+
+@utility status-pill-neutral {
+  @apply status-pill bg-slate-100 text-slate-700;
+}
+
+@utility status-pill-success {
+  @apply status-pill bg-emerald-50 text-emerald-800;
+}
+
+@utility status-pill-warning {
+  @apply status-pill bg-amber-50 text-amber-900;
+}
+
+@utility field-error {
+  @apply text-sm text-red-800;
+}

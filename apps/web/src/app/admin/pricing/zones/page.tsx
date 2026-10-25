@@ -37,12 +37,12 @@ export default async function ZonesAdminPage() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-medium">{zone.name}</span>
                   <span className="flex items-center gap-2">
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{zone.code}</span>
+                    <span className="status-pill-neutral">{zone.code}</span>
                     <span
                       className={
                         zone.active
-                          ? "rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-800"
-                          : "rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500"
+                          ? "status-pill-success"
+                          : "status-pill-neutral"
                       }
                     >
                       {zone.active ? "Active" : "Inactive"}
@@ -156,7 +156,7 @@ export default async function ZonesAdminPage() {
                   <p className="text-xs text-slate-500">
                     Up to {size.maxWeightKg} kg, {size.maxDimensionsCm} cm
                   </p>
-                  <PricingForm action={updateSizeClass} submitLabel="Save" className="flex items-end gap-2">
+                  <PricingForm action={updateSizeClass} submitLabel="Save" className="flex flex-col gap-2 sm:flex-row sm:items-end">
                     <input type="hidden" name="code" value={size.code} />
                     <span className="flex-1">
                       <label className="block text-xs font-medium text-slate-700" htmlFor={`multiplier-${size.code}`}>

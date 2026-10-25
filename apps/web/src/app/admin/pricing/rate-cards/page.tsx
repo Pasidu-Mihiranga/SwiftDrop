@@ -49,7 +49,7 @@ export default async function RateCardsAdminPage({
 
       <section className="card space-y-3">
         <h2 className="font-semibold">Filter</h2>
-        <form className="grid gap-3 sm:grid-cols-4" method="get">
+        <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" method="get">
           <span>
             <label className="block text-sm font-medium text-slate-700" htmlFor="fromZone">
               From zone
@@ -102,7 +102,7 @@ export default async function RateCardsAdminPage({
       <section className="card space-y-3">
         <h2 className="font-semibold">Published rates</h2>
         {cards.content.length === 0 ? (
-          <p className="rounded-lg bg-brand-50 p-3 text-sm text-brand-700">
+          <p className="notice-info">
             No rate cards match this filter. Lanes with no card in force cannot be quoted.
           </p>
         ) : (
@@ -116,8 +116,8 @@ export default async function RateCardsAdminPage({
                     <span
                       className={
                         current
-                          ? "rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-800"
-                          : "rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500"
+                          ? "status-pill-success"
+                          : "status-pill-neutral"
                       }
                     >
                       {current ? "In force" : card.effectiveFrom > today ? "Scheduled" : "Superseded"}
@@ -136,7 +136,7 @@ export default async function RateCardsAdminPage({
                     <details className="text-sm">
                       <summary className="cursor-pointer text-brand-700">Close this rate</summary>
                       <div className="mt-2">
-                        <PricingForm action={closeRateCard} submitLabel="Close rate" className="flex items-end gap-2">
+                        <PricingForm action={closeRateCard} submitLabel="Close rate" className="flex flex-col gap-2 sm:flex-row sm:items-end">
                           <input type="hidden" name="rateCardId" value={card.id} />
                           <span className="flex-1">
                             <label className="block text-xs font-medium text-slate-700" htmlFor={`to-${card.id}`}>
@@ -277,10 +277,10 @@ export default async function RateCardsAdminPage({
 
 function Detail({ label, value }: { label: string; value: string }) {
   return (
-    <span>
+    <div>
       <dt className="text-slate-500">{label}</dt>
       <dd className="tabular-nums font-medium text-slate-700">{value}</dd>
-    </span>
+    </div>
   );
 }
 
