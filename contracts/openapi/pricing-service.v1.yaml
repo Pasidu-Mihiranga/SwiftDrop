@@ -62,8 +62,9 @@ paths:
         "422":
           description: |
             No rate card is in force for the resolved zone pair (NO_RATE_CARD), the rate-card
-            configuration is ambiguous (AMBIGUOUS_RATE_CARD), or a district is not in an active
-            serviced zone (DISTRICT_NOT_SERVICED).
+            configuration is ambiguous (AMBIGUOUS_RATE_CARD), a district is not in an active
+            serviced zone (DISTRICT_NOT_SERVICED), or the selected size class cannot carry the
+            requested weight (SIZE_CLASS_WEIGHT_EXCEEDED).
           content:
             application/problem+json:
               schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
