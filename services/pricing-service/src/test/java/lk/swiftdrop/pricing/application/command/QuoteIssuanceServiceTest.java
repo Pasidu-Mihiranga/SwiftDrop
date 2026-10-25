@@ -1,0 +1,85 @@
+package lk.swiftdrop.pricing.application.command;
+
+import lk.swiftdrop.pricing.application.model.QuoteSnapshot;
+import lk.swiftdrop.pricing.application.port.out.QuoteStore;
+import lk.swiftdrop.pricing.application.query.PreparedQuote;
+import lk.swiftdrop.pricing.application.query.QuotePricingInput;
+import lk.swiftdrop.pricing.application.query.QuotePricingService;
+import lk.swiftdrop.pricing.domain.model.FeeBreakdown;
+import lk.swiftdrop.pricing.domain.model.PricingRule;
+import lk.swiftdrop.pricing.domain.model.ServiceLevel;
+import lk.swiftdrop.pricing.domain.model.SizeClassCode;
+import lk.swiftdrop.pricing.domain.model.ZoneCode;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+
+import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+class QuoteIssuanceServiceTest {
+
+    private static final Instant NOW = Instant.parse("2026-10-24T20:00:00Z");
+    private static final Clock CLOCK = Clock.fixed(NOW, ZoneId.of("Asia/Colombo"));
+    private static final Duration TTL = Duration.ofMinutes(15);
+    private static final QuotePricingInput INPUT = new QuotePricingInput("Colombo", "Kandy",
+            new BigDecimal("2"), SizeClassCode.M, ServiceLevel.STANDARD, BigDecimal.ZERO);
+
+    private final QuotePricingService pricing = mock(QuotePricingService.class);
+    private final QuoteStore store = mock(QuoteStore.class);
+
+    @Test
+    void storesTheExactIssuedSnapshotWithConfiguredExpiryAndLocalQuoteDate() {
+        FeeBreakdown breakdown = new FeeBreakdown(
+                List.of(new FeeBreakdown.Line(PricingRule.BASE, new BigDecimal("475.00"))),
+                new BigDecimal("475.00"));
+        when(pricing.prepare(INPUT, LocalDate.of(2026, 10, 25)))
+                .thenReturn(new PreparedQuote(INPUT, ZoneCode.of("WP"), ZoneCode.of("CP"), breakdown));
+        QuoteIssuanceService service = new QuoteIssuanceService(pricing, store, TTL, CLOCK);
+
+        QuoteSnapshot returned = service.issue(INPUT);
+
+        ArgumentCaptor<QuoteSnapshot> saved = ArgumentCaptor.forClass(QuoteSnapshot.class);
+        verify(store).save(saved.capture(), org.mockito.ArgumentMatchers.eq(TTL));
+        assertThat(saved.getValue()).isEqualTo(returned);
+        assertThat(returned.quoteId()).isNotNull();
+        assertThat(returned.fee()).isEqualTo(new QuoteSnapshot.Money(new BigDecimal("475.00"), "LKR"));
+        assertThat(returned.fromZone()).isEqualTo("WP");
+        assertThat(returned.toZone()).isEqualTo("CP");
+        assertThat(returned.issuedAt()).isEqualTo(NOW);
+        assertThat(returned.expiresAt()).isEqualTo(NOW.plus(TTL));
+    }
+
+    @Test
+    void rejectsNonPositiveQuoteLifetime() {
+        assertThatThrownBy(() -> new QuoteIssuanceService(pricing, store, Duration.ZERO, CLOCK))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new QuoteIssuanceService(pricing, store, Duration.ofSeconds(-1), CLOCK))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void redisLifetimeDoesNotExtendBeyondTheReportedExpiry() {
+        Clock movingClock = mock(Clock.class);
+        when(movingClock.instant()).thenReturn(NOW, NOW.plusSeconds(2));
+        when(movingClock.getZone()).thenReturn(ZoneId.of("Asia/Colombo"));
+        FeeBreakdown breakdown = new FeeBreakdown(List.of(), new BigDecimal("0.00"));
+        when(pricing.prepare(INPUT, LocalDate.of(2026, 10, 25)))
+                .thenReturn(new PreparedQuote(INPUT, ZoneCode.of("WP"), ZoneCode.of("CP"), breakdown));
+
+        QuoteSnapshot returned = new QuoteIssuanceService(pricing, store, TTL, movingClock).issue(INPUT);
+
+        verify(store).save(returned, TTL.minusSeconds(2));
+        assertThat(returned.expiresAt()).isEqualTo(NOW.plus(TTL));
+    }
+}
