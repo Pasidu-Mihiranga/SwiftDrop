@@ -146,17 +146,17 @@ detail.
 
 ## Phase 3: Web flows
 
-- [ ] Add a public `/quote` page and reusable fee-estimate widget with loading,
+- [x] Add a public `/quote` page and reusable fee-estimate widget with loading,
       validation, empty, expired, and service-error states.
-- [ ] Load zones from the pricing API through the existing BFF/gateway path.
+- [x] Load zones from the pricing API through the existing BFF/gateway path.
       Never duplicate zone lists, rates, or API hostnames in the browser.
-- [ ] Add admin zone/district and rate-card views with create/edit flows,
+- [x] Add admin zone/district and rate-card views with create/edit flows,
       effective-date visibility, and permission-aware navigation. Pricing
       administration is ADMIN-only, so it needs a narrower route rule than the
       shared `/admin` prefix.
 - [ ] Reuse the existing web design system and CSS color variables; keep
       controls accessible on phone and desktop viewports.
-- [ ] Keep testable pricing logic in `apps/web/src/lib` so it counts toward the
+- [x] Keep testable pricing logic in `apps/web/src/lib` so it counts toward the
       web coverage gate, and add the component-test setup the widget needs.
 - [ ] Hand the quote ID to the customer booking flow using the agreed M3
       contract, without taking ownership of parcel booking logic.
@@ -198,10 +198,13 @@ quotes with a configurable lifetime, authenticated quote lookup for M3, and
 ADMIN maintenance of zones, districts, rate cards and size classes. Every path in
 the OpenAPI contract is implemented.
 
-What remains is Phase 3 onward: the `/quote` page and admin pricing screens, the
-Helm charts in `infra/helm`, which still holds only its README, and the Phase 5
-delivery items. The quote-lookup response shape is still awaiting confirmation
-from the parcel-service owner.
+The `/quote` page, fee widget, and admin pricing screens are implemented in the
+uncommitted web worktree. Web type checking, 78 tests, and a production webpack
+build pass. The native Turbopack build cannot bind its worker port in this
+environment, so it has not been verified. The remaining web work is a styling
+and responsive review plus the quote-to-booking handoff once M3 provides its
+booking form and confirms the quote-lookup response shape. Helm charts in
+`infra/helm` and the delivery items remain open.
 
 Note for local runs: this machine's active Docker context is Colima, which
 Testcontainers does not discover on its own. Integration tests need
