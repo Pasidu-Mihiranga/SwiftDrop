@@ -110,7 +110,7 @@ detail.
 
 ## Phase 2: Quotes and rate administration
 
-- [ ] Implement deterministic rate-card selection for two active zones and
+- [x] Implement deterministic rate-card selection for two active zones and
       the quote date. Reject missing or ambiguous rates clearly.
 - [ ] Implement pricing rules as domain strategies/decorators with a monetary
       breakdown. Use decimal arithmetic and the agreed rounding policy.
