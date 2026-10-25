@@ -259,6 +259,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/RateCardPage" }
+        "400":
+          description: A zone filter is not a valid zone code (INVALID_ZONE_CODE), or page and size are out of range
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
         "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
         "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
     post:
@@ -269,6 +274,9 @@ paths:
         Adds a new card for an ordered zone pair. Quotes already issued keep their stored fee.
         To change current pricing, close the card in force and create a new one; overlapping
         effective ranges for the same pair are rejected.
+
+        Effective periods are half-open, so a card starting on the exact date another one ends is
+        accepted and there is never a gap or an overlap at the changeover.
       requestBody:
         required: true
         content:
@@ -294,6 +302,14 @@ paths:
               schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
         "409":
           description: Overlaps a rate card already in force for this pair (RATE_CARD_OVERLAP)
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
+        "422":
+          description: |
+            The card breaks a pricing rule (INVALID_RATE_CARD): a negative fee, an express
+            multiplier below 1, a cash-on-delivery fraction above 1, or an end date that is not
+            after the start date.
           content:
             application/problem+json:
               schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
@@ -471,7 +487,7 @@ components:
         zoneCode: { $ref: "#/components/schemas/ZoneCode" }
     SizeClassRate:
       type: object
-      required: [code, multiplier]
+      required: [code, maxWeightKg, maxDimensionsCm, multiplier]
       properties:
         code: { $ref: "common.v1.yaml#/components/schemas/SizeClass" }
         maxWeightKg: { type: number, exclusiveMinimum: 0, example: 5 }
@@ -484,10 +500,11 @@ components:
     SizeClassUpdateRequest:
       type: object
       required: [multiplier]
+      description: Omitted limits retain their existing configured values.
       properties:
-        maxWeightKg: { type: number, exclusiveMinimum: 0, example: 5 }
-        maxDimensionsCm: { type: string, maxLength: 32, example: 40x30x20 }
-        multiplier: { type: number, minimum: 1, example: 1.25 }
+        maxWeightKg: { type: number, exclusiveMinimum: 0, maximum: 9999.99, multipleOf: 0.01, example: 5 }
+        maxDimensionsCm: { type: string, minLength: 1, maxLength: 32, example: 40x30x20 }
+        multiplier: { type: number, minimum: 1, maximum: 99.999, multipleOf: 0.001, example: 1.25 }
     RateCard:
       type: object
       required: [id, fromZone, toZone, baseFee, perKgFee, expressMultiplier, codFeePct, effectiveFrom]
