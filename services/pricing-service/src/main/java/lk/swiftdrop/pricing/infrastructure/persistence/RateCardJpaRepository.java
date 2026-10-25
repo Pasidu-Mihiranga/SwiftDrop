@@ -1,6 +1,7 @@
 package lk.swiftdrop.pricing.infrastructure.persistence;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -8,7 +9,8 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
-interface RateCardJpaRepository extends JpaRepository<RateCardEntity, UUID> {
+interface RateCardJpaRepository extends JpaRepository<RateCardEntity, UUID>,
+        JpaSpecificationExecutor<RateCardEntity> {
 
     /**
      * Cards for the ordered pair that are in force on {@code on}, newest start date first.
@@ -31,4 +33,11 @@ interface RateCardJpaRepository extends JpaRepository<RateCardEntity, UUID> {
             ORDER BY rc.fromZone.code ASC, rc.toZone.code ASC, rc.effectiveFrom DESC
             """)
     List<RateCardEntity> findAllOrdered();
+
+    @Query("""
+            SELECT rc FROM RateCardEntity rc
+            WHERE rc.fromZone.code = :fromZone AND rc.toZone.code = :toZone
+            ORDER BY rc.effectiveFrom ASC
+            """)
+    List<RateCardEntity> findByPair(@Param("fromZone") String fromZone, @Param("toZone") String toZone);
 }
