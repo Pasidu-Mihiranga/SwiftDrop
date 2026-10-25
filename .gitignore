@@ -17,6 +17,8 @@ node_modules/
 dist/
 .next/
 out/
+# This Java package contains source ports, not generated output.
+!services/pricing-service/src/main/java/lk/swiftdrop/pricing/application/port/out/
 coverage/
 *.tsbuildinfo
 next-env.d.ts
