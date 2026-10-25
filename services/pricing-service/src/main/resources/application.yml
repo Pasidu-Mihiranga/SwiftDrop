@@ -35,6 +35,14 @@ spring:
           jwk-set-uri: ${KEYCLOAK_JWKS_URI:http://localhost:${KEYCLOAK_HOST_PORT:8180}/realms/swiftdrop/protocol/openid-connect/certs}
           audiences: swiftdrop-api
 
+# Anonymous fee estimates and the public coverage list. The gateway also allows these two
+# paths, but the service enforces its own rules, so it has to opt in as well.
+swiftdrop:
+  security:
+    public-paths:
+      - /api/v1/pricing/quotes
+      - /api/v1/pricing/zones
+
 server:
   port: ${PORT:8083}
   shutdown: graceful

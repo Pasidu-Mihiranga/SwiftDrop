@@ -1,59 +1,101 @@
 openapi: 3.1.0
 info:
   title: SwiftDrop pricing-service API
-  version: 1.0.0-draft
-  description: Zones, district→zone mapping, rate cards and fee quotes. Owner — M2.
+  version: 1.0.0
+  description: |
+    Zones, district-to-zone mapping, rate cards, size classes and fee quotes. Owner - M2.
+
+    Pricing model. A quote resolves both districts to active zones, selects the rate card
+    in force for that ordered zone pair on the quote date, and applies the rules in a fixed
+    order: BASE and WEIGHT from the rate card, then SIZE, then EXPRESS, then COD.
+
+        subtotal = base_fee + per_kg_fee * ceil(weightKg)
+        SIZE     = subtotal * (size_class.multiplier - 1)
+        EXPRESS  = (subtotal + SIZE) * (express_multiplier - 1)
+        COD      = codAmount * cod_fee_pct
+
+    Amounts are LKR with two decimals, rounded HALF_UP per breakdown line, so the lines
+    always sum exactly to `fee`. Rules that do not apply are omitted from the breakdown
+    rather than returned as zero.
+
+    Quote lifetime. A quote is stored server-side under an opaque identifier with a
+    configurable TTL (15 minutes by default) and is returned verbatim on lookup. It is never
+    recomputed, so an administrator changing a rate card does not change a quote that has
+    already been issued. Unknown and expired identifiers both answer 404 QUOTE_NOT_FOUND so
+    that expiry cannot be distinguished from a guess.
+
+    Rate-card precedence. A card applies when `effectiveFrom` is on or before the quote date
+    and `effectiveTo` is absent or after it. If several cards match, the latest
+    `effectiveFrom` wins; an exact tie is rejected as a configuration error.
 servers: [{ url: http://localhost:8080 }]
 security: [{ bearerAuth: [] }]
+tags:
+  - name: quotes
+    description: Public fee estimates and quote validation.
+  - name: zones
+    description: Public service-zone coverage.
+  - name: admin-zones
+    description: Zone and district administration (ADMIN).
+  - name: admin-rate-cards
+    description: Rate-card administration (ADMIN).
+  - name: admin-size-classes
+    description: Size-class administration (ADMIN).
 paths:
   /api/v1/pricing/quotes:
     post:
+      tags: [quotes]
+      operationId: createQuote
       summary: Fee estimate (public). The returned quoteId is valid for 15 minutes.
       security: []
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              type: object
-              required: [fromDistrict, toDistrict, weightKg, sizeClass]
-              properties:
-                fromCity: { type: string, example: Colombo 03 }
-                fromDistrict: { type: string, example: Colombo }
-                toCity: { type: string, example: Kandy }
-                toDistrict: { type: string, example: Kandy }
-                weightKg: { type: number, exclusiveMinimum: 0, maximum: 100, example: 2 }
-                sizeClass: { $ref: "common.v1.yaml#/components/schemas/SizeClass" }
-                serviceLevel: { type: string, enum: [STANDARD, EXPRESS], default: STANDARD }
-                codAmount: { type: number, minimum: 0 }
+            schema: { $ref: "#/components/schemas/QuoteRequest" }
       responses:
         "200":
-          description: Quote
+          description: Quote issued
           content:
             application/json:
-              schema:
-                type: object
-                properties:
-                  quoteId: { type: string }
-                  fee: { $ref: "common.v1.yaml#/components/schemas/Money" }
-                  breakdown:
-                    type: array
-                    description: One line per pricing rule applied (base, weight, size, express, COD)
-                    items: { type: object, properties: { rule: { type: string }, amount: { type: number } } }
-                  fromZone: { type: string }
-                  toZone: { type: string }
-                  expiresAt: { type: string, format: date-time }
+              schema: { $ref: "#/components/schemas/Quote" }
         "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+        "422":
+          description: |
+            No rate card is in force for the resolved zone pair (NO_RATE_CARD), the rate-card
+            configuration is ambiguous (AMBIGUOUS_RATE_CARD), or a district is not in an active
+            serviced zone (DISTRICT_NOT_SERVICED).
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
   /api/v1/pricing/quotes/{quoteId}:
     get:
+      tags: [quotes]
+      operationId: getQuote
       summary: Validate a quote (used by parcel-service)
-      parameters: [{ name: quoteId, in: path, required: true, schema: { type: string } }]
+      description: |
+        Returns the stored snapshot so that parcel-service can check the fee, the zones and the
+        parcel attributes the customer was quoted on. Nothing is recomputed and no value from
+        the caller's request is substituted into the response. An unknown or expired quoteId
+        returns 404 QUOTE_NOT_FOUND.
+      parameters:
+        - name: quoteId
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/QuoteId" }
       responses:
-        "200": { description: Quote still valid }
+        "200":
+          description: Quote still valid
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Quote" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
         "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
   /api/v1/pricing/zones:
     get:
+      tags: [zones]
+      operationId: listPublicZones
       summary: Service zones and their districts (public)
+      description: Active zones only. The web app loads district options from here.
       security: []
       responses:
         "200":
@@ -62,23 +104,474 @@ paths:
             application/json:
               schema: { type: array, items: { $ref: "#/components/schemas/Zone" } }
   /api/v1/admin/pricing/zones:
-    get: { summary: List zones (admin), responses: { "200": { description: OK } } }
-    post: { summary: Create zone (ADMIN), responses: { "201": { description: Created } } }
+    get:
+      tags: [admin-zones]
+      operationId: listZones
+      summary: List zones (ADMIN)
+      description: Includes inactive zones.
+      responses:
+        "200":
+          description: Zones
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Zone" } }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+    post:
+      tags: [admin-zones]
+      operationId: createZone
+      summary: Create zone (ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ZoneCreateRequest" }
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location:
+              description: URI of the created zone
+              schema: { type: string, format: uri-reference }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Zone" }
+        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "409":
+          description: A zone with that code already exists (ZONE_CODE_TAKEN)
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
   /api/v1/admin/pricing/zones/{zoneId}:
-    put: { summary: Update zone (ADMIN), parameters: [{ name: zoneId, in: path, required: true, schema: { type: string } }], responses: { "200": { description: OK } } }
+    parameters:
+      - $ref: "#/components/parameters/ZoneId"
+    get:
+      tags: [admin-zones]
+      operationId: getZone
+      summary: Get one zone (ADMIN)
+      responses:
+        "200":
+          description: Zone
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Zone" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
+    put:
+      tags: [admin-zones]
+      operationId: updateZone
+      summary: Update zone (ADMIN)
+      description: |
+        Renames a zone or changes its active flag. The code is immutable because rate cards and
+        district assignments are keyed on the zone identity. Deactivating a zone makes every
+        district mapped to it unquotable, so the request is rejected if districts are still
+        assigned to it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ZoneUpdateRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Zone" }
+        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
+        "422":
+          description: Districts are still assigned to the zone being deactivated (ZONE_IN_USE)
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
+  /api/v1/admin/pricing/districts:
+    get:
+      tags: [admin-zones]
+      operationId: listDistrictAssignments
+      summary: List every district and the zone it belongs to (ADMIN)
+      responses:
+        "200":
+          description: District assignments
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/DistrictAssignment" } }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+  /api/v1/admin/pricing/districts/{district}:
+    parameters:
+      - name: district
+        in: path
+        required: true
+        schema: { type: string, maxLength: 100, example: Kandy }
+    put:
+      tags: [admin-zones]
+      operationId: assignDistrict
+      summary: Assign or reassign a district to a zone (ADMIN)
+      description: Idempotent. Creates the assignment if the district is new, otherwise moves it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DistrictAssignmentRequest" }
+      responses:
+        "200":
+          description: Assigned
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DistrictAssignment" }
+        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "404":
+          description: The target zone does not exist (ZONE_NOT_FOUND)
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
   /api/v1/admin/pricing/rate-cards:
-    get: { summary: List rate cards (ADMIN), responses: { "200": { description: OK } } }
-    post: { summary: Create rate card (ADMIN), responses: { "201": { description: Created } } }
+    get:
+      tags: [admin-rate-cards]
+      operationId: listRateCards
+      summary: List rate cards (ADMIN)
+      parameters:
+        - name: fromZone
+          in: query
+          description: Filter by origin zone code.
+          schema: { $ref: "#/components/schemas/ZoneCode" }
+        - name: toZone
+          in: query
+          description: Filter by destination zone code.
+          schema: { $ref: "#/components/schemas/ZoneCode" }
+        - name: activeOn
+          in: query
+          description: Only cards in force on this date. Defaults to all cards.
+          schema: { type: string, format: date }
+        - $ref: "common.v1.yaml#/components/parameters/Page"
+        - $ref: "common.v1.yaml#/components/parameters/Size"
+      responses:
+        "200":
+          description: Rate cards
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateCardPage" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+    post:
+      tags: [admin-rate-cards]
+      operationId: createRateCard
+      summary: Create rate card (ADMIN)
+      description: |
+        Adds a new card for an ordered zone pair. Quotes already issued keep their stored fee.
+        To change current pricing, close the card in force and create a new one; overlapping
+        effective ranges for the same pair are rejected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RateCardCreateRequest" }
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location:
+              description: URI of the created rate card
+              schema: { type: string, format: uri-reference }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateCard" }
+        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "404":
+          description: An origin or destination zone does not exist (ZONE_NOT_FOUND)
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
+        "409":
+          description: Overlaps a rate card already in force for this pair (RATE_CARD_OVERLAP)
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
+  /api/v1/admin/pricing/rate-cards/{rateCardId}:
+    parameters:
+      - name: rateCardId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [admin-rate-cards]
+      operationId: getRateCard
+      summary: Get one rate card (ADMIN)
+      responses:
+        "200":
+          description: Rate card
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateCard" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
+  /api/v1/admin/pricing/rate-cards/{rateCardId}/closure:
+    parameters:
+      - name: rateCardId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      tags: [admin-rate-cards]
+      operationId: closeRateCard
+      summary: Close a rate card by setting its end date (ADMIN)
+      description: |
+        Rate cards are history and are never deleted. Closing one sets `effectiveTo`, after which
+        it no longer applies to new quotes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RateCardClosureRequest" }
+      responses:
+        "200":
+          description: Closed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateCard" }
+        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
+        "422":
+          description: The end date is not after the start date (INVALID_EFFECTIVE_RANGE)
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
   /api/v1/admin/pricing/size-classes:
-    get: { summary: Size classes and multipliers (ADMIN), responses: { "200": { description: OK } } }
+    get:
+      tags: [admin-size-classes]
+      operationId: listSizeClasses
+      summary: Size classes and multipliers (ADMIN)
+      responses:
+        "200":
+          description: Size classes
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/SizeClassRate" } }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+  /api/v1/admin/pricing/size-classes/{code}:
+    parameters:
+      - name: code
+        in: path
+        required: true
+        schema: { $ref: "common.v1.yaml#/components/schemas/SizeClass" }
+    put:
+      tags: [admin-size-classes]
+      operationId: updateSizeClass
+      summary: Update a size class (ADMIN)
+      description: |
+        The four codes are fixed; their limits and multiplier are configuration. Quotes already
+        issued are unaffected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SizeClassUpdateRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SizeClassRate" }
+        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
 components:
   securitySchemes:
     bearerAuth: { $ref: "common.v1.yaml#/components/securitySchemes/bearerAuth" }
+  parameters:
+    ZoneId:
+      name: zoneId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
   schemas:
+    ZoneCode:
+      type: string
+      description: Stable zone code. Immutable once the zone exists.
+      pattern: "^[A-Z][A-Z0-9-]{1,15}$"
+      maxLength: 16
+      example: CP
+    QuoteId:
+      type: string
+      format: uuid
+      description: Opaque quote identifier. Carries no pricing information on its own.
+    ServiceLevel:
+      type: string
+      enum: [STANDARD, EXPRESS]
+      default: STANDARD
+    PricingRule:
+      type: string
+      description: |
+        Identifies one line of the fee breakdown. Lines are returned in this order and rules
+        that do not apply are omitted.
+      enum: [BASE, WEIGHT, SIZE, EXPRESS, COD]
+    BreakdownLine:
+      type: object
+      required: [rule, amount]
+      properties:
+        rule: { $ref: "#/components/schemas/PricingRule" }
+        amount:
+          type: number
+          description: LKR, two decimals, rounded HALF_UP. The lines sum exactly to `fee.amount`.
+          example: 120.0
     Zone:
       type: object
+      required: [code, name, active]
       properties:
-        code: { type: string, example: CP-KDY }
-        name: { type: string, example: Central — Kandy }
-        districts: { type: array, items: { type: string } }
+        id:
+          type: string
+          format: uuid
+          description: Present on admin responses; omitted from the public zone list.
+        code: { $ref: "#/components/schemas/ZoneCode" }
+        name: { type: string, maxLength: 128, example: Central }
+        districts:
+          type: array
+          description: Districts currently mapped to this zone.
+          items: { type: string, example: Kandy }
         active: { type: boolean }
+    ZoneCreateRequest:
+      type: object
+      required: [code, name]
+      properties:
+        code: { $ref: "#/components/schemas/ZoneCode" }
+        name: { type: string, minLength: 1, maxLength: 128, example: Central }
+        active: { type: boolean, default: true }
+    ZoneUpdateRequest:
+      type: object
+      required: [name, active]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 128, example: Central }
+        active: { type: boolean }
+    DistrictAssignment:
+      type: object
+      required: [district, zoneCode]
+      properties:
+        district: { type: string, maxLength: 100, example: Kandy }
+        zoneCode: { $ref: "#/components/schemas/ZoneCode" }
+        zoneName: { type: string, example: Central }
+    DistrictAssignmentRequest:
+      type: object
+      required: [zoneCode]
+      properties:
+        zoneCode: { $ref: "#/components/schemas/ZoneCode" }
+    SizeClassRate:
+      type: object
+      required: [code, multiplier]
+      properties:
+        code: { $ref: "common.v1.yaml#/components/schemas/SizeClass" }
+        maxWeightKg: { type: number, exclusiveMinimum: 0, example: 5 }
+        maxDimensionsCm: { type: string, maxLength: 32, example: 40x30x20 }
+        multiplier:
+          type: number
+          minimum: 1
+          description: 1.0 means no size surcharge.
+          example: 1.25
+    SizeClassUpdateRequest:
+      type: object
+      required: [multiplier]
+      properties:
+        maxWeightKg: { type: number, exclusiveMinimum: 0, example: 5 }
+        maxDimensionsCm: { type: string, maxLength: 32, example: 40x30x20 }
+        multiplier: { type: number, minimum: 1, example: 1.25 }
+    RateCard:
+      type: object
+      required: [id, fromZone, toZone, baseFee, perKgFee, expressMultiplier, codFeePct, effectiveFrom]
+      properties:
+        id: { type: string, format: uuid }
+        fromZone: { $ref: "#/components/schemas/ZoneCode" }
+        toZone: { $ref: "#/components/schemas/ZoneCode" }
+        baseFee: { type: number, minimum: 0, example: 350.0 }
+        perKgFee: { type: number, minimum: 0, example: 60.0 }
+        expressMultiplier: { type: number, minimum: 1, example: 1.5 }
+        codFeePct:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Fraction of the COD amount, not a percentage. 0.015 is 1.5 percent.
+          example: 0.015
+        effectiveFrom: { type: string, format: date, example: "2026-01-01" }
+        effectiveTo:
+          type: [string, "null"]
+          format: date
+          description: Exclusive end date. Absent or null means the card is still in force.
+          example: null
+    RateCardCreateRequest:
+      type: object
+      required: [fromZone, toZone, baseFee, perKgFee, expressMultiplier, codFeePct, effectiveFrom]
+      properties:
+        fromZone: { $ref: "#/components/schemas/ZoneCode" }
+        toZone: { $ref: "#/components/schemas/ZoneCode" }
+        baseFee: { type: number, minimum: 0, example: 350.0 }
+        perKgFee: { type: number, minimum: 0, example: 60.0 }
+        expressMultiplier: { type: number, minimum: 1, example: 1.5 }
+        codFeePct: { type: number, minimum: 0, maximum: 1, example: 0.015 }
+        effectiveFrom: { type: string, format: date, example: "2026-01-01" }
+        effectiveTo: { type: [string, "null"], format: date, example: null }
+    RateCardClosureRequest:
+      type: object
+      required: [effectiveTo]
+      properties:
+        effectiveTo:
+          type: string
+          format: date
+          description: Exclusive end date. Must be after the card's effectiveFrom.
+          example: "2026-07-01"
+    RateCardPage:
+      type: object
+      required: [content, page]
+      properties:
+        content: { type: array, items: { $ref: "#/components/schemas/RateCard" } }
+        page: { $ref: "common.v1.yaml#/components/schemas/PageMeta" }
+    QuoteRequest:
+      type: object
+      required: [fromDistrict, toDistrict, weightKg, sizeClass]
+      properties:
+        fromCity: { type: string, maxLength: 60, example: Colombo 03 }
+        fromDistrict: { type: string, minLength: 1, maxLength: 100, example: Colombo }
+        toCity: { type: string, maxLength: 60, example: Kandy }
+        toDistrict: { type: string, minLength: 1, maxLength: 100, example: Kandy }
+        weightKg: { type: number, exclusiveMinimum: 0, maximum: 100, example: 2 }
+        sizeClass: { $ref: "common.v1.yaml#/components/schemas/SizeClass" }
+        serviceLevel: { $ref: "#/components/schemas/ServiceLevel" }
+        codAmount:
+          type: number
+          minimum: 0
+          description: Cash to collect on delivery. Omit or 0 for no COD.
+          example: 0
+    Quote:
+      type: object
+      description: |
+        The stored quote snapshot. The same representation is returned when a quote is issued and
+        when it is looked up, so parcel-service sees exactly what the customer was quoted.
+      required: [quoteId, fee, breakdown, fromZone, toZone, weightKg, sizeClass, serviceLevel, issuedAt, expiresAt]
+      properties:
+        quoteId: { $ref: "#/components/schemas/QuoteId" }
+        fee: { $ref: "common.v1.yaml#/components/schemas/Money" }
+        breakdown:
+          type: array
+          description: One line per pricing rule applied (BASE, WEIGHT, SIZE, EXPRESS, COD).
+          items: { $ref: "#/components/schemas/BreakdownLine" }
+        fromZone: { $ref: "#/components/schemas/ZoneCode" }
+        toZone: { $ref: "#/components/schemas/ZoneCode" }
+        fromDistrict: { type: string, example: Colombo }
+        toDistrict: { type: string, example: Kandy }
+        weightKg: { type: number, example: 2 }
+        sizeClass: { $ref: "common.v1.yaml#/components/schemas/SizeClass" }
+        serviceLevel: { $ref: "#/components/schemas/ServiceLevel" }
+        codAmount: { type: number, minimum: 0, example: 0 }
+        issuedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
