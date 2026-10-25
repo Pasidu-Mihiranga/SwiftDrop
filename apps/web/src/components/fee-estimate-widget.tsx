@@ -105,7 +105,7 @@ export function FeeEstimateWidget({ zones, coverageError, onQuote }: FeeEstimate
       </h2>
 
       {coverageError ? (
-        <p role="alert" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+        <p role="alert" className="notice-warning">
           {coverageError}
         </p>
       ) : null}
@@ -153,6 +153,8 @@ export function FeeEstimateWidget({ zones, coverageError, onQuote }: FeeEstimate
               className="input"
               value={values.sizeClass}
               onChange={(event) => update("sizeClass", event.target.value)}
+              aria-invalid={Boolean(errors.sizeClass)}
+              aria-describedby={errors.sizeClass ? "sizeClass-error" : undefined}
             >
               {SIZE_CLASSES.map((code) => (
                 <option key={code} value={code}>
@@ -169,6 +171,8 @@ export function FeeEstimateWidget({ zones, coverageError, onQuote }: FeeEstimate
               className="input"
               value={values.serviceLevel}
               onChange={(event) => update("serviceLevel", event.target.value)}
+              aria-invalid={Boolean(errors.serviceLevel)}
+              aria-describedby={errors.serviceLevel ? "serviceLevel-error" : undefined}
             >
               {SERVICE_LEVELS.map((level) => (
                 <option key={level} value={level}>
@@ -200,7 +204,7 @@ export function FeeEstimateWidget({ zones, coverageError, onQuote }: FeeEstimate
           </Field>
         </div>
 
-        <button className="btn-primary w-full sm:w-auto" type="submit" disabled={loading}>
+        <button className="btn-primary w-full sm:w-auto" type="submit" disabled={loading || districts.length === 0}>
           {loading ? "Calculating..." : quote ? "Recalculate" : "Get estimate"}
         </button>
       </form>
@@ -209,13 +213,13 @@ export function FeeEstimateWidget({ zones, coverageError, onQuote }: FeeEstimate
         {loading ? <p className="text-sm text-slate-600">Calculating your fee...</p> : null}
 
         {status === "failed" && message ? (
-          <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+          <p role="alert" className="notice-error">
             {message}
           </p>
         ) : null}
 
         {status === "idle" && !coverageError ? (
-          <p className="rounded-lg bg-brand-50 p-3 text-sm text-brand-700">
+          <p className="notice-info">
             Pick two districts and a weight to see the price before you sign up.
           </p>
         ) : null}
@@ -228,17 +232,17 @@ export function FeeEstimateWidget({ zones, coverageError, onQuote }: FeeEstimate
 
 function QuoteSummary({ quote, expired, remaining }: { quote: Quote; expired: boolean; remaining: string }) {
   return (
-    <div className="card space-y-4">
+    <div className="min-w-0 space-y-4 border-t border-slate-200 pt-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <p className="text-sm text-slate-600">Estimated fee</p>
-          <p className="text-3xl font-bold">{formatMoney(quote.fee.amount, quote.fee.currency)}</p>
+          <p className="break-words text-3xl font-bold">{formatMoney(quote.fee.amount, quote.fee.currency)}</p>
         </div>
         <span
           className={
             expired
-              ? "rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800"
-              : "rounded-full bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700"
+              ? "status-pill-warning px-3 py-1"
+              : "status-pill-neutral px-3 py-1"
           }
         >
           {expired ? "Estimate expired" : `Valid for ${remaining}`}
@@ -263,11 +267,11 @@ function QuoteSummary({ quote, expired, remaining }: { quote: Quote; expired: bo
       </ul>
 
       {expired ? (
-        <p role="alert" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+        <p role="alert" className="notice-warning">
           Prices can change, so this estimate only lasts a few minutes. Recalculate to continue.
         </p>
       ) : (
-        <p className="text-xs text-slate-500">Reference {quote.quoteId}</p>
+        <p className="break-all text-xs text-slate-500">Reference {quote.quoteId}</p>
       )}
     </div>
   );
@@ -337,7 +341,7 @@ function Field({
         </p>
       ) : null}
       {error ? (
-        <p id={`${id}-error`} className="text-sm text-red-700">
+        <p id={`${id}-error`} className="field-error">
           {error}
         </p>
       ) : null}

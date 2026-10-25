@@ -45,11 +45,10 @@ function ActionMessage({ state }: { state: ActionState }) {
   if (state.status === "idle") return null;
 
   const fieldMessages = Object.entries(state.errors ?? {});
-  const tone =
-    state.status === "ok" ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-700";
+  const tone = state.status === "ok" ? "notice-success" : "notice-error";
 
   return (
-    <div role="status" aria-live="polite" className={`rounded-lg p-3 text-sm ${tone}`}>
+    <div role={state.status === "ok" ? "status" : "alert"} aria-live="polite" className={tone}>
       <p>{state.message ?? (state.status === "ok" ? "Saved." : "That did not work.")}</p>
       {fieldMessages.length > 0 ? (
         <ul className="mt-1 list-inside list-disc">
