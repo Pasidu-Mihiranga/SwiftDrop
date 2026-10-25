@@ -114,15 +114,35 @@ detail.
       the quote date. Reject missing or ambiguous rates clearly.
 - [x] Implement pricing rules as domain strategies/decorators with a monetary
       breakdown. Use decimal arithmetic and the agreed rounding policy.
+      `PricingStrategy` is the common interface. `ZoneMatrixStrategy` and
+      `WeightStrategy` charge the lane and the weight; `SizeSurchargeDecorator`,
+      `ExpressSurchargeDecorator` and `CodFeeDecorator` layer the surcharges on
+      top, each charging against the rounded total beneath it. `FeeCalculator`
+      only assembles the chain, so the formula is visible in the object graph and
+      adding a rule means adding a decorator rather than editing a calculation.
 - [x] Validate weight, size class, service level, COD amount, districts, and
       active coverage at the API boundary.
 - [x] Store quote data in Redis under an opaque ID with a configurable
       15-minute TTL; return the ID, fee, breakdown, zones, and expiry.
 - [x] Implement quote lookup for parcel-service validation. Define 404 for
       unknown/expired quotes and prevent request data from being substituted.
-- [ ] Implement ADMIN-only zone, rate-card, and size-class management APIs.
-- [ ] Keep OpenAPI and generated Swagger behavior aligned with each endpoint.
-- [ ] Cover pricing edge cases, quote expiry, and admin authorization.
+- [x] Implement ADMIN-only zone, rate-card, and size-class management APIs.
+      Rate cards are versioned rather than edited: a price change closes the card
+      in force by setting `effective_to` and adds a new one, and overlapping
+      periods for a lane are rejected. Effective periods are half-open, so a card
+      starting the day another ends leaves neither a gap nor an overlap.
+      Listing supports zone and effective-date filters with the shared pagination
+      envelope.
+- [x] Keep OpenAPI and generated Swagger behavior aligned with each endpoint.
+      All twelve contract paths are implemented, and every documented status code
+      has a test asserting the problem+json `code`.
+- [x] Cover pricing edge cases, quote expiry, and admin authorization.
+      171 tests green (140 unit including ArchUnit, 31 integration on
+      Testcontainers Postgres and Redis); JaCoCo coverage 96.2 per cent line
+      and 89.5 per cent branch.
+      Quote expiry is driven by a controlled clock so the boundary is asserted
+      exactly rather than by waiting, and every admin endpoint is checked against
+      CUSTOMER, COURIER, DISPATCHER, MERCHANT and anonymous callers.
 
 ## Phase 3: Web flows
 
@@ -172,11 +192,16 @@ detail.
 
 ## Current boundary
 
-The pricing schema is complete and seeded: zones, district mapping, size classes
-and rate cards, with the public coverage endpoint and ADMIN zone/district
-maintenance in place behind the layered package structure. Quotes are the next
-step, and nothing writes to Redis yet. The web pages and Helm charts are still to
-be built, and `infra/helm` holds only its README.
+The pricing service is feature complete behind the API: the seeded schema, the
+public coverage list, the Strategy and Decorator fee pipeline, Redis-backed
+quotes with a configurable lifetime, authenticated quote lookup for M3, and
+ADMIN maintenance of zones, districts, rate cards and size classes. Every path in
+the OpenAPI contract is implemented.
+
+What remains is Phase 3 onward: the `/quote` page and admin pricing screens, the
+Helm charts in `infra/helm`, which still holds only its README, and the Phase 5
+delivery items. The quote-lookup response shape is still awaiting confirmation
+from the parcel-service owner.
 
 Note for local runs: this machine's active Docker context is Colima, which
 Testcontainers does not discover on its own. Integration tests need
