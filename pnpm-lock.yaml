@@ -66,8 +66,8 @@ importers:
         specifier: 3.0.1
         version: 3.0.1(ajv@8.20.0)
       jose:
-        specifier: 5.10.0
-        version: 5.10.0
+        specifier: 6.2.13
+        version: 6.2.13
       kafkajs:
         specifier: 2.2.4
         version: 2.2.4
@@ -161,8 +161,8 @@ importers:
         specifier: 30.5.2
         version: 30.5.2(@types/node@22.20.5)
       jose:
-        specifier: 5.10.0
-        version: 5.10.0
+        specifier: 6.2.13
+        version: 6.2.13
       supertest:
         specifier: 7.3.1
         version: 7.3.1
@@ -216,8 +216,8 @@ importers:
         specifier: 30.5.2
         version: 30.5.2(@types/node@22.20.5)
       jose:
-        specifier: 5.10.0
-        version: 5.10.0
+        specifier: 6.2.13
+        version: 6.2.13
       supertest:
         specifier: 7.3.1
         version: 7.3.1
@@ -271,8 +271,8 @@ importers:
         specifier: 30.5.2
         version: 30.5.2(@types/node@22.20.5)
       jose:
-        specifier: 5.10.0
-        version: 5.10.0
+        specifier: 6.2.13
+        version: 6.2.13
       supertest:
         specifier: 7.3.1
         version: 7.3.1
@@ -2534,6 +2534,7 @@ packages:
 
   glob@10.4.5:
     resolution: {integrity: sha512-7Bv8RF0k6xjo7d4A/PxYLbUCfb6c+Vpd2/mB2yRDlew7Jb5hEXiCD9ibfO7wpk8i4sevK6DFny9h7EYbM3/sHg==}
+    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
     hasBin: true
 
   glob@13.0.6:
@@ -2796,9 +2797,6 @@ packages:
   jiti@2.7.0:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
-
-  jose@5.10.0:
-    resolution: {integrity: sha512-s+3Al/p9g32Iq+oqXxkW//7jk2Vig6FF1CFqzVXoTUXt2qz89YWbL+OwS17NFYEvxC35n0FKeGO2LGYSxeM2Gg==}
 
   jose@6.2.13:
     resolution: {integrity: sha512-7TIg10ZE1x82YediN+lcrPNvGMKge9yFHQD+Qho/b8y2adfugU3AsvvHfxV0fzyFllT6l9xCjf4RWY9g/Z9PJQ==}
@@ -6617,8 +6615,6 @@ snapshots:
       - ts-node
 
   jiti@2.7.0: {}
-
-  jose@5.10.0: {}
 
   jose@6.2.13: {}
 
