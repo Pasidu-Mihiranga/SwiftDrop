@@ -1,0 +1,36 @@
+%% M2 activity: deterministic rate-card selection (RateCardSelectionService).
+%% Rule: a card applies when effective_from <= quoteDate AND
+%% (effective_to IS NULL OR effective_to > quoteDate). The newest effective_from wins.
+%% An exact tie is a configuration error and is rejected, never resolved arbitrarily.
+flowchart TD
+    classDef guard fill:#fff5f5,stroke:#e03131,color:#7a1212
+    classDef step fill:#ebfbee,stroke:#2f9e44,color:#14532d
+    classDef io fill:#eef4ff,stroke:#3b5bdb,color:#1b2a5e
+
+    START(["select(fromZone, toZone, quoteDate)"]):::io
+    AF{"fromZone exists<br/>and is active?"}:::guard
+    SAME{"toZone == fromZone?"}:::step
+    AT{"toZone exists<br/>and is active?"}:::guard
+    NOTSERVED(["422 DISTRICT_NOT_SERVICED"]):::guard
+
+    FIND["rateCards.findInForce(fromZone, toZone, quoteDate)<br/>index idx_rate_card_pair_effective_from DESC"]:::step
+    ANY{"any card in force?"}:::guard
+    NONE(["422 NO_RATE_CARD"]):::guard
+
+    MAX["newest = max by effective_from"]:::step
+    TIE{"more than one card shares<br/>that effective_from?"}:::guard
+    AMB(["422 AMBIGUOUS_RATE_CARD<br/>a configuration error, surfaced not hidden"]):::guard
+    OK(["the governing RateCard<br/>baseFee, perKgFee, expressMultiplier, codFeePct"]):::io
+
+    START --> AF
+    AF -- no --> NOTSERVED
+    AF -- yes --> SAME
+    SAME -- "yes (intra-zone lane)" --> FIND
+    SAME -- no --> AT
+    AT -- no --> NOTSERVED
+    AT -- yes --> FIND
+    FIND --> ANY
+    ANY -- no --> NONE
+    ANY -- yes --> MAX --> TIE
+    TIE -- yes --> AMB
+    TIE -- no --> OK
