@@ -1,0 +1,148 @@
+%% M2 class diagram: the Strategy + Decorator pricing pipeline (domain.policy / domain.model).
+%% The fee formula lives in the shape of the object graph, not in an if-chain, so adding a
+%% rule means adding a decorator rather than editing a calculation. The chain is stateless.
+%% The whole package is free of Spring, JPA and Hibernate types (asserted by ArchUnit).
+classDiagram
+    direction TB
+
+    class PricingStrategy {
+        <<interface>>
+        +price(PricingContext context, FeeBreakdown soFar) FeeBreakdown
+    }
+
+    class PricingDecorator {
+        <<abstract>>
+        -PricingStrategy delegate
+        +price(PricingContext, FeeBreakdown) FeeBreakdown
+        #rule() PricingRule*
+        #surcharge(PricingContext, BigDecimal chargedSoFar) BigDecimal*
+    }
+    note for PricingDecorator "price() is final: run the delegate first,\nthen charge this rule against the rounded\ntotal that came back."
+
+    class ZoneMatrixStrategy {
+        +price(..) FeeBreakdown
+    }
+    note for ZoneMatrixStrategy "The only rule that reads the zone matrix.\nBASE = card.baseFee, so repricing distance\nis a data change, not a code change."
+
+    class WeightStrategy {
+        +price(..) FeeBreakdown
+        +chargeableKilograms(BigDecimal) BigDecimal$
+    }
+    note for WeightStrategy "Part kilograms bill as whole ones:\n2.1 kg is charged as 3 kg."
+
+    class CompositePricingStrategy {
+        -List~PricingStrategy~ strategies
+        +price(..) FeeBreakdown
+    }
+
+    class SizeSurchargeDecorator {
+        #rule() PricingRule
+        #surcharge(..) BigDecimal
+    }
+    class ExpressSurchargeDecorator {
+        #rule() PricingRule
+        #surcharge(..) BigDecimal
+    }
+    class CodFeeDecorator {
+        #rule() PricingRule
+        #surcharge(..) BigDecimal
+    }
+
+    class FeeCalculator {
+        -PricingStrategy pipeline
+        +FeeCalculator()
+        +FeeCalculator(PricingStrategy pipeline)
+        +calculate(RateCard, SizeClassRate, BigDecimal weightKg, ServiceLevel, BigDecimal codAmount) FeeBreakdown
+    }
+    note for FeeCalculator "Default chain:\nCOD( EXPRESS( SIZE( ZoneMatrix + Weight ) ) )\nThe second constructor lets a test or a future\ncaller price with a different rule set."
+
+    class PricingContext {
+        <<record>>
+        +RateCard card
+        +SizeClassRate sizeClass
+        +BigDecimal weightKg
+        +ServiceLevel serviceLevel
+        +BigDecimal codAmount
+    }
+
+    class FeeBreakdown {
+        <<record>>
+        +List~Line~ lines
+        +BigDecimal fee
+        +empty() FeeBreakdown$
+        +plus(PricingRule, BigDecimal rawAmount) FeeBreakdown
+    }
+    note for FeeBreakdown "Immutable: plus() returns a new breakdown.\nRounds each line, and drops a line that\nworks out to zero."
+
+    class Line {
+        <<record>>
+        +PricingRule rule
+        +BigDecimal amount
+    }
+
+    class PricingRule {
+        <<enumeration>>
+        BASE
+        WEIGHT
+        SIZE
+        EXPRESS
+        COD
+    }
+
+    class MonetaryRounding {
+        +int SCALE = 2$
+        +RoundingMode MODE = HALF_UP$
+        +round(BigDecimal) BigDecimal$
+        +zero() BigDecimal$
+    }
+
+    class RateCard {
+        <<record>>
+        +UUID id
+        +ZoneCode fromZone
+        +ZoneCode toZone
+        +BigDecimal baseFee
+        +BigDecimal perKgFee
+        +BigDecimal expressMultiplier
+        +BigDecimal codFeePct
+        +LocalDate effectiveFrom
+        +LocalDate effectiveTo
+        +closedOn(LocalDate) RateCard
+    }
+
+    class SizeClassRate {
+        <<record>>
+        +SizeClassCode code
+        +BigDecimal maxWeightKg
+        +String maxDimensionsCm
+        +BigDecimal multiplier
+        +accepts(BigDecimal weightKg) boolean
+    }
+
+    class ServiceLevel {
+        <<enumeration>>
+        STANDARD
+        EXPRESS
+    }
+
+    PricingStrategy <|.. ZoneMatrixStrategy
+    PricingStrategy <|.. WeightStrategy
+    PricingStrategy <|.. CompositePricingStrategy
+    PricingStrategy <|.. PricingDecorator
+    PricingDecorator <|-- SizeSurchargeDecorator
+    PricingDecorator <|-- ExpressSurchargeDecorator
+    PricingDecorator <|-- CodFeeDecorator
+
+    PricingDecorator o--> "1 delegate" PricingStrategy : wraps
+    CompositePricingStrategy o--> "1..*" PricingStrategy : runs in order
+    FeeCalculator o--> "1" PricingStrategy : assembles only
+
+    FeeCalculator ..> PricingContext : creates
+    PricingStrategy ..> PricingContext : reads
+    PricingStrategy ..> FeeBreakdown : returns
+    FeeBreakdown *--> "0..5" Line
+    Line --> PricingRule
+    FeeBreakdown ..> MonetaryRounding : rounds each line
+    PricingContext --> RateCard
+    PricingContext --> SizeClassRate
+    PricingContext --> ServiceLevel

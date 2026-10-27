@@ -1,0 +1,42 @@
+%% M2 key flow 2: parcel-service validates an issued quote before booking.
+%% GET /api/v1/pricing/quotes/{quoteId} - requires a bearer token.
+%% The response is derived only from the stored snapshot; request data is never
+%% substituted into it, and expiry is indistinguishable from a guessed identifier.
+sequenceDiagram
+    autonumber
+    participant P as parcel-service (M3)
+    participant GW as api-gateway
+    participant KC as Keycloak
+    participant QC as QuoteController
+    participant QLS as QuoteLookupService
+    participant CL as Clock (injected)
+    participant RD as RedisQuoteStore
+
+    Note over P: CreateParcelRequest carries the quoteId<br/>the customer was shown
+    P->>GW: GET /api/v1/pricing/quotes/{quoteId}<br/>Authorization: Bearer ...
+    GW->>KC: validate the JWT against the JWKS
+    alt token missing or invalid
+        GW-->>P: 401
+    else token valid
+        GW->>QC: forward
+        QC->>QLS: get(quoteId)
+        QLS->>RD: findById(quoteId)
+        alt no snapshot under that key
+            RD-->>QLS: empty
+            QLS-->>QC: ResourceNotFoundException
+            QC-->>P: 404 problem+json QUOTE_NOT_FOUND
+        else snapshot found
+            RD-->>QLS: QuoteSnapshot
+            QLS->>QLS: snapshot.quoteId equals the requested id?
+            QLS->>CL: instant()
+            alt now is not before expiresAt
+                QLS-->>QC: ResourceNotFoundException
+                QC-->>P: 404 problem+json QUOTE_NOT_FOUND
+                Note over QLS,P: deliberately the same answer as "unknown",<br/>so expiry leaks nothing
+            else still valid
+                QLS-->>QC: the stored snapshot, verbatim
+                QC-->>P: 200 fee, breakdown, zones, districts, weight,<br/>size class, service level, COD, issuedAt, expiresAt
+                Note over P: the booking is persisted with the fee<br/>the customer was actually quoted
+            end
+        end
+    end
