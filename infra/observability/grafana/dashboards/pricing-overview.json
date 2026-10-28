@@ -1,0 +1,262 @@
+{
+  "uid": "swiftdrop-pricing",
+  "title": "SwiftDrop – Pricing & Zones (M2)",
+  "description": "Business view of pricing-service. The platform dashboard answers whether the service is healthy; this answers whether pricing is behaving. Meters come from MicrometerPricingMetrics (pricing.quotes.issued, pricing.quote.fee, pricing.rate_card.selection.failures) plus the standard Spring Boot HTTP histogram. Prometheus already scrapes pricing-service:8083/actuator/prometheus under the java-services job.",
+  "tags": ["swiftdrop", "pricing"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Quotes",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Quotes issued (selected range)",
+      "description": "Counted only after the snapshot is stored in Redis, so it reflects quotes a customer can actually use.",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(pricing_quotes_issued_total[$__range]))",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "text", "value": null }]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "none",
+        "graphMode": "area",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Median quoted fee",
+      "description": "The 0.5 quantile published by the pricing.quote.fee distribution summary (Prometheus labels it quantile).",
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(pricing_quote_fee_LKR{quantile=\"0.5\"})",
+          "instant": true
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "currencyLKR", "decimals": 2 } },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Rate-card selection failures (selected range)",
+      "description": "A lane with no usable rate card is a configuration error, not a user mistake. Anything above zero needs an admin to add or correct a card.",
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(pricing_rate_card_selection_failures_total{reason=~\"NO_RATE_CARD|AMBIGUOUS_RATE_CARD\"}[$__range]))",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "value",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "pricing-service up",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "max(up{service=\"pricing-service\"})", "instant": true }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": { "text": "DOWN", "color": "red", "index": 0 },
+                "1": { "text": "UP", "color": "green", "index": 1 }
+              }
+            }
+          ],
+          "unit": "short"
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Quote rate by service level (quotes/min)",
+      "description": "Express against standard demand. A sudden collapse in one of them usually means a validation or rate-card problem rather than a drop in traffic.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (service_level) (rate(pricing_quotes_issued_total[5m])) * 60",
+          "legendFormat": "{{service_level}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10 } } }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Quote mix by size class (quotes/min)",
+      "description": "Derived from the same counter's size_class tag. Four closed values, so the series count is bounded.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (size_class) (rate(pricing_quotes_issued_total[5m])) * 60",
+          "legendFormat": "{{size_class}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10, "stacking": { "mode": "normal" } } } }
+    },
+    {
+      "id": 8,
+      "type": "row",
+      "title": "Fees",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Quoted fee distribution (LKR)",
+      "description": "Median and 95th percentile of what customers are actually quoted, per service level. A pricing mistake that makes every quote too cheap shows here and nowhere else.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pricing_quote_fee_LKR{quantile=\"0.5\"}",
+          "legendFormat": "p50 {{service_level}}"
+        },
+        {
+          "refId": "B",
+          "expr": "pricing_quote_fee_LKR{quantile=\"0.95\"}",
+          "legendFormat": "p95 {{service_level}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "currencyLKR", "decimals": 2 } }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Mean quoted fee (LKR)",
+      "description": "Sum over count from the distribution summary, which is independent of the published quantiles.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (service_level) (rate(pricing_quote_fee_LKR_sum[5m])) / sum by (service_level) (rate(pricing_quote_fee_LKR_count[5m]))",
+          "legendFormat": "{{service_level}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "currencyLKR", "decimals": 2 } }
+    },
+    {
+      "id": 11,
+      "type": "row",
+      "title": "Errors and latency",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Rate-card selection failures by reason (per min)",
+      "description": "NO_RATE_CARD and AMBIGUOUS_RATE_CARD are configuration errors an admin must fix. DISTRICT_NOT_SERVICED is normal: a customer asked about a district outside the active coverage.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (reason) (rate(pricing_rate_card_selection_failures_total[5m])) * 60",
+          "legendFormat": "{{reason}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10 } } }
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Pricing endpoint latency p95 (s)",
+      "description": "From the standard Spring Boot HTTP histogram, restricted to the pricing routes. Quote issuance writes to both Postgres and Redis, so this is the one to watch when the estimate widget feels slow.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, uri) (rate(http_server_requests_seconds_bucket{service=\"pricing-service\", uri=~\"/api/v1/pricing.*\"}[5m])))",
+          "legendFormat": "{{uri}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Pricing responses by status (per min)",
+      "description": "422 is ordinary input validation. A rise in 5xx, or in 404 on the lookup route, is worth investigating: parcel-service depends on that route to validate a quote.",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 32 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (status) (rate(http_server_requests_seconds_count{service=\"pricing-service\", uri=~\"/api/v1/.*pricing.*\"}[5m])) * 60",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10, "stacking": { "mode": "normal" } } } }
+    }
+  ]
+}
