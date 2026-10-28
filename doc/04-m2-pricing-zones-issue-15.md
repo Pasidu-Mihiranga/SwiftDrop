@@ -259,15 +259,60 @@ exercised. TLS was not exercised either, since dev runs over plain http by desig
 
 ## Phase 5: Delivery
 
-- [ ] Add focused unit and integration coverage for calculations, persistence,
+- [x] Add focused unit and integration coverage for calculations, persistence,
       expiry, authorization, and the web workflows; meet the project 70% gate.
-- [ ] Add pricing/zones ER detail, pricing strategy class diagram, and the
+      Java: 181 tests (150 unit including ArchUnit, 31 integration on Testcontainers),
+      JaCoCo 96.34 per cent lines and 89.47 per cent branches, gate met.
+      Web: 117 tests, 99.72 per cent lines and 90.27 per cent branches.
+      The web gate previously measured only `src/lib`, so the fee-widget component tests
+      ran outside it. The coverage scope now includes the pricing components, and
+      thresholds are set on all four metrics rather than lines alone. Components owned by
+      other milestones are excluded by name with the reason stated, so this gate measures
+      the code M2 wrote; each milestone removes its own line when it adds tests.
+      `PricingForm` and the six admin server actions were untested and now have 39 cases.
+      `scripts/collect-test-reports.sh` gathers every module's report and a summary table
+      into `doc/test-reports/`.
+- [x] Add pricing/zones ER detail, pricing strategy class diagram, and the
       Kubernetes deployment diagram under `doc/diagrams`, and reconcile
       `doc/diagrams/er-v1.mmd` with the surrogate-key pricing schema.
-- [ ] Add a pricing Grafana panel/metric and update service/Helm README docs.
+      `er-v1.mmd` now carries the surrogate UUID keys on `ZONE` and `RATE_CARD`, the
+      unique `zone.code`, `district_zone.zone_id`, and the `cod_fee_pct` and
+      `max_dimensions_cm` columns that V2 to V4 actually create, with a note that an
+      issued quote is a Redis snapshot rather than a table. The deployment diagram no
+      longer says PLANNED.
+      No PNG or SVG exports are checked in: Mermaid CLI cannot launch its headless browser
+      in this environment, so the export command is documented for the design PDF instead.
+- [x] Add a pricing Grafana panel/metric and update service/Helm README docs.
+      Three meters behind a new `PricingMetrics` outbound port, implemented by
+      `MicrometerPricingMetrics` in infrastructure so the application layer stays free of
+      the metrics library: `pricing_quotes_issued_total` tagged by service level and size
+      class, `pricing_quote_fee_LKR` as a p50/p95 summary, and
+      `pricing_rate_card_selection_failures_total` tagged by reason, because a lane with no
+      usable rate card is a configuration error that a 4xx count would hide. Tag
+      cardinality is bounded and a test asserts no district, zone pair or quote id is ever
+      a tag. These are the first custom meters in the repository.
+      Dashboard `infra/observability/grafana/dashboards/pricing-overview.json`, uid
+      `swiftdrop-pricing`, 14 panels, auto-provisioned by the existing file provider; the
+      existing scrape config already covers the service. Every query was checked against a
+      live `/actuator/prometheus`, which corrected the percentile label from `phi` (what
+      `SimpleMeterRegistry` uses in tests) to `quantile` (what the Prometheus registry
+      publishes).
 - [ ] Demonstrate an anonymous estimate, an admin rate change, quote expiry,
       and a valid quote being consumed by parcel-service.
-- [ ] Complete the M2 row in `doc/03-team-contribution.md` with delivered work.
+      `scripts/demo-m2-pricing.sh` covers the first three against a running deployment and
+      prints a pass or fail line per behaviour: 13 of 13 passing on the kind cluster, twice
+      in a row. Quote expiry was also proven for real by setting
+      `PRICING_QUOTE_TTL=PT1M` through Helm and polling one id: HTTP 200 for exactly
+      60 seconds, then `404 QUOTE_NOT_FOUND`.
+      The fourth demonstration stays open: `parcel-service` is still a scaffold with no
+      create-parcel endpoint, so nothing can consume a quote. The script ends by calling
+      `GET /api/v1/pricing/quotes/{id}` exactly as parcel-service will and asserting every
+      field of the agreed contract is present, which is as far as M2 can take it alone.
+- [x] Complete the M2 row in `doc/03-team-contribution.md` with delivered work.
+      Backend, frontend, tests and diagrams filled from the real work; the member name
+      comes from the repository's git identity and the Student ID is left as a marked
+      TODO. A note above the sheet records the Helm and Kubernetes platform share, which
+      the table has no column for.
 - [ ] Request review when the feature is ready. Do not commit or push until
       the user explicitly asks; do not add an agent co-author trailer.
 
@@ -290,9 +335,34 @@ live from pricing-service.
 Phase 4 is complete. `infra/helm` holds the library chart, twelve thin service
 charts and the umbrella chart with the dev datastores and the Ingress, and the dev
 slice has been deployed to kind and exercised end to end (see the Phase 4
-verification section). The quote-to-booking handoff remains open until M3 provides
-a booking page and confirms the quote-lookup response shape. Phase 5 delivery items
-remain open.
+verification section).
+
+Phase 5 is complete except for one demonstration. Coverage is above the gate on both
+stacks with the reports collected, `er-v1.mmd` is reconciled, the pricing meters and the
+Grafana dashboard are in place and verified against a live scrape, the demo script passes
+13 of 13, and the contribution row is filled.
+
+Three items stay open, and only one of them is M2's to close:
+
+1. The quote-to-booking handoff (Phase 3) and the "valid quote consumed by
+   parcel-service" demonstration (Phase 5) both wait on M3. `parcel-service` has only a
+   `MetaController`, and `apps/web` has no customer booking page, so there is no
+   destination to wire and nothing to consume a quote. M2's side of the seam is finished
+   and proven: `FeeEstimateWidget` exposes `onQuote(quote)`, and
+   `GET /api/v1/pricing/quotes/{quoteId}` returns every field
+   `CreateParcelRequest` needs.
+2. M3 has still not confirmed the quote-lookup response shape proposed in Phase 0. That is
+   a conversation, not code.
+3. Review has not been requested and nothing has been pushed.
+
+What a reviewer should know about the running cluster: the demo script and the metric
+verification deliberately changed data and did not fully undo it, because the design
+forbids it. The WP to CP lane has several versioned rate cards rather than the single
+seeded one, since closing a card and adding its replacement is the whole point and rows are
+never hard-deleted. An inactive zone `TST` also remains, left by the check that
+`NO_RATE_CARD` is counted; it holds no districts and is excluded from the public coverage
+list. Both are undone by recreating the volume:
+`kubectl -n swiftdrop delete pvc data-postgres-0` then deleting the `postgres-0` pod.
 
 Note for local runs: this machine's active Docker context is Colima, which
 Testcontainers does not discover on its own. Integration tests need
