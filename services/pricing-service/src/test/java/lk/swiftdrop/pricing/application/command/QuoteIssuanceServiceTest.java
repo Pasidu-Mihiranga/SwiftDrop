@@ -1,6 +1,7 @@
 package lk.swiftdrop.pricing.application.command;
 
 import lk.swiftdrop.pricing.application.model.QuoteSnapshot;
+import lk.swiftdrop.pricing.application.port.out.PricingMetrics;
 import lk.swiftdrop.pricing.application.port.out.QuoteStore;
 import lk.swiftdrop.pricing.application.query.PreparedQuote;
 import lk.swiftdrop.pricing.application.query.QuotePricingInput;
@@ -23,7 +24,10 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -37,6 +41,7 @@ class QuoteIssuanceServiceTest {
 
     private final QuotePricingService pricing = mock(QuotePricingService.class);
     private final QuoteStore store = mock(QuoteStore.class);
+    private final PricingMetrics metrics = mock(PricingMetrics.class);
 
     @Test
     void storesTheExactIssuedSnapshotWithConfiguredExpiryAndLocalQuoteDate() {
@@ -45,7 +50,7 @@ class QuoteIssuanceServiceTest {
                 new BigDecimal("475.00"));
         when(pricing.prepare(INPUT, LocalDate.of(2026, 10, 25)))
                 .thenReturn(new PreparedQuote(INPUT, ZoneCode.of("WP"), ZoneCode.of("CP"), breakdown));
-        QuoteIssuanceService service = new QuoteIssuanceService(pricing, store, TTL, CLOCK);
+        QuoteIssuanceService service = new QuoteIssuanceService(pricing, store, metrics, TTL, CLOCK);
 
         QuoteSnapshot returned = service.issue(INPUT);
 
@@ -62,9 +67,9 @@ class QuoteIssuanceServiceTest {
 
     @Test
     void rejectsNonPositiveQuoteLifetime() {
-        assertThatThrownBy(() -> new QuoteIssuanceService(pricing, store, Duration.ZERO, CLOCK))
+        assertThatThrownBy(() -> new QuoteIssuanceService(pricing, store, metrics, Duration.ZERO, CLOCK))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new QuoteIssuanceService(pricing, store, Duration.ofSeconds(-1), CLOCK))
+        assertThatThrownBy(() -> new QuoteIssuanceService(pricing, store, metrics, Duration.ofSeconds(-1), CLOCK))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -77,9 +82,38 @@ class QuoteIssuanceServiceTest {
         when(pricing.prepare(INPUT, LocalDate.of(2026, 10, 25)))
                 .thenReturn(new PreparedQuote(INPUT, ZoneCode.of("WP"), ZoneCode.of("CP"), breakdown));
 
-        QuoteSnapshot returned = new QuoteIssuanceService(pricing, store, TTL, movingClock).issue(INPUT);
+        QuoteSnapshot returned = new QuoteIssuanceService(pricing, store, metrics, TTL, movingClock).issue(INPUT);
 
         verify(store).save(returned, TTL.minusSeconds(2));
         assertThat(returned.expiresAt()).isEqualTo(NOW.plus(TTL));
+    }
+
+    @Test
+    void countsTheQuoteOnlyAfterItHasBeenStored() {
+        FeeBreakdown breakdown = new FeeBreakdown(
+                List.of(new FeeBreakdown.Line(PricingRule.BASE, new BigDecimal("475.00"))),
+                new BigDecimal("475.00"));
+        when(pricing.prepare(INPUT, LocalDate.of(2026, 10, 25)))
+                .thenReturn(new PreparedQuote(INPUT, ZoneCode.of("WP"), ZoneCode.of("CP"), breakdown));
+
+        new QuoteIssuanceService(pricing, store, metrics, TTL, CLOCK).issue(INPUT);
+
+        verify(metrics).quoteIssued(ServiceLevel.STANDARD, SizeClassCode.M, new BigDecimal("475.00"));
+    }
+
+    @Test
+    void doesNotCountAQuoteThatCouldNotBeStored() {
+        FeeBreakdown breakdown = new FeeBreakdown(
+                List.of(new FeeBreakdown.Line(PricingRule.BASE, new BigDecimal("475.00"))),
+                new BigDecimal("475.00"));
+        when(pricing.prepare(INPUT, LocalDate.of(2026, 10, 25)))
+                .thenReturn(new PreparedQuote(INPUT, ZoneCode.of("WP"), ZoneCode.of("CP"), breakdown));
+        doThrow(new IllegalStateException("redis is down")).when(store).save(any(), any());
+
+        assertThatThrownBy(() -> new QuoteIssuanceService(pricing, store, metrics, TTL, CLOCK).issue(INPUT))
+                .isInstanceOf(IllegalStateException.class);
+
+        // A quote nobody can use must not inflate the business meter.
+        verify(metrics, never()).quoteIssued(any(), any(), any());
     }
 }
