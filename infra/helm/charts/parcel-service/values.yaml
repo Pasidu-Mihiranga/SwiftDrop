@@ -1,0 +1,32 @@
+# parcel-service values. Only what differs from the swiftdrop-service library defaults
+# (infra/helm/swiftdrop-service/templates/_defaults.tpl) belongs here.
+#
+# Shared settings (database host, Keycloak, Kafka, Redis) come from the umbrella chart's
+# global.commonConfig. Credentials come only from the Secrets named in secretRefs.
+
+image:
+  repository: swiftdrop/parcel-service
+
+containerPort: 8084
+
+probes:
+  liveness:
+    path: /actuator/health/liveness
+  readiness:
+    path: /actuator/health/readiness
+  startup:
+    path: /actuator/health/readiness
+metrics:
+  path: /actuator/prometheus
+
+# HPA on parcel-service per doc/02-implementation-plan.md section 10.
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+secretRefs: ["swiftdrop-app-secrets"]
+config:
+  DB_NAME: parcels_db
+  DB_USER: parcel_svc
+  S3_ENDPOINT: http://object-storage:9000
+  S3_BUCKET_PROOFS: swiftdrop-proofs

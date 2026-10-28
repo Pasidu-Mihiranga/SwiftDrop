@@ -1,0 +1,25 @@
+# merchant-service values. Only what differs from the swiftdrop-service library defaults
+# (infra/helm/swiftdrop-service/templates/_defaults.tpl) belongs here.
+#
+# Shared settings (database host, Keycloak, Kafka, Redis) come from the umbrella chart's
+# global.commonConfig. Credentials come only from the Secrets named in secretRefs.
+
+image:
+  repository: swiftdrop/merchant-service
+
+containerPort: 8082
+
+probes:
+  liveness:
+    path: /actuator/health/liveness
+  readiness:
+    path: /actuator/health/readiness
+  startup:
+    path: /actuator/health/readiness
+metrics:
+  path: /actuator/prometheus
+
+secretRefs: ["swiftdrop-app-secrets"]
+config:
+  DB_NAME: merchants_db
+  DB_USER: merchant_svc

@@ -1,0 +1,10 @@
+apiVersion: v2
+name: pricing-service
+description: Pricing, zones, rate cards and quotes (M2). Thin chart; every template comes from the swiftdrop-service library chart.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+dependencies:
+  - name: swiftdrop-service
+    version: 0.1.0
+    repository: file://../../swiftdrop-service

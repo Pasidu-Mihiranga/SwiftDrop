@@ -48,3 +48,8 @@ test-results/
 !.vscode/settings.json
 .DS_Store
 Thumbs.db
+
+# --- Helm ---
+# Vendored chart dependencies: regenerate with scripts/helm-deps.sh. Chart.lock is committed.
+infra/helm/*/charts/*.tgz
+infra/helm/charts/*/charts/*.tgz
