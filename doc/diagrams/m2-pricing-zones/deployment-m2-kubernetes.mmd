@@ -1,10 +1,14 @@
 %% M2 Kubernetes / Helm deployment topology.
 %% .
-%% STATUS: PLANNED, NOT YET BUILT. infra/helm currently holds only README.md; Phase 4 of
-%% Issue #15 is open. This is the design being implemented, drawn from doc/01-architecture.md
-%% and the Phase 0 Helm decision (library chart + umbrella chart + thin service charts,
-%% with Postgres, Redis and Keycloak as chart dependencies; Strimzi and RustFS are
-%% documented prerequisites rather than subcharts).
+%% STATUS: BUILT AND DEPLOYED. infra/helm holds the library chart, twelve thin service
+%% charts and the umbrella chart. The dev slice shown in green was installed on a kind
+%% cluster and exercised end to end; see the Phase 4 verification section of
+%% doc/04-m2-pricing-zones-issue-15.md for what was proven and what was not.
+%% .
+%% One deviation from the Phase 0 decision: Postgres, Redis and Keycloak are templated by
+%% the umbrella chart rather than pulled in as subcharts, so the images are the ones
+%% docker-compose.yml already pins and a kind cluster needs no registry access. Strimzi and
+%% RustFS remain documented prerequisites.
 %% M2's deployment ownership is the chart structure itself plus pricing-service's own chart;
 %% the other service pods are shown for context and are owned by their milestones.
 flowchart TB
@@ -35,20 +39,20 @@ flowchart TB
             GW["Deployment api-gateway<br/>:8080, HPA"]:::pod
 
             PRICE["<b>Deployment pricing-service</b><br/>:8083, 2+ replicas<br/>liveness / readiness: /actuator/health<br/>env from ConfigMap + Secret<br/>SPRING_DATASOURCE_*, REDIS_*,<br/>PRICING_QUOTE_TTL=PT15M"]:::mine
-            OTHERS["Deployments: user, merchant, parcel,<br/>dispatch, tracking, notification,<br/>webhook, reporting, ai-assistant<br/>(other milestones)"]:::pod
+            OTHERS["Deployments: user, merchant, parcel,<br/>dispatch, tracking, notification,<br/>webhook, reporting, ai-assistant<br/>(charts ready, disabled until their<br/>Kafka / Mongo / S3 prerequisites exist)"]:::pod
 
             SVCP["Service pricing-service<br/>ClusterIP :8083<br/>stateless, so any replica may answer"]:::mine
             CM["ConfigMap pricing-service<br/>non-secret config"]:::mine
             SEC["Secret pricing-service<br/>DB + Redis credentials<br/>externalised, never in Git"]:::mine
 
-            subgraph DEPS["chart dependencies"]
+            subgraph DEPS["datastores, templated by the umbrella chart"]
                 direction LR
                 PG[("Postgres<br/>StatefulSet + PVC<br/>database pricing_db<br/>Flyway runs on startup")]:::store
                 RD[("Redis<br/>quote snapshots, TTL PT15M")]:::store
                 KC[("Keycloak 26<br/>OIDC / OAuth 2.0")]:::store
             end
 
-            GRAF["Grafana + Prometheus<br/>pricing fee / quote metrics panel<br/>(Phase 5, open)"]:::pod
+            GRAF["Grafana + Prometheus<br/><b>SwiftDrop Pricing &amp; Zones</b> dashboard<br/>quotes issued, fee distribution,<br/>rate-card selection failures"]:::mine
         end
 
         subgraph PRE["documented prerequisites (not subcharts)"]
@@ -72,7 +76,7 @@ flowchart TB
     PRICE --> PG
     PRICE --> RD
     PRICE -.->|"JWT validation via JWKS"| KC
-    PRICE -.->|"/actuator/prometheus"| GRAF
+    PRICE -.->|"/actuator/prometheus<br/>pricing_quotes_issued_total<br/>pricing_quote_fee_LKR<br/>pricing_rate_card_selection_failures_total"| GRAF
     OTHERS -.-> STRIMZI
     OTHERS -.-> RUSTFS
     THIN -.->|"renders"| NS
