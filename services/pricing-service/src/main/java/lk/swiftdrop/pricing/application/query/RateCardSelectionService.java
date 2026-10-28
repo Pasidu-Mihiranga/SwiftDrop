@@ -1,6 +1,7 @@
 package lk.swiftdrop.pricing.application.query;
 
 import lk.swiftdrop.common.web.error.BusinessRuleViolationException;
+import lk.swiftdrop.pricing.application.port.out.PricingMetrics;
 import lk.swiftdrop.pricing.application.port.out.RateCardRepository;
 import lk.swiftdrop.pricing.application.port.out.ZoneRepository;
 import lk.swiftdrop.pricing.domain.model.RateCard;
@@ -21,10 +22,12 @@ public class RateCardSelectionService {
 
     private final ZoneRepository zones;
     private final RateCardRepository rateCards;
+    private final PricingMetrics metrics;
 
-    public RateCardSelectionService(ZoneRepository zones, RateCardRepository rateCards) {
+    public RateCardSelectionService(ZoneRepository zones, RateCardRepository rateCards, PricingMetrics metrics) {
         this.zones = zones;
         this.rateCards = rateCards;
+        this.metrics = metrics;
     }
 
     public RateCard select(ZoneCode fromZone, ZoneCode toZone, LocalDate quoteDate) {
@@ -40,13 +43,19 @@ public class RateCardSelectionService {
         List<RateCard> inForce = rateCards.findInForce(fromZone, toZone, quoteDate);
         RateCard newest = inForce.stream()
                 .max(Comparator.comparing(RateCard::effectiveFrom))
-                .orElseThrow(() -> new BusinessRuleViolationException("NO_RATE_CARD",
-                        "No rate card is in force for " + fromZone + " to " + toZone));
+                .orElseThrow(() -> {
+                    // A lane with no usable card is a configuration error, not a user mistake,
+                    // so it gets its own meter rather than being lost among 4xx responses.
+                    metrics.rateCardSelectionFailed("NO_RATE_CARD");
+                    return new BusinessRuleViolationException("NO_RATE_CARD",
+                            "No rate card is in force for " + fromZone + " to " + toZone);
+                });
 
         long latestCount = inForce.stream()
                 .filter(card -> card.effectiveFrom().equals(newest.effectiveFrom()))
                 .count();
         if (latestCount > 1) {
+            metrics.rateCardSelectionFailed("AMBIGUOUS_RATE_CARD");
             throw new BusinessRuleViolationException("AMBIGUOUS_RATE_CARD",
                     "Multiple rate cards are in force for " + fromZone + " to " + toZone);
         }
@@ -55,6 +64,7 @@ public class RateCardSelectionService {
 
     private void requireActive(ZoneCode code) {
         if (zones.findByCode(code).filter(Zone::active).isEmpty()) {
+            metrics.rateCardSelectionFailed("DISTRICT_NOT_SERVICED");
             throw new BusinessRuleViolationException("DISTRICT_NOT_SERVICED",
                     "Zone " + code + " is not active or does not exist");
         }
