@@ -1,0 +1,31 @@
+# pricing-service values. Only what differs from the swiftdrop-service library defaults
+# (infra/helm/swiftdrop-service/templates/_defaults.tpl) belongs here.
+#
+# Shared settings (database host, Keycloak, Kafka, Redis) come from the umbrella chart's
+# global.commonConfig. Credentials come only from the Secrets named in secretRefs.
+
+image:
+  repository: swiftdrop/pricing-service
+
+containerPort: 8083
+
+probes:
+  liveness:
+    path: /actuator/health/liveness
+  readiness:
+    path: /actuator/health/readiness
+  startup:
+    path: /actuator/health/readiness
+metrics:
+  path: /actuator/prometheus
+
+# Quotes are a Redis snapshot and the service is stateless, so any replica may answer a
+# lookup. Two replicas by default so a rolling update never drops the public estimate.
+replicaCount: 2
+secretRefs: ["swiftdrop-app-secrets"]
+config:
+  DB_NAME: pricing_db
+  DB_USER: pricing_svc
+  # Quote lifetime. The issued snapshot is returned verbatim until it expires.
+  PRICING_QUOTE_TTL: PT15M
+  PRICING_QUOTE_ZONE_ID: Asia/Colombo

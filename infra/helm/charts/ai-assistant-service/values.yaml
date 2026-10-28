@@ -1,0 +1,26 @@
+# ai-assistant-service values. Only what differs from the swiftdrop-service library defaults
+# (infra/helm/swiftdrop-service/templates/_defaults.tpl) belongs here.
+#
+# Shared settings (database host, Keycloak, Kafka, Redis) come from the umbrella chart's
+# global.commonConfig. Credentials come only from the Secrets named in secretRefs.
+
+image:
+  repository: swiftdrop/ai-assistant-service
+
+containerPort: 8095
+
+probes:
+  liveness:
+    path: /health/live
+  readiness:
+    path: /health/live
+  startup:
+    path: /health/live
+metrics:
+  path: /metrics
+
+secretRefs: ["swiftdrop-app-secrets"]
+config:
+  GATEWAY_URL: http://api-gateway:8080
+  LLM_PROVIDER: gemini
+  LLM_MODEL: gemini-2.0-flash
