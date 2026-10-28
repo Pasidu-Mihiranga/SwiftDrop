@@ -1,0 +1,92 @@
+# Production overlay.
+#
+# Every service on, images pulled from a registry by immutable tag, TLS terminated at the
+# Ingress, and the datastores expected to be managed outside the cluster.
+
+global:
+  # Set to the registry the release pipeline pushes to, e.g. ghcr.io/sasindu345.
+  imageRegistry: ghcr.io/swiftdrop
+  # Overridden per release with the commit SHA. Never "latest" in production.
+  imageTag: "0.1.0"
+  imagePullPolicy: IfNotPresent
+  commonConfig:
+    # Managed Postgres and Redis endpoints. Credentials stay in the Secrets.
+    DB_HOST: postgres.swiftdrop.internal
+    DB_PORT: "5432"
+    REDIS_HOST: redis.swiftdrop.internal
+    REDIS_PORT: "6379"
+    KEYCLOAK_ISSUER: https://auth.swiftdrop.lk/realms/swiftdrop
+    KEYCLOAK_JWKS_URI: https://auth.swiftdrop.lk/realms/swiftdrop/protocol/openid-connect/certs
+    KAFKA_BOOTSTRAP_SERVERS: kafka-kafka-bootstrap:9092
+    KAFKA_BROKERS: kafka-kafka-bootstrap:9092
+  defaults:
+    replicaCount: 2
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        memory: 1Gi
+
+# Managed services in production, so the in-chart datastores stay off.
+postgres:
+  enabled: false
+redis:
+  enabled: false
+keycloak:
+  enabled: false
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  tls:
+    enabled: true
+    secretName: swiftdrop-tls
+  hosts:
+    web: swiftdrop.lk
+    api: api.swiftdrop.lk
+    auth: auth.swiftdrop.lk
+    grafana: grafana.swiftdrop.lk
+
+grafana:
+  enabled: true
+
+web:
+  enabled: true
+  config:
+    AUTH_URL: https://swiftdrop.lk
+    AUTH_KEYCLOAK_ISSUER: https://auth.swiftdrop.lk/realms/swiftdrop
+    AUTH_KEYCLOAK_INTERNAL_URL: https://auth.swiftdrop.lk
+    KEYCLOAK_PUBLIC_URL: https://auth.swiftdrop.lk
+api-gateway:
+  enabled: true
+  config:
+    WEB_ORIGIN: https://swiftdrop.lk
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+user-service:
+  enabled: true
+merchant-service:
+  enabled: true
+pricing-service:
+  enabled: true
+  replicaCount: 3
+parcel-service:
+  enabled: true
+dispatch-service:
+  enabled: true
+reporting-service:
+  enabled: true
+tracking-service:
+  enabled: true
+notification-service:
+  enabled: true
+webhook-service:
+  enabled: true
+ai-assistant-service:
+  enabled: true

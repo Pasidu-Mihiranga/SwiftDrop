@@ -1,0 +1,89 @@
+{{/*
+One Ingress for the whole platform, with the four hosts doc/02-implementation-plan.md
+section 10 specifies. A host is only rendered when the workload behind it is enabled, so a
+partial install does not leave a rule pointing at a Service that does not exist.
+
+TLS is off in dev (kind over plain http) and on in production. Note that the web app
+derives its cookie "secure" flag from AUTH_URL, so AUTH_URL and these hosts must agree on
+the scheme.
+*/}}
+{{- if .Values.ingress.enabled }}
+{{- $web := index .Values "web" -}}
+{{- $gateway := index .Values "api-gateway" -}}
+{{- $hosts := list -}}
+{{- if $web.enabled }}{{ $hosts = append $hosts .Values.ingress.hosts.web }}{{ end -}}
+{{- if $gateway.enabled }}{{ $hosts = append $hosts .Values.ingress.hosts.api }}{{ end -}}
+{{- if .Values.keycloak.enabled }}{{ $hosts = append $hosts .Values.ingress.hosts.auth }}{{ end -}}
+{{- if .Values.grafana.enabled }}{{ $hosts = append $hosts .Values.ingress.hosts.grafana }}{{ end -}}
+{{- if $hosts }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: swiftdrop
+  labels:
+    {{- include "swiftdrop.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - secretName: {{ .Values.ingress.tls.secretName }}
+      hosts:
+        {{- range $hosts }}
+        - {{ . }}
+        {{- end }}
+  {{- end }}
+  rules:
+    {{- if $web.enabled }}
+    - host: {{ .Values.ingress.hosts.web }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 3000
+    {{- end }}
+    {{- if $gateway.enabled }}
+    - host: {{ .Values.ingress.hosts.api }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 8080
+    {{- end }}
+    {{- if .Values.keycloak.enabled }}
+    - host: {{ .Values.ingress.hosts.auth }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak
+                port:
+                  number: 8080
+    {{- end }}
+    {{- if .Values.grafana.enabled }}
+    - host: {{ .Values.ingress.hosts.grafana }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.grafana.serviceName }}
+                port:
+                  number: {{ .Values.grafana.servicePort }}
+    {{- end }}
+{{- end }}
+{{- end }}

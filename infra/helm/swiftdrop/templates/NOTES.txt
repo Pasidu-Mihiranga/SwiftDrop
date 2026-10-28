@@ -1,0 +1,45 @@
+SwiftDrop {{ .Chart.AppVersion }} installed as release "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
+
+Enabled services:
+{{- range $name := list "web" "api-gateway" "user-service" "merchant-service" "pricing-service" "parcel-service" "dispatch-service" "reporting-service" "tracking-service" "notification-service" "webhook-service" "ai-assistant-service" }}
+{{- $cfg := index $.Values $name }}
+{{- if $cfg.enabled }}
+  - {{ $name }}
+{{- end }}
+{{- end }}
+
+Datastores in this release: {{ if .Values.postgres.enabled }}postgres {{ end }}{{ if .Values.redis.enabled }}redis {{ end }}{{ if .Values.keycloak.enabled }}keycloak{{ end }}
+
+{{- if not .Values.keycloak.realmImport.configMapName }}
+
+NOTE: keycloak.realmImport.configMapName is empty, so the swiftdrop realm was NOT
+imported and tokens cannot be issued. Create it from the repository's realm file:
+
+  kubectl -n {{ .Release.Namespace }} create configmap swiftdrop-realm \
+    --from-file=realm-swiftdrop.json=infra/keycloak/realm-swiftdrop.json
+
+then upgrade with --set keycloak.realmImport.configMapName=swiftdrop-realm
+{{- end }}
+
+Check the rollout:
+
+  kubectl -n {{ .Release.Namespace }} get pods
+  kubectl -n {{ .Release.Namespace }} rollout status deploy/pricing-service
+
+{{- if .Values.ingress.enabled }}
+
+Hosts (add them to /etc/hosts pointing at 127.0.0.1 for kind):
+{{- $scheme := ternary "https" "http" .Values.ingress.tls.enabled }}
+{{- if (index .Values "web").enabled }}
+  {{ $scheme }}://{{ .Values.ingress.hosts.web }}/quote
+{{- end }}
+{{- if (index .Values "api-gateway").enabled }}
+  {{ $scheme }}://{{ .Values.ingress.hosts.api }}/api/v1/pricing/zones
+{{- end }}
+{{- if .Values.keycloak.enabled }}
+  {{ $scheme }}://{{ .Values.ingress.hosts.auth }}/realms/swiftdrop/.well-known/openid-configuration
+{{- end }}
+{{- end }}
+
+Secrets are not part of this chart. If a pod is stuck in CreateContainerConfigError,
+the Secrets named under .Values.secrets are missing; see infra/helm/README.md.

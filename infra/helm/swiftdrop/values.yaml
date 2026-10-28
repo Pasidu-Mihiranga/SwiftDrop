@@ -1,0 +1,155 @@
+# SwiftDrop umbrella defaults.
+#
+# Nothing in this file or its environment overlays is a credential. Every password, client
+# secret and API key reaches a pod through one of the three Secrets named under "secrets",
+# which are created with kubectl before installing (see infra/helm/README.md).
+#
+# Every service is disabled here. An environment overlay (values-dev.yaml,
+# values-prod.yaml) turns on the ones that environment runs.
+
+global:
+  # Prefix for every image, e.g. ghcr.io/sasindu345. Empty means the local daemon.
+  imageRegistry: ""
+  # Shared default tag. A thin chart's image.tag wins over this.
+  imageTag: "0.1.0"
+  imagePullPolicy: IfNotPresent
+
+  # Environment shared by every service. A service's own config overrides a key here.
+  commonConfig:
+    DB_HOST: postgres
+    DB_PORT: "5432"
+    REDIS_HOST: redis
+    REDIS_PORT: "6379"
+    # Browser-facing issuer: this is the "iss" claim the services must accept.
+    KEYCLOAK_ISSUER: http://auth.swiftdrop.local/realms/swiftdrop
+    # In-cluster JWKS, so token validation never leaves the cluster.
+    KEYCLOAK_JWKS_URI: http://keycloak:8080/realms/swiftdrop/protocol/openid-connect/certs
+    # Strimzi is a documented prerequisite, not a subchart. This is the bootstrap Service
+    # a default Strimzi "kafka" cluster creates in this namespace.
+    KAFKA_BOOTSTRAP_SERVERS: kafka-kafka-bootstrap:9092
+    KAFKA_BROKERS: kafka-kafka-bootstrap:9092
+
+  # Library-chart defaults for every service at once (probe timings, resources, and so on).
+  defaults: {}
+
+# Secrets created outside Git. Only names are stored here.
+secrets:
+  # Application credentials: DB_PASSWORD, REDIS_PASSWORD, MONGO_URI, REDIS_URL,
+  # PII_ENCRYPTION_KEY, S3 keys, LLM keys.
+  app: swiftdrop-app-secrets
+  # Web app only: AUTH_SECRET, AUTH_KEYCLOAK_SECRET.
+  web: swiftdrop-web-secrets
+  # Datastore and Keycloak bootstrap: POSTGRES_PASSWORD, SWIFTDROP_DB_PASSWORD,
+  # KEYCLOAK_DB_PASSWORD, KC_BOOTSTRAP_ADMIN_*, KC_*_CLIENT_SECRET, KC_SEED_USER_PASSWORD.
+  platform: swiftdrop-platform-secrets
+
+# ---------------------------------------------------------------- datastores
+# Written as templates in this chart rather than pulled in as subcharts: the images are the
+# ones docker-compose.yml already pins, which keeps dev parity and lets a kind cluster run
+# entirely from locally loaded images.
+
+postgres:
+  enabled: true
+  image: postgres:16.15-alpine
+  user: swiftdrop
+  storage: 2Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 192Mi
+    limits:
+      memory: 512Mi
+  # Database per service, each with its own login role, so no service can read another's
+  # tables. Mirrors infra/postgres/init/01-create-databases.sh.
+  databases:
+    - db: users_db
+      role: user_svc
+    - db: merchants_db
+      role: merchant_svc
+    - db: pricing_db
+      role: pricing_svc
+    - db: parcels_db
+      role: parcel_svc
+    - db: dispatch_db
+      role: dispatch_svc
+    - db: reporting_db
+      role: reporting_svc
+
+redis:
+  enabled: true
+  image: redis:7.4.11-alpine
+  storage: 1Gi
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+
+keycloak:
+  enabled: true
+  image: quay.io/keycloak/keycloak:26.8.1
+  # Realm import. infra/keycloak/realm-swiftdrop.json is not copied into this chart so it
+  # stays the single source of truth; create the ConfigMap from it and name it here:
+  #   kubectl create configmap swiftdrop-realm \
+  #     --from-file=realm-swiftdrop.json=infra/keycloak/realm-swiftdrop.json
+  realmImport:
+    configMapName: ""
+  probes:
+    startupFailureThreshold: 120
+    readinessFailureThreshold: 12
+    livenessFailureThreshold: 12
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+
+# Grafana and the rest of LGTM come from the Grafana Helm charts, not from here. Enabling
+# this only adds the grafana Ingress host pointing at an existing Service.
+grafana:
+  enabled: false
+  serviceName: grafana
+  servicePort: 3000
+
+# ---------------------------------------------------------------- ingress
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  tls:
+    enabled: false
+    secretName: swiftdrop-tls
+  hosts:
+    web: swiftdrop.local
+    api: api.swiftdrop.local
+    auth: auth.swiftdrop.local
+    grafana: grafana.swiftdrop.local
+
+# ---------------------------------------------------------------- services
+# Off by default; an environment overlay enables what it runs.
+web:
+  enabled: false
+api-gateway:
+  enabled: false
+user-service:
+  enabled: false
+merchant-service:
+  enabled: false
+pricing-service:
+  enabled: false
+parcel-service:
+  enabled: false
+dispatch-service:
+  enabled: false
+reporting-service:
+  enabled: false
+tracking-service:
+  enabled: false
+notification-service:
+  enabled: false
+webhook-service:
+  enabled: false
+ai-assistant-service:
+  enabled: false

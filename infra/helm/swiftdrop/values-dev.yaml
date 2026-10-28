@@ -1,0 +1,131 @@
+# Dev overlay: a kind or minikube cluster on a laptop.
+#
+# Enables the slice that makes the M2 pricing feature demonstrable end to end (web, the
+# gateway, pricing-service) plus the three datastores. The other services are left off, and
+# each one says why below.
+#
+# Images are built locally and pushed into the node with "kind load docker-image", so the
+# pull policy must never go to a registry.
+
+global:
+  imageRegistry: ""
+  imageTag: "0.1.0"
+  imagePullPolicy: Never
+  commonConfig:
+    DB_HOST: postgres
+    DB_PORT: "5432"
+    REDIS_HOST: redis
+    REDIS_PORT: "6379"
+    KEYCLOAK_ISSUER: http://auth.swiftdrop.local/realms/swiftdrop
+    KEYCLOAK_JWKS_URI: http://keycloak:8080/realms/swiftdrop/protocol/openid-connect/certs
+    KAFKA_BOOTSTRAP_SERVERS: kafka-kafka-bootstrap:9092
+    KAFKA_BROKERS: kafka-kafka-bootstrap:9092
+  # Laptop-sized footprint, and probe patience to match. A Spring Boot context can take
+  # three minutes to initialise when several JVMs share two cores, so the startup probe
+  # allows ten minutes and liveness only begins once the startup probe has succeeded.
+  # Without this the kubelet restarts a service that was merely starting slowly.
+  defaults:
+    replicaCount: 1
+    # Replace in place rather than surging: two cores cannot run the old and the new pod
+    # of a Spring Boot service at once, and a brief gap is acceptable in dev.
+    strategy:
+      maxSurge: 0
+      maxUnavailable: 1
+    resources:
+      requests:
+        cpu: 25m
+        memory: 192Mi
+      limits:
+        memory: 640Mi
+    probes:
+      startup:
+        periodSeconds: 5
+        failureThreshold: 120
+      liveness:
+        initialDelaySeconds: 30
+        periodSeconds: 20
+        failureThreshold: 12
+      readiness:
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        failureThreshold: 12
+
+postgres:
+  enabled: true
+  storage: 1Gi
+redis:
+  enabled: true
+  storage: 512Mi
+keycloak:
+  enabled: true
+  # Set on the command line after creating the ConfigMap from
+  # infra/keycloak/realm-swiftdrop.json; see infra/helm/README.md.
+  realmImport:
+    configMapName: ""
+
+ingress:
+  enabled: true
+  className: nginx
+  tls:
+    enabled: false
+  hosts:
+    web: swiftdrop.local
+    api: api.swiftdrop.local
+    auth: auth.swiftdrop.local
+    grafana: grafana.swiftdrop.local
+
+# LGTM comes from the Grafana Helm charts; enable this once they are installed to publish
+# the grafana.swiftdrop.local host.
+grafana:
+  enabled: false
+
+# ---------------------------------------------------------------- enabled
+web:
+  enabled: true
+  config:
+    # Browser-facing, and the scheme decides whether the session cookie is marked secure
+    # (apps/web/src/lib/gateway.ts), so dev stays on http.
+    AUTH_URL: http://swiftdrop.local
+    AUTH_KEYCLOAK_ISSUER: http://auth.swiftdrop.local/realms/swiftdrop
+    AUTH_KEYCLOAK_INTERNAL_URL: http://keycloak:8080
+    KEYCLOAK_PUBLIC_URL: http://auth.swiftdrop.local
+api-gateway:
+  enabled: true
+  config:
+    WEB_ORIGIN: http://swiftdrop.local
+pricing-service:
+  enabled: true
+  # Two replicas even on a laptop: it is what proves a quote lookup can be served by a
+  # replica that did not issue the quote, because the snapshot lives in Redis.
+  replicaCount: 2
+
+# ---------------------------------------------------------------- off in dev
+# Each of these runs fine under this chart; they are off because their milestone's
+# prerequisites are not part of a pricing-focused dev install.
+user-service:
+  # No external prerequisite. Enable when M1's flows are being worked on.
+  enabled: false
+merchant-service:
+  # Needs Kafka: Strimzi is a documented prerequisite, not a subchart.
+  enabled: false
+parcel-service:
+  # Needs Kafka and RustFS (S3) for proof-of-delivery photos.
+  enabled: false
+dispatch-service:
+  # Needs Kafka.
+  enabled: false
+reporting-service:
+  # Needs Kafka.
+  enabled: false
+tracking-service:
+  # Needs Kafka and MongoDB; MongoDB is not templated by this chart.
+  enabled: false
+notification-service:
+  # Needs Kafka, MongoDB and an SMTP sink (Mailpit).
+  enabled: false
+webhook-service:
+  # Needs Kafka, MongoDB and Redis for BullMQ.
+  enabled: false
+ai-assistant-service:
+  # Needs an LLM API key in the application Secret.
+  enabled: false
