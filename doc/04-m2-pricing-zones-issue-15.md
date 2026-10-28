@@ -27,7 +27,7 @@ detail.
 | Issued quotes vs admin edits | The quote is honoured. Redis holds the computed snapshot and lookup never recalculates; edits apply to new quotes only |
 | Quote lookup contract | Full schema defined now in the OpenAPI contract and proposed to M3; unknown and expired both answer `404 QUOTE_NOT_FOUND` |
 | Web approach | Client-side fee-estimate widget over the existing BFF path, with pure logic in `apps/web/src/lib` for the coverage gate |
-| Helm scope | Library chart, umbrella chart and thin service charts, with Postgres, Redis and Keycloak as chart dependencies; Strimzi and RustFS documented as prerequisites |
+| Helm scope | Library chart, umbrella chart and thin service charts. Postgres, Redis and Keycloak are templated by the umbrella rather than pulled in as subcharts, so the images are the ones `docker-compose.yml` already pins and a kind cluster needs no registry; Strimzi and RustFS stay documented prerequisites |
 
 - [x] Create the M2 feature branch and issue-specific agent guidance.
 - [x] Currency, fee formula, operation order, precision and rounding agreed.
@@ -169,18 +169,93 @@ detail.
 
 ## Phase 4: Kubernetes and Helm
 
-- [ ] Create `infra/helm/swiftdrop-service` as the reusable library chart for
+- [x] Create `infra/helm/swiftdrop-service` as the reusable library chart for
       Deployment, Service, ConfigMap, Secret references, probes, and optional HPA.
-- [ ] Create `infra/helm/swiftdrop` as the umbrella chart and thin service
+      A library chart's `values.yaml` is not merged into the charts that depend on
+      it, so the defaults live in `templates/_defaults.tpl` and
+      `swiftdrop-service.values` layers them under `global.defaults` and then the
+      service's own values. `PORT` is derived from `containerPort`, so an
+      application and its probes cannot disagree about the port. The Deployment
+      also renders a configurable `RollingUpdate` strategy.
+- [x] Create `infra/helm/swiftdrop` as the umbrella chart and thin service
       charts/values for the application services, including pricing-service.
-- [ ] Provide dev and production values for images, ports, resources,
+      Twelve thin charts, one per workload; each is a `Chart.yaml`, a one-line
+      template including `swiftdrop-service.all`, and values. `scripts/helm-deps.sh`
+      vendors the dependencies, because `helm dependency update` is not recursive.
+- [x] Provide dev and production values for images, ports, resources,
       dependencies, and externalized secrets; keep credentials out of Git.
-- [ ] Configure Ingress for web, API, auth, and Grafana as specified in the
+      `values-dev.yaml` enables web, api-gateway and pricing-service plus the three
+      datastores and states inline why each other service is off; `values-prod.yaml`
+      enables everything, pulls by immutable tag, turns the in-chart datastores off
+      in favour of managed ones, and enables the HPAs. Three Secrets
+      (`swiftdrop-platform-secrets`, `swiftdrop-app-secrets`, `swiftdrop-web-secrets`)
+      are created outside Git and only ever referenced by name; CI fails the build if
+      a chart ever contains something shaped like a credential.
+- [x] Configure Ingress for web, API, auth, and Grafana as specified in the
       architecture; use environment-specific hosts and TLS settings.
-- [ ] Document installation on kind/minikube, dependency setup, and required
-      image/secrets configuration.
-- [ ] Run Helm lint/template and a kind smoke deployment when the required
+      One Ingress renders only the hosts whose workload is enabled, so a partial
+      install never points a rule at a Service that does not exist. TLS is off in
+      dev and on in production with a cert-manager issuer. `AUTH_URL` and the hosts
+      must share a scheme, because `apps/web/src/lib/gateway.ts` derives the session
+      cookie's `secure` flag from it.
+- [x] Document installation on kind/minikube, dependency setup, and required
+      image/secrets configuration. `infra/helm/README.md` covers the three-layer
+      design, the probe and metrics conventions per runtime, the Secrets, the
+      prerequisites, install, verification, teardown and the production differences.
+      `scripts/kind-up.sh` and `scripts/kind-deploy.sh` automate it, and
+      `make helm-lint`, `make kind-up`, `make kind-deploy`, `make kind-down` wrap them.
+- [x] Run Helm lint/template and a kind smoke deployment when the required
       container images and cluster are available.
+      `helm lint` passes for all 13 charts; the dev overlay renders 17 objects and the
+      production overlay 40, and both parse as well-formed Kubernetes objects.
+      `.github/workflows/helm.yml` runs lint, template and that structural check on
+      every chart change. The kind deployment was run for real; the results are in
+      the Phase 4 verification section below.
+
+## Phase 4 verification: what the kind deployment actually proved
+
+Run on a kind cluster (Kubernetes 1.37) on this machine, Docker provided by Colima.
+
+| Check | Result |
+|---|---|
+| Rollout | All six pods Ready together: postgres, redis, keycloak, api-gateway, web and both pricing-service replicas |
+| Postgres init | Seven databases created, each owned by its own login role, generated from `postgres.databases` in values rather than a second copy of the shell script |
+| Flyway | Six migrations applied on first start |
+| Seed data | 9 zones, 25 districts, 4 size classes, 81 rate cards |
+| Keycloak | Realm imported from the ConfigMap built out of `infra/keycloak/realm-swiftdrop.json`; the discovery document's issuer equals the chart's `KEYCLOAK_ISSUER`, and a demo-user token carries the `swiftdrop-api` audience |
+| Anonymous zones | `GET /api/v1/pricing/zones` through the Ingress and gateway returns all nine zones with no token |
+| Anonymous quote | `POST /api/v1/pricing/quotes` through the Ingress and gateway: Colombo to Matara, 3 kg, M, LKR 609.50, lines 350.00 + 180.00 + 79.50 reconciling exactly |
+| Border pricing | Colombo to Kandy 725.65 against Colombo to Jaffna 908.50 for the same parcel, so the shortest-path band is in force |
+| Quote TTL | `issuedAt` to `expiresAt` is exactly 15 minutes, taken from `PRICING_QUOTE_TTL` in the ConfigMap; the Redis keys are `pricing:quote:<id>` with a live TTL |
+| Cross-replica lookup | A quote issued by one replica was looked up on the other, which never saw the POST, returning the identical snapshot with all five breakdown lines summing to the fee. This is what the two replicas are for |
+| Validation | 3 kg against size class S answers `422 SIZE_CLASS_WEIGHT_EXCEEDED` as problem+json |
+| Authorization | Anonymous lookup `401 UNAUTHORIZED`; unknown id `404 QUOTE_NOT_FOUND`; admin rate-cards with a CUSTOMER token `403 FORBIDDEN` |
+| Metrics | `/actuator/prometheus` serves the standard HTTP and JVM meters |
+| Web | `/quote` renders through the Ingress with all 25 districts fetched server-side from pricing-service through the gateway |
+
+Two chart defects were found by running it rather than by rendering it, and both are fixed:
+
+1. The startup probe's budget was shorter than a cold Spring Boot start on a small
+   cluster, so the kubelet restarted services that were only starting slowly. A
+   context took 198 seconds to initialise when several JVMs shared two cores. The dev
+   overlay now allows ten minutes for startup and lets liveness begin only afterwards.
+2. A rolling update surged an extra pod, and on a two-core node the old and the new
+   JVM starved each other so neither became ready. The library chart now renders a
+   configurable `RollingUpdate` strategy and the dev overlay sets `maxSurge: 0`.
+
+One portability fix came out of it too: under the containerd image store (Colima, or
+Docker Desktop with the containerd snapshotter) `kind load docker-image` fails with
+`content digest not found`, because `docker save` writes a multi-platform archive kind
+cannot import. `scripts/kind-deploy.sh` saves the host platform explicitly and loads the
+archive instead, falling back to the direct load elsewhere.
+
+Honest limits of this run. The VM has two CPUs and 3.8 GiB, shared with the repository's
+compose stack, and the kind node alone sat at 187 per cent CPU. The six pods do reach
+Ready together, but only after being started in sequence; a single `helm install` of the
+whole dev slice on this machine times out on the slowest pod's probe rather than on
+anything in the charts. Grafana and the LGTM stack were not installed, so the
+`grafana.swiftdrop.local` host is rendered only when `grafana.enabled` is set and was not
+exercised. TLS was not exercised either, since dev runs over plain http by design.
 
 ## Phase 5: Delivery
 
@@ -208,9 +283,15 @@ The `/quote` page, fee widget, and admin pricing screens are implemented. The
 pricing UI uses shared status styles and responsive layouts; web type checking,
 80 tests, and a production webpack build pass. A live browser viewport review
 has not been possible in this environment. The native Turbopack build cannot
-bind its worker port here, so it has not been verified. The quote-to-booking
-handoff remains open until M3 provides a booking page and confirms the
-quote-lookup response shape. Helm charts in `infra/helm` and the delivery items
+bind its worker port here, so it has not been verified. The `/quote` page has now
+been served from a real cluster through the Ingress with its districts fetched
+live from pricing-service.
+
+Phase 4 is complete. `infra/helm` holds the library chart, twelve thin service
+charts and the umbrella chart with the dev datastores and the Ingress, and the dev
+slice has been deployed to kind and exercised end to end (see the Phase 4
+verification section). The quote-to-booking handoff remains open until M3 provides
+a booking page and confirms the quote-lookup response shape. Phase 5 delivery items
 remain open.
 
 Note for local runs: this machine's active Docker context is Colima, which
