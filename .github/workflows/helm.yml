@@ -1,0 +1,62 @@
+name: CI · Helm
+
+on:
+  push:
+    branches: [main]
+    paths: ["infra/helm/**", "scripts/helm-deps.sh", ".github/workflows/helm.yml"]
+  pull_request:
+    paths: ["infra/helm/**", "scripts/helm-deps.sh", ".github/workflows/helm.yml"]
+
+jobs:
+  charts:
+    name: lint · template
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.3
+      - name: Vendor chart dependencies
+        run: ./scripts/helm-deps.sh
+      - name: Lint the library, umbrella and service charts
+        run: helm lint infra/helm/swiftdrop infra/helm/charts/*
+      - name: Helm templates render for every environment
+        run: |
+          for values in values-dev values-prod; do
+            helm template swiftdrop infra/helm/swiftdrop \
+              -f "infra/helm/swiftdrop/${values}.yaml" > "/tmp/${values}.yaml"
+          done
+      # kubectl --dry-run=client downloads the OpenAPI schema from a live cluster, which CI
+      # does not have, so the rendered manifests are checked structurally instead.
+      - name: Rendered manifests are well-formed Kubernetes objects
+        run: |
+          pip install --quiet pyyaml
+          python3 - <<'PY'
+          import sys, yaml
+          problems = []
+          for path in ("/tmp/values-dev.yaml", "/tmp/values-prod.yaml"):
+              docs = [d for d in yaml.safe_load_all(open(path)) if d]
+              if not docs:
+                  problems.append(f"{path}: rendered nothing")
+              for doc in docs:
+                  name = doc.get("metadata", {}).get("name")
+                  if not doc.get("kind") or not doc.get("apiVersion") or not name:
+                      problems.append(f"{path}: object missing kind, apiVersion or name: {doc}")
+                  if doc.get("kind") in ("Deployment", "StatefulSet"):
+                      containers = doc["spec"]["template"]["spec"]["containers"]
+                      for container in containers:
+                          if not container.get("image"):
+                              problems.append(f"{path}: {name} has a container with no image")
+              print(f"{path}: {len(docs)} objects")
+          if problems:
+              print("\n".join(problems))
+              sys.exit(1)
+          PY
+      - name: Helm charts contain no credentials
+        run: |
+          if grep -rIn --include=*.yaml --include=*.tpl -E "(password|secret|token|api[_-]?key)[[:space:]]*:[[:space:]]*[\"']?[A-Za-z0-9/+=_-]{8,}" infra/helm; then
+            echo "A chart appears to contain a literal credential. Use a Secret reference instead." >&2
+            exit 1
+          fi
+      - name: Shell scripts are valid
+        run: bash -n scripts/helm-deps.sh && bash -n scripts/kind-up.sh && bash -n scripts/kind-deploy.sh
