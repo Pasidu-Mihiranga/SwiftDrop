@@ -1,0 +1,69 @@
+%% M1 ER detail: users_db (user-service) plus the Keycloak identity store it depends on.
+%% users_db tables are created by user-service Flyway migrations (V2+); Keycloak tables are shown
+%% only to explain identity linking and are configured through infra/keycloak/realm-swiftdrop.json.
+%% Cross-store links (USER_ENTITY.id = USER_PROFILE.id, ids referenced by other services) are values, never FKs.
+erDiagram
+    USER_PROFILE {
+        varchar id PK "Keycloak subject (JWT sub)"
+        varchar email UK "lower-case, from the token"
+        varchar full_name "not blank"
+        text phone_enc "AES-GCM, nullable"
+        varchar status "ACTIVE or DISABLED"
+        timestamptz created_at
+        timestamptz updated_at
+        bigint version "optimistic locking"
+    }
+    ROLE {
+        varchar code PK "CUSTOMER MERCHANT COURIER DISPATCHER ADMIN"
+        varchar description
+    }
+    USER_ROLE {
+        varchar user_id PK, FK "USER_PROFILE.id"
+        varchar role_code PK, FK "ROLE.code"
+        timestamptz synced_at "mirrored from Keycloak"
+    }
+    ADDRESS {
+        uuid id PK
+        varchar user_id FK "USER_PROFILE.id"
+        varchar label "Home, Office"
+        text line1_enc "AES-GCM"
+        text line2_enc "AES-GCM, nullable"
+        varchar city
+        varchar district "one of 25 districts"
+        char postal_code "5 digits"
+        numeric lat
+        numeric lng
+        boolean is_default "one default per user"
+        timestamptz created_at
+    }
+    COURIER_PROFILE {
+        varchar user_id PK, FK "USER_PROFILE.id"
+        varchar vehicle_type "BIKE THREE_WHEELER VAN"
+        uuid home_zone_id "pricing ZONE.id, no FK"
+        int max_daily_capacity "CHECK > 0"
+        boolean active
+    }
+    KC_USER_ENTITY {
+        uuid id PK "becomes the JWT sub"
+        varchar email UK "username"
+        boolean enabled
+        boolean email_verified
+    }
+    KC_FEDERATED_IDENTITY {
+        uuid user_id PK, FK
+        varchar identity_provider PK "google"
+        varchar federated_user_id "Google sub"
+    }
+    KC_USER_ROLE_MAPPING {
+        uuid user_id PK, FK
+        varchar role PK "realm role"
+    }
+
+    USER_PROFILE ||--o{ USER_ROLE : has
+    ROLE ||--o{ USER_ROLE : grants
+    USER_PROFILE ||--o{ ADDRESS : saves
+    USER_PROFILE ||--o| COURIER_PROFILE : "is a courier"
+    KC_USER_ENTITY ||--o{ KC_FEDERATED_IDENTITY : "linked Google account"
+    KC_USER_ENTITY ||--|{ KC_USER_ROLE_MAPPING : "realm roles"
+    KC_USER_ENTITY |o..|| USER_PROFILE : "same id, JIT copy, no FK"
+    KC_USER_ROLE_MAPPING }o..o{ USER_ROLE : mirrored
