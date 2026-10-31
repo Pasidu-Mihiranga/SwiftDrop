@@ -1,0 +1,41 @@
+%% M1 diagram: identity & access use cases for every role, plus admin user management.
+%% Admin generalises Dispatcher, Dispatcher generalises Signed-in user.
+flowchart LR
+    USER(["Signed-in user<br/>(any realm role)"])
+    DISP(["Dispatcher"])
+    ADM(["Admin"])
+    KCG["Keycloak + Google<br/>OIDC login, brokering"]
+    KCA["Keycloak Admin API<br/>service account user-service-admin"]
+
+    subgraph SYS["SwiftDrop identity & access (M1)"]
+        subgraph ALL["Every signed-in user"]
+            S1("Sign in with e-mail / password or Google")
+            S2("Land on my role's home page - homeFor()")
+            S3("Be kept out of other roles' pages - proxy.ts, 403 / 404")
+            S4("Stay signed in - silent refresh")
+            S5("View and edit my profile - /api/v1/users/me")
+            S6("Sign out")
+        end
+        subgraph DSP["Dispatcher or admin"]
+            D1("List couriers - GET /api/v1/admin/couriers")
+        end
+        subgraph ADMIN["Admin only - hasRole ADMIN"]
+            X1("Search users - GET /api/v1/admin/users")
+            X4("Set the courier profile")
+            X2("Create a courier, dispatcher or admin account - POST /api/v1/admin/users")
+            X3("Send the set-your-password e-mail")
+            X5("Enable or disable a user - PATCH")
+            X6("Change a user's roles - PATCH")
+        end
+    end
+
+    DISP -. "generalisation" .-> USER
+    ADM -. "generalisation" .-> DISP
+    USER --> S1 & S2 & S3 & S4 & S5 & S6
+    DISP --> D1
+    ADM --> X1 & X2 & X5 & X6
+    S1 -. "include" .-> S2
+    X4 -. "extend [role = COURIER]" .-> X2
+    X2 -. "include" .-> X3
+    KCG --- S1 & S4
+    KCA --- X2 & X3 & X5 & X6
