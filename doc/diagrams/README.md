@@ -11,3 +11,4 @@ Cross-service diagrams such as `er-v1.mmd` stay at this level.
 | Folder | Milestone | Owner |
 |---|---|---|
 | [`m2-pricing-zones/`](m2-pricing-zones/) | M2 — Pricing & Zones (Issue #15) | Sasindu345 |
+| [`m10/`](m10/) | M10 — Reporting & AI Assistant (sources in [`m10/src/`](m10/src/)) | Pasidu-Mihiranga |
