@@ -1,0 +1,25 @@
+%% M2 integration design: the integration patterns pricing-service uses.
+%% Pricing answers each request directly and publishes no events, so request/reply
+%% is the only messaging style it needs and the broker stays unused.
+flowchart LR
+    classDef rr fill:#eef4ff,stroke:#3b5bdb,color:#1b2a5e
+    classDef cache fill:#fff4e6,stroke:#e8590c,color:#7f2d00
+    classDef gate fill:#f3f0ff,stroke:#7048e8,color:#3c2a85
+    classDef none fill:#f8f9fa,stroke:#adb5bd,stroke-dasharray:5 4,color:#868e96
+
+    BROWSER["Browser<br/>fee-estimate widget"]:::rr
+    BFF["Next.js BFF<br/>token stays server-side"]:::gate
+    GW["api-gateway<br/>single entry point"]:::gate
+    PS["pricing-service"]:::rr
+    PARCEL["parcel-service"]:::rr
+    PG[("Postgres pricing_db")]:::rr
+    RD[("Redis<br/>quote snapshot")]:::cache
+    KAFKA["Kafka broker<br/>(publish/subscribe)"]:::none
+
+    BROWSER -->|"1. Request/Reply (sync REST)<br/>POST /pricing/quotes"| BFF
+    BFF -->|"2. API Gateway / BFF<br/>facade: the token is added server-side"| GW
+    GW -->|"3. Request/Reply<br/>routed to /api/v1/pricing/**"| PS
+    PS -->|"4. Repository over JDBC<br/>reference data: zones, districts, rate cards, size classes"| PG
+    PS -->|"5. Cache-aside write<br/>SET quoteId -> snapshot, EX 900"| RD
+    PARCEL -->|"6. Request/Reply<br/>GET /pricing/quotes/{id} before accepting a booking"| GW
+    PS -.->|"7. not used<br/>pricing publishes no events"| KAFKA

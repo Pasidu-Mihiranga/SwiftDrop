@@ -31,7 +31,7 @@ erDiagram
     COURIER_PROFILE {
         string user_id PK, FK
         string vehicle_type
-        string home_zone_code "ref pricing ZONE"
+        string home_zone_code "ref pricing ZONE.code"
         int max_daily_capacity
         boolean active
     }
@@ -62,29 +62,38 @@ erDiagram
     MERCHANT ||--o{ API_CREDENTIAL : owns
 
     %% ---------------- pricing-service (pricing_db) ----------------
+    %% Zones and rate cards carry surrogate UUID keys, with zone.code kept unique, so a
+    %% zone can be renamed or recoded without rewriting every rate card that points at it.
+    %% A rate card is versioned rather than edited: effective periods are half-open, so a
+    %% card starting the day another ends leaves neither a gap nor an overlap.
+    %% An issued quote is NOT a table. It is a Redis snapshot under pricing:quote:<id>
+    %% with a configurable TTL, modelled in doc/diagrams/m2-pricing-zones/er-m2-pricing-zones.mmd.
     ZONE {
-        string code PK
+        uuid id PK
+        string code UK "WP, CP, SP, NP, EP, NWP, NCP, UP, SGP"
         string name
         boolean active
     }
     DISTRICT_ZONE {
-        string district PK
-        string zone_code FK
+        string district PK "one of the 25 districts"
+        uuid zone_id FK
     }
     SIZE_CLASS {
         string code PK "S, M, L, XL"
         decimal max_weight_kg
+        string max_dimensions_cm
         decimal multiplier
     }
     RATE_CARD {
         uuid id PK
-        string from_zone FK
-        string to_zone FK
+        uuid from_zone_id FK
+        uuid to_zone_id FK
         decimal base_fee
         decimal per_kg_fee
         decimal express_multiplier
+        decimal cod_fee_pct
         date effective_from
-        date effective_to
+        date effective_to "null while the card is in force"
     }
     ZONE ||--o{ DISTRICT_ZONE : covers
     ZONE ||--o{ RATE_CARD : "from / to"
