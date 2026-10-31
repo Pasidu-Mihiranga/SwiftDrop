@@ -1,0 +1,44 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#ffffff","mainBkg":"#ffffff","primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","secondaryColor":"#f2f2f2","tertiaryColor":"#ffffff","lineColor":"#000000","textColor":"#000000","clusterBkg":"#ffffff","clusterBorder":"#000000","titleColor":"#000000","edgeLabelBackground":"#ffffff","fontFamily":"Arial, Helvetica, sans-serif","actorBkg":"#ffffff","actorBorder":"#000000","actorTextColor":"#000000","actorLineColor":"#000000","signalColor":"#000000","signalTextColor":"#000000","labelBoxBkgColor":"#ffffff","labelBoxBorderColor":"#000000","labelTextColor":"#000000","loopTextColor":"#000000","noteBkgColor":"#f2f2f2","noteBorderColor":"#000000","noteTextColor":"#000000","activationBkgColor":"#e6e6e6","activationBorderColor":"#000000"}}}%%
+%% M6 socket authorisation: JWT in the handshake, then a room check on every join.
+%% Refresh tokens never leave the server; the browser gets a short-lived access token from the BFF.
+%% Rooms: tracking:<no> public, user:<sub> owner, dispatch staff (contracts/openapi/tracking-service.v1.yaml).
+sequenceDiagram
+    autonumber
+    actor CU as Customer browser
+    participant BFF as Next.js BFF<br/>/api/bff/socket-token
+    participant KC as Keycloak<br/>realm swiftdrop
+    participant SG as Socket.IO gateway<br/>/ws/tracking
+    participant JW as JwtVerifier<br/>shared lib
+    participant RP as RoomPolicy
+
+    CU->>BFF: GET /api/bff/socket-token (encrypted session cookie)
+    BFF->>BFF: read access token from session, no refresh token
+    BFF-->>CU: short-lived access token (aud swiftdrop-api)
+    CU->>SG: connect, handshake auth.token
+    SG->>JW: verify(token)
+    JW->>KC: fetch JWKS (cached)
+    KC-->>JW: public keys
+    alt signature, issuer, audience or expiry fails
+        JW-->>SG: invalid
+        SG-->>CU: connect_error unauthorized, disconnect
+    else valid
+        JW-->>SG: Principal {sub, roles, merchantId}
+        SG-->>CU: connected
+
+        CU->>SG: join user:OWN_SUB
+        SG->>RP: canJoin(principal, user:OWN_SUB)
+        RP-->>SG: allow
+        SG-->>CU: joined
+
+        CU->>SG: join user:OTHER_SUB
+        SG->>RP: canJoin(principal, user:OTHER_SUB)
+        RP-->>SG: deny (sub differs)
+        SG-->>CU: error forbidden, room not joined
+
+        CU->>SG: join dispatch
+        SG->>RP: canJoin(principal, dispatch)
+        RP-->>SG: deny (role CUSTOMER)
+        SG-->>CU: error forbidden, room not joined
+    end
+
+    Note over CU,SG: Anonymous socket with no token can only join public tracking rooms, user rooms and dispatch are refused.

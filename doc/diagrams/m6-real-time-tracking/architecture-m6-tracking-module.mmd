@@ -1,0 +1,74 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#ffffff","mainBkg":"#ffffff","primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","secondaryColor":"#f2f2f2","tertiaryColor":"#ffffff","lineColor":"#000000","textColor":"#000000","clusterBkg":"#ffffff","clusterBorder":"#000000","titleColor":"#000000","edgeLabelBackground":"#ffffff","fontFamily":"Arial, Helvetica, sans-serif"}}}%%
+%% M6 module design: layers inside tracking-service and the shared Node library it reuses.
+%% Layering follows the NestJS template: api -> application -> domain, with infrastructure adapters
+%% implementing ports that application/domain declare (dependency inversion).
+flowchart TB
+    subgraph CLIENTS["Clients"]
+        BROWSER["Browser<br/>public page, live timeline, dashboards"]
+        BFF["Next.js BFF<br/>REST proxy + short-lived socket token"]
+    end
+
+    GW["api-gateway<br/>JWT check, routes /api/v1/tracking/**, /ws/tracking/**"]
+
+    subgraph TS["tracking-service (NestJS, port 8090)"]
+        direction TB
+        subgraph API["api - presentation"]
+            CTRL["TrackingController<br/>public + owner timeline"]
+            WSG["TrackingGateway<br/>Socket.IO /ws/tracking"]
+            GUARD["RateLimitGuard<br/>public lookups per client IP"]
+        end
+        subgraph APP["application - use cases"]
+            QRY["TrackingQueryService"]
+            PROJ["TimelineProjector<br/>applies events to read model"]
+            BCAST["BroadcastPort<br/>push a status to rooms"]
+        end
+        subgraph DOM["domain - pure rules, no framework"]
+            TL["TimelineDocument + TimelineEvent"]
+            VIEW["PublicViewMapper<br/>city + maskName() only"]
+            ROOMS["RoomPolicy<br/>tracking:, user:, dispatch rules"]
+        end
+        subgraph INFRA["infrastructure - adapters"]
+            CONS["Kafka consumers<br/>ParcelCreated, ParcelStatusChanged, ParcelAssigned"]
+            REPO["MongoTimelineRepository"]
+            IDEM["MongoIdempotencyStore"]
+            SIO["SocketIoBroadcaster<br/>@socket.io/redis-adapter"]
+            JWTV["JwtVerifier<br/>JWKS from Keycloak"]
+        end
+    end
+
+    subgraph SHARED["libs/node/swiftdrop-common (shared, DRY)"]
+        TMPL["Kafka consumer template<br/>validate, dedupe, handle, commit"]
+        PII["pino logger + PII masking"]
+        NESTMOD["SwiftDropCommonModule<br/>JWT guard, problem+json filter, metrics"]
+    end
+
+    KAFKA[("Kafka<br/>parcel.* and dispatch.* topics")]
+    MONGO[("MongoDB<br/>database tracking")]
+    REDIS[("Redis<br/>socket fan-out between replicas")]
+    KC["Keycloak<br/>JWKS"]
+
+    BROWSER --> BFF
+    BROWSER --> GW
+    BFF --> GW
+    GW --> CTRL
+    GW --> WSG
+
+    CTRL --> GUARD
+    CTRL --> QRY
+    WSG --> ROOMS
+    WSG --> JWTV
+    QRY --> REPO
+    QRY --> VIEW
+    PROJ --> TL
+    PROJ --> REPO
+    CONS --> TMPL
+    TMPL --> IDEM
+    TMPL --> PROJ
+    CONS --> BCAST
+    BCAST --> SIO
+    SIO --> REDIS
+    REPO --> MONGO
+    IDEM --> MONGO
+    KAFKA --> CONS
+    JWTV -.-> KC
+    TS -.-> SHARED

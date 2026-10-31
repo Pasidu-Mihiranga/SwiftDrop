@@ -1,0 +1,49 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#ffffff","mainBkg":"#ffffff","primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","secondaryColor":"#f2f2f2","tertiaryColor":"#ffffff","lineColor":"#000000","textColor":"#000000","clusterBkg":"#ffffff","clusterBorder":"#000000","titleColor":"#000000","edgeLabelBackground":"#ffffff","fontFamily":"Arial, Helvetica, sans-serif"}}}%%
+%% M6 Real-time Tracking use cases (issue #19).
+%% Scope: who uses tracking-service and what each actor can do with it.
+%% Owners see their own parcels; a foreign parcel returns 404, so existence is not leaked.
+flowchart LR
+    GUEST(["Guest<br/>(anonymous, has a tracking number)"])
+    CUST(["Customer<br/>(signed in)"])
+    MERCH(["Merchant<br/>(signed in or API client)"])
+    DISP(["Dispatcher / Admin<br/>(staff role)"])
+    PARCEL(["parcel-service<br/>(event source, Kafka)"])
+
+    subgraph SYS["tracking-service (M6)"]
+        direction TB
+        subgraph PUB["Public - no login"]
+            U1("Look up masked timeline<br/>GET /api/v1/tracking/public/{trackingNumber}")
+            U2("Follow one parcel live<br/>join room tracking:{trackingNumber}")
+        end
+        subgraph AUTH["Signed in - owner, courier or merchant"]
+            U3("View full timeline of own parcel<br/>GET /api/v1/tracking/parcels/{id}/timeline")
+            U4("Receive live status toasts<br/>room user:{sub}")
+            U5("Use live timeline component<br/>on parcel detail")
+        end
+        subgraph STAFF["Dispatcher / Admin only"]
+            U6("Watch the live dispatch board<br/>room dispatch")
+        end
+        subgraph SYSUC["Internal"]
+            U7("Project ParcelCreated, ParcelStatusChanged<br/>and ParcelAssigned into timelines")
+            U8("Broadcast parcel.status to rooms")
+        end
+    end
+
+    GUEST --> U1
+    GUEST --> U2
+    CUST --> U3
+    CUST --> U4
+    CUST --> U5
+    MERCH --> U3
+    MERCH --> U4
+    MERCH --> U5
+    DISP --> U3
+    DISP --> U6
+    PARCEL --> U7
+
+    U7 -. "include" .-> U8
+    U8 -. "pushes to" .-> U2
+    U8 -. "pushes to" .-> U4
+    U8 -. "pushes to" .-> U6
+    U2 -. "extend" .-> U1
+    U5 -. "uses" .-> U3

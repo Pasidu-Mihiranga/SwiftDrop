@@ -1,0 +1,27 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#ffffff","mainBkg":"#ffffff","primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","secondaryColor":"#f2f2f2","tertiaryColor":"#ffffff","lineColor":"#000000","textColor":"#000000","clusterBkg":"#ffffff","clusterBorder":"#000000","titleColor":"#000000","edgeLabelBackground":"#ffffff","fontFamily":"Arial, Helvetica, sans-serif"}}}%%
+%% M6 integration design: the integration patterns tracking-service uses and why.
+%% Two styles meet here: publish/subscribe for state changes (Kafka) and request/reply plus
+%% WebSocket push for the browser. Numbered steps match the labels in the README.
+flowchart LR
+    BROWSER["Browser<br/>public page, live timeline"]
+    BFF["Next.js BFF<br/>facade: token stays server-side"]
+    GW["api-gateway<br/>JWT check, routing, rate limit"]
+    TS["tracking-service<br/>REST + Socket.IO + consumers"]
+    PARCEL["parcel-service<br/>outbox publisher"]
+    DISP["dispatch-service<br/>outbox publisher"]
+    K["Kafka<br/>parcel.created.v1<br/>parcel.status-changed.v1<br/>dispatch.parcel-assigned.v1"]
+    MG[("MongoDB<br/>tracking.timelines")]
+    RD[("Redis<br/>socket adapter pub/sub")]
+    KC["Keycloak<br/>JWKS"]
+
+    BROWSER -->|"1. Request/Reply, REST public lookup, no token"| GW
+    BROWSER -->|"2. Facade, short-lived socket token"| BFF
+    BFF -->|"3. Request/Reply, token added server-side"| GW
+    BROWSER ==>|"4. WebSocket push, /ws/tracking, auth.token optional"| GW
+    GW -->|"5. Routed to tracking-service"| TS
+    PARCEL -->|"6. Publish via outbox, key = parcelId"| K
+    DISP -->|"7. Publish via outbox, key = parcelId"| K
+    K -->|"8. Subscribe, consumer group tracking, idempotent"| TS
+    TS -->|"9. CQRS write: upsert read model"| MG
+    TS <-->|"10. Redis adapter: fan-out to other replicas"| RD
+    TS -.->|"11. JWKS, cached, for socket handshake"| KC

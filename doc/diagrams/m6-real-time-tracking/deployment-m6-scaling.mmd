@@ -1,0 +1,46 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#ffffff","mainBkg":"#ffffff","primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","secondaryColor":"#f2f2f2","tertiaryColor":"#ffffff","lineColor":"#000000","textColor":"#000000","clusterBkg":"#ffffff","clusterBorder":"#000000","titleColor":"#000000","edgeLabelBackground":"#ffffff","fontFamily":"Arial, Helvetica, sans-serif"}}}%%
+%% M6 deployment: several tracking-service replicas sharing one Kafka consumer group and one Redis adapter.
+%% Kafka: 6 partitions of parcel.status-changed.v1 are split across the replicas (each parcel stays on one partition).
+%% Ingress must allow WebSocket upgrade and a long read timeout for /ws/tracking.
+flowchart TB
+    BR(["Browser / phone<br/>Socket.IO client"])
+
+    subgraph K8S["Kubernetes namespace swiftdrop"]
+        ING["ingress-nginx<br/>WebSocket upgrade, read timeout 1 h"]
+        WEB["web (Next.js BFF)"]
+        GW["api-gateway<br/>2 replicas"]
+
+        subgraph TRK["tracking-service (M6) - Deployment"]
+            TS1["pod 1<br/>Socket.IO + consumers<br/>partitions 0-2"]
+            TS2["pod 2<br/>Socket.IO + consumers<br/>partitions 3-5"]
+            HPA{{"HPA min 2, max 6<br/>CPU and open sockets"}}
+        end
+
+        KAFKA[("Kafka KRaft via Strimzi<br/>parcel.status-changed.v1, 6 partitions")]
+        REDIS[("Redis<br/>@socket.io/redis-adapter channel")]
+        MONGO[("MongoDB StatefulSet<br/>database tracking, PVC")]
+        KC["Keycloak<br/>JWKS source"]
+        OBS["Grafana Alloy, Prometheus,<br/>Loki, Tempo, Grafana"]
+    end
+
+    BR -- "wss /ws/tracking" --> ING
+    BR -- "https /track/TRACKING_NO" --> ING
+    ING --> WEB
+    ING --> GW
+    WEB --> GW
+    GW -- "/api/v1/tracking/**" --> TS1
+    GW -- "/api/v1/tracking/**" --> TS2
+    GW -- "/ws/tracking/**" --> TS1
+    GW -- "/ws/tracking/**" --> TS2
+    KAFKA -- "consumer group tracking" --> TS1
+    KAFKA -- "consumer group tracking" --> TS2
+    TS1 --> MONGO
+    TS2 --> MONGO
+    TS1 <--> REDIS
+    TS2 <--> REDIS
+    TS1 -. "JWKS, cached" .-> KC
+    TS2 -. "JWKS, cached" .-> KC
+    HPA -.-> TS1
+    HPA -.-> TS2
+    TS1 -. "OTLP traces, metrics, JSON logs" .-> OBS
+    TS2 -. "OTLP traces, metrics, JSON logs" .-> OBS

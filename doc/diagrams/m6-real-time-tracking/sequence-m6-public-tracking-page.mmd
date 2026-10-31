@@ -1,0 +1,38 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#ffffff","mainBkg":"#ffffff","primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","secondaryColor":"#f2f2f2","tertiaryColor":"#ffffff","lineColor":"#000000","textColor":"#000000","clusterBkg":"#ffffff","clusterBorder":"#000000","titleColor":"#000000","edgeLabelBackground":"#ffffff","fontFamily":"Arial, Helvetica, sans-serif","actorBkg":"#ffffff","actorBorder":"#000000","actorTextColor":"#000000","actorLineColor":"#000000","signalColor":"#000000","signalTextColor":"#000000","labelBoxBkgColor":"#ffffff","labelBoxBorderColor":"#000000","labelTextColor":"#000000","loopTextColor":"#000000","noteBkgColor":"#f2f2f2","noteBorderColor":"#000000","noteTextColor":"#000000","activationBkgColor":"#e6e6e6","activationBorderColor":"#000000"}}}%%
+%% M6 public tracking page: a guest with only a tracking number sees a masked, live timeline.
+%% The REST call is public (no token); the socket joins the public room tracking:<no> only.
+sequenceDiagram
+    autonumber
+    actor GU as Guest (no login)
+    participant WEB as Next.js public page<br/>/track/[trackingNumber]
+    participant GW as api-gateway<br/>rate limit by client IP
+    participant TS as tracking-service<br/>TrackingQueryService
+    participant DB as MongoDB
+    participant SG as Socket.IO gateway<br/>/ws/tracking
+
+    GU->>WEB: open /track/TRACKING_NO on a phone
+    WEB->>GW: GET /api/v1/tracking/public/{trackingNumber}
+    GW->>GW: enumeration guard: count lookups per IP
+    alt lookups over the limit
+        GW-->>WEB: 429 problem+json, Retry-After
+    else within the limit
+        GW->>TS: forward, no bearer token needed
+        TS->>DB: find by trackingNumber, projection = publicView only
+        alt tracking number unknown
+            TS-->>GW: 404 problem+json
+        else found
+            DB-->>TS: publicView (status, city, masked recipient, steps)
+            TS-->>GW: 200 PublicTrackingView, no phone, no street
+            GW-->>WEB: 200
+        end
+    end
+    WEB-->>GU: stepper, last update time, city-level location
+
+    WEB->>SG: connect /ws/tracking (no auth.token)
+    SG-->>WEB: connected
+    WEB->>SG: join tracking:TRACKING_NO
+    SG->>SG: RoomPolicy: tracking: rooms are public
+    SG-->>WEB: joined
+    Note over SG,WEB: later, a status change arrives
+    SG-->>WEB: parcel.status (same payload as the REST view)
+    WEB-->>GU: stepper advances, no refresh needed
