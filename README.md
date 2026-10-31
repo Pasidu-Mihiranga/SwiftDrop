@@ -157,3 +157,23 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md) first. In short:
 - `main` is protected: changes only through pull requests with one approving review and a green `no-emoji` check.
 - Branch per feature: `feat/m<N>-<topic>`; Conventional Commits (`feat:`, `fix:`, `test:` …).
 - **No emojis** anywhere in the repository, commits, pull requests or issues (`python scripts/check-no-emoji.py`).
+
+## Container images
+
+Every merge to `main` (and every `v*.*.*` tag) runs [`release.yml`](.github/workflows/release.yml): it builds one image per
+service plus the web app, scans each with Trivy, and publishes it to the GitHub Container Registry:
+
+```
+ghcr.io/pasidu-mihiranga/swiftdrop-<service>:sha-<short-sha>   # immutable: pin this in Helm values / compose
+ghcr.io/pasidu-mihiranga/swiftdrop-<service>:main              # newest build of main (also :latest)
+ghcr.io/pasidu-mihiranga/swiftdrop-<service>:1.2.3             # on a v1.2.3 tag (also :1.2)
+```
+
+`<service>` is the folder name under `services/` (e.g. `reporting-service`), or `web` for `apps/web`.
+
+- **Release gate:** an image with a *critical* vulnerability that already has a fix is not published. Fix it by bumping the
+  base image or the dependency; if that is impossible for now, record the CVE with a reason in [`.trivyignore`](.trivyignore).
+  Pull requests that change a Dockerfile run the same build and scan without publishing.
+- **Supply chain:** published images carry OCI labels linking them to this repository, a provenance attestation and an SBOM.
+- **Pulling:** GHCR creates new packages as private. After the first release, set each `swiftdrop-*` package to public
+  (Package settings, Change visibility) so kind/minikube can pull without credentials, or create an image pull secret.
