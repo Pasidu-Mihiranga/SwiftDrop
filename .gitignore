@@ -38,6 +38,14 @@ coverage.xml
 playwright-report/
 test-results/
 
+# generated coverage/test report output (keep README.md and SUMMARY.md)
+doc/test-reports/java/
+doc/test-reports/node/
+
+# Vendored chart dependencies: regenerate with scripts/helm-deps.sh. Chart.lock is committed.
+infra/helm/*/charts/*.tgz
+infra/helm/charts/*/charts/*.tgz
+
 # --- IDE / OS ---
 .idea/
 *.iml

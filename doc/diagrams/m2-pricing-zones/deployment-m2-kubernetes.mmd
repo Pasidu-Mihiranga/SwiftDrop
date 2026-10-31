@@ -1,0 +1,75 @@
+%% M2 Kubernetes / Helm deployment topology.
+%% infra/helm holds the library chart, twelve thin service charts and the umbrella chart.
+%% Postgres, Redis and Keycloak are templated by the umbrella chart instead of being
+%% pulled in as subcharts, so the images are the ones docker-compose.yml already pins
+%% and a kind cluster needs no registry access. Strimzi and RustFS are prerequisites.
+%% Green boxes are the pricing parts; the other pods are context.
+flowchart TB
+    classDef chart fill:#f3f0ff,stroke:#7048e8,color:#3c2a85
+    classDef mine fill:#ebfbee,stroke:#2f9e44,stroke-width:2px,color:#14532d
+    classDef pod fill:#ffffff,stroke:#868e96,color:#343a40
+    classDef store fill:#f8f9fa,stroke:#495057,color:#212529
+    classDef edge fill:#eef4ff,stroke:#3b5bdb,color:#1b2a5e
+    classDef prereq fill:#fff9db,stroke:#f08c00,stroke-dasharray:4 3,color:#7a4a00
+
+    USER(["Internet"]):::edge
+
+    subgraph HELM["Helm chart structure"]
+        direction LR
+        LIB["swiftdrop-service<br/><b>library chart</b><br/>Deployment, Service, ConfigMap,<br/>Secret refs, probes, optional HPA"]:::chart
+        UMB["swiftdrop<br/><b>umbrella chart</b><br/>values-dev.yaml / values-prod.yaml"]:::chart
+        THIN["charts/&lt;service&gt;<br/>thin per-service charts<br/>incl. charts/pricing-service"]:::mine
+        UMB --> THIN --> LIB
+    end
+
+    subgraph CLUSTER["Kubernetes cluster (kind / minikube for dev)"]
+        direction TB
+        ING["Ingress (NGINX)<br/>TLS, environment-specific hosts<br/>web / api / auth / grafana"]:::edge
+
+        subgraph NS["namespace: swiftdrop"]
+            direction TB
+            WEB["Deployment web<br/>Next.js + BFF :3000"]:::pod
+            GW["Deployment api-gateway<br/>:8080, HPA"]:::pod
+
+            PRICE["<b>Deployment pricing-service</b><br/>:8083, 2+ replicas<br/>liveness / readiness: /actuator/health<br/>env from ConfigMap + Secret<br/>SPRING_DATASOURCE_*, REDIS_*,<br/>PRICING_QUOTE_TTL=PT15M"]:::mine
+            OTHERS["Deployments: user, merchant, parcel,<br/>dispatch, tracking, notification,<br/>webhook, reporting, ai-assistant<br/>(shown for context)"]:::pod
+
+            SVCP["Service pricing-service<br/>ClusterIP :8083<br/>stateless, so any replica may answer"]:::mine
+            CM["ConfigMap pricing-service<br/>non-secret config"]:::mine
+            SEC["Secret pricing-service<br/>DB + Redis credentials"]:::mine
+
+            subgraph DEPS["datastores, templated by the umbrella chart"]
+                direction LR
+                PG[("Postgres<br/>StatefulSet + PVC<br/>database pricing_db<br/>Flyway runs on startup")]:::store
+                RD[("Redis<br/>quote snapshots, TTL PT15M")]:::store
+                KC[("Keycloak 26<br/>OIDC / OAuth 2.0")]:::store
+            end
+
+            GRAF["Grafana + Prometheus<br/><b>SwiftDrop Pricing &amp; Zones</b> dashboard<br/>quotes issued, fee distribution,<br/>rate-card selection failures"]:::mine
+        end
+
+        subgraph PRE["documented prerequisites (not subcharts)"]
+            direction LR
+            STRIMZI["Strimzi / Kafka"]:::prereq
+            RUSTFS["RustFS (S3)"]:::prereq
+        end
+    end
+
+    USER --> ING
+    ING -->|"web host"| WEB
+    ING -->|"api host"| GW
+    ING -->|"auth host"| KC
+    ING -->|"grafana host"| GRAF
+    WEB --> GW
+    GW --> SVCP
+    GW --> OTHERS
+    SVCP --> PRICE
+    CM --> PRICE
+    SEC --> PRICE
+    PRICE --> PG
+    PRICE --> RD
+    PRICE -.->|"JWT validation via JWKS"| KC
+    PRICE -.->|"/actuator/prometheus<br/>pricing metrics"| GRAF
+    OTHERS -.-> STRIMZI
+    OTHERS -.-> RUSTFS
+    THIN -.->|"renders"| NS
