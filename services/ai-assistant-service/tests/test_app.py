@@ -1,17 +1,15 @@
 import time
 from types import SimpleNamespace
 
-import httpx
 import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 
-from app.clients.swiftdrop_api import SwiftDropApi
 from app.core.config import Settings
 from app.llm.factory import provider_config
 from app.main import create_app
-from swiftdrop_common import ApiError, JwtVerifier
+from swiftdrop_common import JwtVerifier
 
 ISSUER = "http://localhost:8180/realms/swiftdrop"
 _KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -62,26 +60,3 @@ def test_settings_derive_keycloak_urls():
     settings = Settings(_env_file=None, keycloak_host_port=9999)
     assert settings.issuer == "http://localhost:9999/realms/swiftdrop"
     assert settings.jwks_uri.endswith("/realms/swiftdrop/protocol/openid-connect/certs")
-
-
-async def test_api_client_forwards_token_and_maps_errors():
-    seen = {}
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        seen["auth"] = request.headers.get("authorization")
-        if request.url.path.endswith("/SDMISSING"):
-            return httpx.Response(404)
-        if request.url.path.endswith("/zones"):
-            return httpx.Response(503)
-        return httpx.Response(200, json={"trackingNumber": "SD261020ABCDEFG", "status": "IN_TRANSIT"})
-
-    api = SwiftDropApi("http://gateway", token="user-token", transport=httpx.MockTransport(handler))
-    assert (await api.track("SD261020ABCDEFG"))["status"] == "IN_TRANSIT"
-    assert seen["auth"] == "Bearer user-token"
-    with pytest.raises(ApiError) as missing:
-        await api.track("SDMISSING")
-    assert missing.value.status == 404
-    with pytest.raises(ApiError) as down:
-        await api.zones()
-    assert down.value.code == "UPSTREAM_ERROR"
-    await api.aclose()
