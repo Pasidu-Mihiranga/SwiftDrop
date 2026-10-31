@@ -198,7 +198,7 @@ services:
     ports: ["${S3_HOST_PORT:-9010}:9000", "${S3_CONSOLE_HOST_PORT:-9011}:9001"]
 
   mailpit:
-    image: axllent/mailpit:v1.31.6
+    image: axllent/mailpit:v1.32.0
     profiles: ["infra"]
     restart: unless-stopped
     environment:
