@@ -20,6 +20,10 @@ Event-driven reporting projections: deliveries per day, success/failure rates, c
 | `GET /reports/zones?from&to` | Totals per dropoff zone |
 | `GET /reports/couriers?from&to` | Delivered / failed per courier, most deliveries first |
 
+The admin dashboard at `/admin/reports` in the web app (`apps/web/src/app/admin/reports`) is built on these
+endpoints: period presets or a custom range, a zone filter, headline figures compared with the previous
+period, deliveries per day, and outcomes by zone and by courier, each with a table view.
+
 `from`/`to` are inclusive business days in `REPORTING_TIME_ZONE` (default `Asia/Colombo`), at most 366 days
 apart. `successRate` = delivered / (delivered + failed), or `null` when nothing was attempted. Other roles
 get 403; a reversed or too-long period gets 400 `INVALID_REPORT_PERIOD`.
