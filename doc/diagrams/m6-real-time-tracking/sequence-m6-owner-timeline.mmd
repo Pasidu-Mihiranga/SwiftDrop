@@ -1,0 +1,21 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","actorBkg":"#ffffff","actorBorder":"#000000","signalColor":"#000000","noteBkgColor":"#f2f2f2","noteBorderColor":"#000000","fontFamily":"Arial"}}}%%
+%% M6 owner timeline: GET /api/v1/tracking/parcels/{id}/timeline. Editable source for sequence-m6-owner-timeline.svg / .png.
+sequenceDiagram
+    autonumber
+    actor U as Customer, courier, merchant
+    participant GW as API gateway
+    participant T as tracking-service
+    participant M as MongoDB tracking
+    U->>GW: GET /api/v1/tracking/parcels/{id}/timeline bearer JWT
+    GW->>T: forward with X-Correlation-Id
+    T->>M: find timeline by parcelId
+    M-->>T: timeline document
+    T->>T: AccessPolicy, sub in ownerIds, courierId, merchantId or staff role
+    alt allowed
+        T-->>GW: 200 timeline events, no phone, no street
+        GW-->>U: 200 JSON
+    else not an owner and not staff
+        T-->>GW: 404 problem+json, same as an unknown id
+        GW-->>U: 404 problem+json
+    end
+    Note over U,GW: No token gives 401.

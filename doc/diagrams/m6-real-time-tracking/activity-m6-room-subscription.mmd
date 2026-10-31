@@ -1,0 +1,14 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","fontFamily":"Arial"}}}%%
+%% M6 room join decision. Editable source for activity-m6-room-subscription.svg / .png (hand-drawn export, swimlanes).
+flowchart TD
+    S((start)) --> REQ["emit join room"]
+    REQ --> PUB{"public room tracking:no?"}
+    PUB -- "yes" --> OKP["join public room, no login needed"]
+    PUB -- "no" --> PR{"principal on socket?"}
+    PR -- "no: anonymous socket" --> REF["error forbidden, room not joined"]
+    PR -- "yes" --> CAN["RoomPolicy canJoin principal, room"]
+    CAN --> ALW{"allowed?"}
+    ALW -- "yes" --> JO["joined, ack to browser"]
+    ALW -- "no" --> REF
+    OKP --> JO
+    JO --> END((end))
