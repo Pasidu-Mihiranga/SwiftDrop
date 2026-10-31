@@ -1,0 +1,9 @@
+# Build output of the diagram generator (see README.md)
+bw/
+bw-raw/
+bw-png/
+p/
+cdp-profile/
+__pycache__/
+*.html
+*.pdf
