@@ -12,3 +12,4 @@ Cross-service diagrams such as `er-v1.mmd` stay at this level.
 |---|---|---|
 | [`m2-pricing-zones/`](m2-pricing-zones/) | M2 — Pricing & Zones (Issue #15) | Sasindu345 |
 | [`m10/`](m10/) | M10 — Reporting & AI Assistant (sources in [`m10/src/`](m10/src/)) | Pasidu-Mihiranga |
+| [`m6-real-time-tracking/`](m6-real-time-tracking/) | M6 — Real-time Tracking (Issue #19) | ashmax77 |

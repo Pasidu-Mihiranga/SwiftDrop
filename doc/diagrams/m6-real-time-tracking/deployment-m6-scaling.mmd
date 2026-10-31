@@ -1,0 +1,39 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","fontFamily":"Arial"}}}%%
+%% M6 deployment and scaling on Kubernetes. Editable source for deployment-m6-scaling.svg / .png.
+flowchart LR
+    BR["Browser"]
+    subgraph NS["Kubernetes namespace swiftdrop"]
+        GW["api-gateway<br/>Deployment, 2 replicas"]
+        subgraph TRKDEP["Deployment tracking-service, HPA min 2 max 5"]
+            T1["tracking-service-1<br/>port 8090"]
+            T2["tracking-service-2<br/>port 8090"]
+        end
+        PARCEL["parcel-service<br/>outbox relay"]
+        KC["Keycloak<br/>realm swiftdrop, JWKS"]
+        KAFKA[("Kafka Strimzi KRaft<br/>parcel.* topics")]
+        REDIS[("Redis 7<br/>adapter and rate limits")]
+        MONGO[("MongoDB 7<br/>tracking DB, PVC")]
+        subgraph OBS["Observability LGTM"]
+            ALLOY["Grafana Alloy"]
+            PROM["Prometheus"]
+            LOKI["Loki"]
+            TEMPO["Tempo"]
+            GRAF["Grafana"]
+        end
+    end
+    BR -- "HTTPS" --> GW
+    GW -- "/api/v1/tracking and /ws/tracking" --> TRKDEP
+    T1 -- "consume" --> KAFKA
+    T2 -- "consume" --> KAFKA
+    T1 -- "adapter" --> REDIS
+    T2 -- "adapter" --> REDIS
+    T1 -- "read and write" --> MONGO
+    T2 -- "read and write" --> MONGO
+    PARCEL -- "publish outbox" --> KAFKA
+    TRKDEP -. "metrics and traces" .-> ALLOY
+    ALLOY --> PROM
+    ALLOY --> LOKI
+    ALLOY --> TEMPO
+    PROM --> GRAF
+    LOKI --> GRAF
+    TEMPO --> GRAF

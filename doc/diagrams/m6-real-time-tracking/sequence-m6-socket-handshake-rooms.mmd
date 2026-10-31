@@ -1,0 +1,37 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","actorBkg":"#ffffff","actorBorder":"#000000","signalColor":"#000000","noteBkgColor":"#f2f2f2","noteBorderColor":"#000000","fontFamily":"Arial"}}}%%
+%% M6 socket handshake and room authorisation. Editable source for sequence-m6-socket-handshake-rooms.svg / .png.
+sequenceDiagram
+    autonumber
+    actor U as Customer browser
+    participant BFF as Next.js BFF
+    participant SG as Socket.IO gateway
+    participant JV as JwtVerifier shared lib
+    participant KC as Keycloak JWKS
+    participant RP as RoomPolicy
+    U->>BFF: GET /api/bff/socket-token with session cookie
+    BFF->>BFF: read access token from session, server-side only
+    BFF-->>U: short-lived token, aud swiftdrop-api
+    U->>SG: connect with handshake auth.token
+    SG->>JV: verify token
+    JV->>KC: fetch JWKS, cached
+    KC-->>JV: public keys
+    alt signature, issuer, audience or expiry fails
+        JV-->>SG: invalid
+        SG-->>U: connect_error unauthorized, disconnect
+    else valid
+        JV-->>SG: Principal sub, roles, merchantId
+        SG-->>U: connected
+        U->>SG: join user:OWN_SUB
+        SG->>RP: canJoin principal, user:OWN_SUB
+        RP-->>SG: allow
+        SG-->>U: joined
+        U->>SG: join user:OTHER_SUB
+        SG->>RP: canJoin principal, user:OTHER_SUB
+        RP-->>SG: deny, sub differs
+        SG-->>U: error forbidden, room not joined
+        U->>SG: join dispatch
+        SG->>RP: canJoin principal, dispatch
+        RP-->>SG: deny, role CUSTOMER
+        SG-->>U: error forbidden, room not joined
+    end
+    Note over U,SG: Anonymous socket with no token: only public tracking rooms.
