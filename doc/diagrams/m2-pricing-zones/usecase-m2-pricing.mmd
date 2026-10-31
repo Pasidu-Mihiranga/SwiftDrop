@@ -1,0 +1,47 @@
+%% M2 Pricing & Zones use cases.
+%% Scope: the actors and use cases pricing-service serves.
+%% Couriers and dispatchers have no pricing endpoints, so they are not shown.
+flowchart LR
+    classDef actor fill:#eef4ff,stroke:#3b5bdb,stroke-width:1px,color:#1b2a5e
+    classDef uc fill:#ffffff,stroke:#495057,stroke-width:1px,color:#212529
+    classDef sys fill:#f8f9fa,stroke:#adb5bd,stroke-dasharray:4 3,color:#495057
+
+    GUEST(["Guest / Customer<br/>(anonymous, no token)"]):::actor
+    ADMIN(["Admin<br/>(signed in as admin)"]):::actor
+    PARCEL(["parcel-service<br/>(signed in)"]):::actor
+
+    subgraph SYS["pricing-service (M2)"]
+        direction TB
+        subgraph PUB["Public - no login"]
+            U1("Browse serviced zones and districts<br/>GET /api/v1/pricing/zones"):::uc
+            U2("Request a fee estimate<br/>POST /api/v1/pricing/quotes"):::uc
+            U3("See the itemised fee breakdown<br/>BASE / WEIGHT / SIZE / EXPRESS / COD"):::uc
+        end
+        subgraph AUTHED["Authenticated"]
+            U4("Validate an issued quote<br/>GET /api/v1/pricing/quotes/{quoteId}"):::uc
+        end
+        subgraph ADM["Admin only"]
+            U5("Create / update a zone"):::uc
+            U6("Assign a district to a zone"):::uc
+            U7("Publish a new rate card"):::uc
+            U8("Close the rate card in force"):::uc
+            U9("Review size-class limits and multipliers"):::uc
+            U10("Update a size class"):::uc
+        end
+    end
+    class SYS,PUB,AUTHED,ADM sys
+
+    GUEST --> U1
+    GUEST --> U2
+    ADMIN --> U5
+    ADMIN --> U6
+    ADMIN --> U7
+    ADMIN --> U8
+    ADMIN --> U9
+    ADMIN --> U10
+    PARCEL --> U4
+
+    U2 -. include .-> U1
+    U2 -. include .-> U3
+    U8 -. "extend (close, then publish)" .-> U7
+    U4 -. "returns the saved quote" .-> U2

@@ -1,0 +1,59 @@
+%% M2 pricing & zones ER detail (database: pricing_db).
+%% The pricing schema in detail, with surrogate UUID keys.
+%% The cross-service view of the same tables is in ../er-v1.mmd.
+%% QUOTE_SNAPSHOT is NOT a relational table: it is a Redis value under an opaque UUID,
+%% stored with a 15-minute TTL (swiftdrop.pricing.quote-ttl, PT15M) and returned verbatim.
+erDiagram
+    ZONE {
+        uuid id PK "surrogate key"
+        varchar code UK "WP CP SP NP EP NWP NCP UP SGP - not blank"
+        varchar name "province name - not blank"
+        boolean active "default TRUE; an inactive zone cannot be quoted"
+    }
+
+    DISTRICT_ZONE {
+        varchar district PK "one of the 25 districts - not blank"
+        uuid zone_id FK "-> ZONE.id, NOT NULL"
+    }
+
+    SIZE_CLASS {
+        varchar code PK "CHECK code IN (S, M, L, XL)"
+        numeric max_weight_kg "NUMERIC(6,2), CHECK > 0"
+        varchar max_dimensions_cm "e.g. 30x20x15 - not blank"
+        numeric multiplier "NUMERIC(5,3), CHECK >= 1"
+    }
+
+    RATE_CARD {
+        uuid id PK
+        uuid from_zone_id FK "-> ZONE.id, NOT NULL"
+        uuid to_zone_id FK "-> ZONE.id, NOT NULL (ordered pair)"
+        numeric base_fee "NUMERIC(12,2), CHECK >= 0"
+        numeric per_kg_fee "NUMERIC(12,2), CHECK >= 0"
+        numeric express_multiplier "NUMERIC(5,3), CHECK >= 1"
+        numeric cod_fee_pct "NUMERIC(5,4), CHECK between 0 and 1"
+        date effective_from "NOT NULL; the card applies from this date"
+        date effective_to "NULL = still in force; the last day is not included"
+    }
+
+    QUOTE_SNAPSHOT {
+        uuid quoteId PK "Redis key, opaque; TTL 15 min"
+        numeric fee_amount "LKR, scale 2"
+        varchar fee_currency "LKR"
+        json breakdown "ordered lines: BASE WEIGHT SIZE EXPRESS COD"
+        varchar fromZone "ZONE.code at issue time"
+        varchar toZone "ZONE.code at issue time"
+        varchar fromDistrict "district as quoted"
+        varchar toDistrict "district as quoted"
+        numeric weightKg "kg as quoted"
+        varchar sizeClass "S M L XL"
+        varchar serviceLevel "STANDARD | EXPRESS"
+        numeric codAmount "0 when not cash on delivery"
+        timestamp issuedAt "from the injected Clock"
+        timestamp expiresAt "issuedAt + quote-ttl"
+    }
+
+    ZONE ||--o{ DISTRICT_ZONE : "covers (1 zone : many districts)"
+    ZONE ||--o{ RATE_CARD : "origin of"
+    ZONE ||--o{ RATE_CARD : "destination of"
+    RATE_CARD |o..o{ QUOTE_SNAPSHOT : "priced by (copied, so closing a card leaves issued quotes unchanged)"
+    SIZE_CLASS |o..o{ QUOTE_SNAPSHOT : "classified by (code copied)"

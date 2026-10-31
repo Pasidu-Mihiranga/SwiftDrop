@@ -1,0 +1,52 @@
+%% M2 activity: the fee calculation pipeline inside FeeCalculator.
+%% Chain shape: COD( EXPRESS( SIZE( ZoneMatrix + Weight ) ) ).
+%% Every line is rounded to 2 decimals HALF_UP before it feeds the next rule, so the
+%% lines in the breakdown add up to the total charged.
+%% A rule worth 0.00 is left out of the breakdown.
+flowchart TD
+    classDef guard fill:#fff5f5,stroke:#e03131,color:#7a1212
+    classDef rule fill:#ebfbee,stroke:#2f9e44,color:#14532d
+    classDef round fill:#fff4e6,stroke:#e8590c,color:#7f2d00
+    classDef io fill:#eef4ff,stroke:#3b5bdb,color:#1b2a5e
+
+    START(["calculate(card, sizeClass, weightKg,<br/>serviceLevel, codAmount)"]):::io
+    G1{"weightKg present<br/>and > 0?"}:::guard
+    G2{"sizeClass.accepts(weightKg)?"}:::guard
+    G3{"codAmount present<br/>and >= 0?"}:::guard
+    REJ(["rejected<br/>422 problem+json"]):::guard
+
+    CTX["build PricingContext"]:::io
+    EMPTY["FeeBreakdown.empty()<br/>total = 0.00"]:::io
+
+    BASE["ZoneMatrixStrategy<br/>BASE = card.baseFee"]:::rule
+    R1["round HALF_UP to 2 dp,<br/>append the BASE line"]:::round
+    WEIGHT["WeightStrategy<br/>chargeableKg = ceil(weightKg)<br/>WEIGHT = card.perKgFee x chargeableKg"]:::rule
+    R2["round, append the WEIGHT line<br/>subtotal = BASE + WEIGHT"]:::round
+
+    SIZEQ{"sizeClass.multiplier > 1?"}:::rule
+    SIZE["SizeSurchargeDecorator<br/>SIZE = subtotal x (multiplier - 1)"]:::rule
+    R3["round, append the SIZE line"]:::round
+
+    EXPQ{"serviceLevel == EXPRESS?"}:::rule
+    EXP["ExpressSurchargeDecorator<br/>EXPRESS = (subtotal + SIZE)<br/>x (card.expressMultiplier - 1)"]:::rule
+    R4["round, append the EXPRESS line"]:::round
+
+    CODQ{"codAmount > 0?"}:::rule
+    COD["CodFeeDecorator<br/>COD = codAmount x card.codFeePct<br/>charged on the cash amount"]:::rule
+    R5["round, append the COD line"]:::round
+
+    OUT(["FeeBreakdown:<br/>ordered lines BASE, WEIGHT, SIZE, EXPRESS, COD<br/>fee = exact sum of the lines present"]):::io
+
+    START --> G1
+    G1 -- no --> REJ
+    G1 -- yes --> G2
+    G2 -- no --> REJ
+    G2 -- yes --> G3
+    G3 -- no --> REJ
+    G3 -- yes --> CTX --> EMPTY --> BASE --> R1 --> WEIGHT --> R2 --> SIZEQ
+    SIZEQ -- no --> EXPQ
+    SIZEQ -- yes --> SIZE --> R3 --> EXPQ
+    EXPQ -- "no (STANDARD)" --> CODQ
+    EXPQ -- yes --> EXP --> R4 --> CODQ
+    CODQ -- no --> OUT
+    CODQ -- yes --> COD --> R5 --> OUT
