@@ -8,6 +8,25 @@ updates:
     directory: /
     schedule: { interval: weekly }
     open-pull-requests-limit: 5
+    # Packages that only work at matching versions arrive as one pull request.
+    groups:
+      nestjs:
+        patterns: ["@nestjs/*"]
+      vitest:
+        patterns: ["vitest", "@vitest/*"]
+    # Major upgrades that need a planned migration, not just a version bump. Remove an entry when the
+    # team schedules that upgrade.
+    ignore:
+      - dependency-name: "@nestjs/*"     # Nest 12: every @nestjs package and the Nest services move together
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "vitest"        # Vitest 5: test runner and coverage plugin move together
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@vitest/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "jose"          # jose 6 is ESM-only; libs/node/swiftdrop-common is CommonJS
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"   # type definitions must match the Node 22 runtime
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: uv
     directory: /services/ai-assistant-service
     schedule: { interval: weekly }
