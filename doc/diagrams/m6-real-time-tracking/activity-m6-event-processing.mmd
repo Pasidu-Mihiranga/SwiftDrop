@@ -1,24 +1,18 @@
-%%{init: {"theme":"base","themeVariables":{"background":"#ffffff","mainBkg":"#ffffff","primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","secondaryColor":"#f2f2f2","tertiaryColor":"#ffffff","lineColor":"#000000","textColor":"#000000","clusterBkg":"#ffffff","clusterBorder":"#000000","titleColor":"#000000","edgeLabelBackground":"#ffffff","fontFamily":"Arial, Helvetica, sans-serif"}}}%%
-%% M6 activity: how one Kafka message becomes a timeline update and a live push.
-%% Idempotent consumer (eventId in processed_events) plus out-of-order guard (lastChangedAt).
-%% Retry and dead-letter steps follow the shared consumer template in libs/node/swiftdrop-common.
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","fontFamily":"Arial"}}}%%
+%% M6 event-processing activity: one parcel event through the consumer. Editable source for
+%% activity-m6-event-processing.svg / .png (hand-drawn export with swimlanes).
 flowchart TD
-    S(["Kafka message<br/>parcel.* topic, key = parcelId"]) --> V{"Envelope valid<br/>against JSON Schema?"}
-    V -- "no [invalid]" --> BAD["Log with PII masking, count metric,<br/>record in dead-letter"]
-    BAD --> ACK1(["Commit offset"])
-    V -- "yes" --> D{"eventId already in<br/>processed_events?"}
-    D -- "yes [duplicate]" --> ACK2(["Commit offset, no change"])
-    D -- "no" --> O{"changedAt older than<br/>lastChangedAt? [out-of-order]"}
-    O -- "yes [late]" --> APP["Append event to history only,<br/>currentStatus is not moved back"]
-    O -- "no [in order]" --> SET["Set currentStatus, lastChangedAt,<br/>publicView and ownerIds"]
-    APP --> TX
-    SET --> TX["Mongo transaction:<br/>upsert timeline + insert processed_events"]
-    TX -- "error" --> R{"attempt below 3?"}
-    R -- "yes [retry]" --> BO["Exponential backoff,<br/>redeliver the message"]
-    BO --> D
-    R -- "no [exhausted]" --> DLQ["Dead-letter record and alert"]
-    DLQ --> ACK1
-    TX -- "ok" --> CHG{"currentStatus changed?"}
-    CHG -- "yes" --> EMIT["Broadcast parcel.status<br/>to tracking, user and dispatch rooms"]
-    CHG -- "no" --> ACK3
-    EMIT --> ACK3(["Commit offset"])
+    S((start)) --> R["receive event, key = parcelId"]
+    R --> V{"valid envelope?"}
+    V -- "no" --> DLQ["dead-letter topic"]
+    V -- "yes" --> D{"eventId seen?"}
+    D -- "yes" --> SK["skip event, commit offset"]
+    D -- "no" --> ST{"older than lastChangedAt?"}
+    ST -- "yes" --> SK
+    ST -- "no" --> TX["upsert timeline and processed_event in one transaction"]
+    TX --> E{"handler error?"}
+    E -- "yes, attempt < 3: backoff and retry" --> TX
+    E -- "error after 3 attempts" --> DLQ
+    E -- "no" --> EM["emit parcel.status to rooms"]
+    EM --> CO["commit offset"]
+    CO --> END((end))

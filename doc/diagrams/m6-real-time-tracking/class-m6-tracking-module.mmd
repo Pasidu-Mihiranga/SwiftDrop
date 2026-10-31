@@ -1,134 +1,79 @@
-%%{init: {"theme":"base","themeVariables":{"background":"#ffffff","mainBkg":"#ffffff","primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","secondaryColor":"#f2f2f2","tertiaryColor":"#ffffff","lineColor":"#000000","textColor":"#000000","clusterBkg":"#ffffff","clusterBorder":"#000000","titleColor":"#000000","edgeLabelBackground":"#ffffff","fontFamily":"Arial, Helvetica, sans-serif"}}}%%
-%% M6 class design. Ports (interfaces) sit in the application layer; adapters implement them.
-%% Template Method: the Kafka consumer base fixes the steps, each event consumer fills in handle().
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","fontFamily":"Arial"}}}%%
+%% M6 class design for tracking-service. Editable source for class-m6-tracking-module.svg / .png.
 classDiagram
-    direction TB
-
     class KafkaConsumerTemplate {
         <<abstract>>
-        +consume(message) void
-        #validate(envelope) void
-        #handle(event) void
-        #commit() void
+        +consume(message)
+        #validate(envelope)
+        #handle(event)*
+        #commit()
     }
     class ParcelCreatedConsumer
     class ParcelStatusChangedConsumer
     class ParcelAssignedConsumer
-
-    class IdempotencyStorePort {
-        <<interface>>
-        +isProcessed(eventId) boolean
-        +markProcessed(eventId) void
-    }
-    class MongoIdempotencyStore {
-        +isProcessed(eventId) boolean
-        +markProcessed(eventId) void
-    }
-
-    class TimelineProjector {
-        +applyCreated(event) TimelineDocument
-        +applyStatus(timeline, event) TimelineDocument
-        +applyAssigned(timeline, event) TimelineDocument
-    }
-    class TimelineRepositoryPort {
-        <<interface>>
-        +upsert(timeline) void
-        +findByTrackingNumber(trackingNumber) TimelineDocument
-        +findByParcelId(parcelId) TimelineDocument
-    }
-    class MongoTimelineRepository {
-        +upsert(timeline) void
-        +findByTrackingNumber(trackingNumber) TimelineDocument
-        +findByParcelId(parcelId) TimelineDocument
-    }
-    class TimelineDocument {
-        trackingNumber
-        parcelId
-        ownerIds
-        currentStatus
-        lastChangedAt
-        version
-    }
-    class TimelineEvent {
-        eventId
-        eventType
-        fromStatus
-        toStatus
-        failureReason
-        changedAt
-    }
-
-    class PublicViewMapper {
-        +toPublicView(timeline) PublicTrackingView
-        +maskName(fullName) string
-    }
-    class PublicTrackingView {
-        trackingNumber
-        currentStatus
-        city
-        maskedRecipient
-        steps
-    }
-
-    class TrackingQueryService {
-        +publicView(trackingNumber) PublicTrackingView
-        +ownerTimeline(parcelId, principal) TimelineDocument
-    }
-    class TrackingController {
-        +getPublic(trackingNumber) PublicTrackingView
-        +getTimeline(parcelId) TimelineDocument
-    }
-    class RateLimitGuard {
-        +canActivate(context) boolean
-    }
-
-    class BroadcastPort {
-        <<interface>>
-        +emitStatus(rooms, payload) void
-    }
-    class SocketIoBroadcaster {
-        +emitStatus(rooms, payload) void
-    }
-    class TrackingGateway {
-        +handleConnection(socket) void
-        +onJoinRoom(socket, room) void
-    }
-    class RoomPolicy {
-        +canJoin(principal, room) boolean
-    }
-    class JwtVerifier {
-        +verify(token) Principal
-    }
-    class Principal {
-        sub
-        roles
-        merchantId
-    }
-
     KafkaConsumerTemplate <|-- ParcelCreatedConsumer
     KafkaConsumerTemplate <|-- ParcelStatusChangedConsumer
     KafkaConsumerTemplate <|-- ParcelAssignedConsumer
-    KafkaConsumerTemplate o-- IdempotencyStorePort : checks and marks
-    MongoIdempotencyStore ..|> IdempotencyStorePort
-
-    ParcelCreatedConsumer ..> TimelineProjector : uses
-    ParcelStatusChangedConsumer ..> TimelineProjector : uses
-    ParcelAssignedConsumer ..> TimelineProjector : uses
-    ParcelStatusChangedConsumer ..> BroadcastPort : broadcasts via
-    TimelineProjector ..> TimelineDocument : builds
+    class TimelineProjector {
+        +applyCreated(event)
+        +applyStatus(timeline, event)
+        +applyAssigned(timeline, event)
+    }
+    ParcelCreatedConsumer ..> TimelineProjector
+    ParcelStatusChangedConsumer ..> TimelineProjector
+    ParcelAssignedConsumer ..> TimelineProjector
+    class TimelineRepositoryPort {
+        <<interface>>
+        +upsert(timeline)
+        +findByTrackingNumber(no)
+        +findByParcelId(id)
+    }
+    class MongoTimelineRepository {
+        <<adapter>>
+    }
+    class IdempotencyStorePort {
+        <<interface>>
+        +isProcessed(eventId)
+        +markProcessed(eventId)
+    }
+    class MongoIdempotencyStore {
+        <<adapter>>
+    }
+    class BroadcastPort {
+        <<interface>>
+        +emitStatus(rooms, payload)
+    }
+    class SocketIoBroadcaster {
+        <<adapter>>
+    }
     TimelineProjector --> TimelineRepositoryPort
-    MongoTimelineRepository ..|> TimelineRepositoryPort
-    TimelineDocument *-- TimelineEvent : events
-
+    TimelineProjector ..> BroadcastPort
+    TimelineRepositoryPort <|.. MongoTimelineRepository
+    IdempotencyStorePort <|.. MongoIdempotencyStore
+    BroadcastPort <|.. SocketIoBroadcaster
+    class TrackingController {
+        <<api>>
+        +getPublic(trackingNumber)
+        +getTimeline(parcelId, principal)
+    }
+    class TrackingQueryService {
+        <<facade>>
+        +publicView(trackingNumber)
+        +ownerTimeline(parcelId, principal)
+    }
+    class PublicViewMapper {
+        +toPublicView(timeline)
+        +maskName(fullName)
+    }
+    class TrackingGateway {
+        <<websocket>>
+        +handleConnection(socket)
+        +onJoinRoom(socket, room)
+    }
+    class RoomPolicy {
+        <<policy>>
+        +canJoin(principal, room)
+    }
     TrackingController --> TrackingQueryService
-    TrackingController ..> RateLimitGuard : guarded by
-    TrackingQueryService --> TimelineRepositoryPort
-    TrackingQueryService --> PublicViewMapper
-    PublicViewMapper ..> PublicTrackingView : creates
-
-    TrackingGateway --> JwtVerifier
-    TrackingGateway --> RoomPolicy
-    TrackingGateway ..> BroadcastPort : registers sockets
-    SocketIoBroadcaster ..|> BroadcastPort
-    JwtVerifier ..> Principal : creates
-    RoomPolicy ..> Principal : reads
+    TrackingQueryService ..> PublicViewMapper
+    TrackingGateway ..> RoomPolicy
