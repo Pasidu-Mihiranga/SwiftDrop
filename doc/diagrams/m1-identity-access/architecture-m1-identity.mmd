@@ -1,0 +1,38 @@
+%% M1 architecture view: identity and access across the presentation, business-logic and data layers.
+%% Matches doc/01-architecture.md sections 1, 2.1 and 4; class names are the planned M1 design.
+flowchart LR
+    subgraph PRES["Presentation layer - apps/web (Next.js 16)"]
+        BR["Browser<br/>login, profile, address book, admin users<br/>session cookie only"]
+        AJ["Auth.js v5<br/>client swiftdrop-web, code + PKCE, refresh"]
+        PX["proxy.ts<br/>accessFor / homeFor role guard"]
+        BFF["BFF /api/bff/*<br/>adds Bearer token server-side"]
+    end
+    subgraph EDGE["Edge"]
+        GW["api-gateway :8080<br/>JWT check (JWKS, iss, aud, exp), routes, CORS, correlation id"]
+    end
+    subgraph BL["Business logic layer - user-service"]
+        API["api<br/>UserController, AddressController, AdminUserController"]
+        APP["application<br/>UserProfileService, AddressService, AdminUserService + ports"]
+        DOM["domain<br/>UserProfile, Address, CourierProfile, AddressPolicy"]
+        INF["infrastructure<br/>JPA, AES-GCM converter, KeycloakAdminAdapter"]
+    end
+    subgraph DATA["Data layer"]
+        DB[("users_db PostgreSQL")]
+    end
+    subgraph IDP["Identity provider"]
+        KC["Keycloak realm swiftdrop<br/>roles, clients, policies"]
+        GG["Google OAuth 2.0"]
+    end
+    BR <--> AJ
+    AJ -. "OIDC code + PKCE, refresh" .-> KC
+    BR --> PX
+    BR --> BFF
+    BFF -- "Bearer JWT" --> GW
+    GW -. JWKS .-> KC
+    GW -- routes --> API
+    API --> APP --> DOM
+    INF -. implements ports .-> APP
+    INF -- JPA / Flyway --> DB
+    INF -- "Admin REST API" --> KC
+    API -. "JWKS (validates again)" .-> KC
+    KC <-- brokering --> GG

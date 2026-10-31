@@ -1,0 +1,48 @@
+%% M1 key flow: OAuth 2.0 / OIDC login with Google.
+%% Authorization Code + PKCE between Auth.js (client swiftdrop-web) and Keycloak; Keycloak brokers Google.
+%% Source of truth: apps/web/src/auth.ts, apps/web/src/proxy.ts, apps/web/src/app/login/page.tsx,
+%% infra/keycloak/realm-swiftdrop.json (identity provider 'google', default-roles-swiftdrop).
+sequenceDiagram
+    autonumber
+    actor U as Customer (browser)
+    participant W as Next.js server<br/>proxy.ts + Auth.js v5
+    participant KC as Keycloak<br/>realm swiftdrop
+    participant G as Google<br/>OAuth 2.0 / OIDC
+    U->>W: GET /customer (no session cookie)
+    W->>W: proxy.ts: accessFor('/customer', no roles) = login-required
+    W-->>U: 302 /login?callbackUrl=/customer
+    U->>W: click 'Continue with Google' (server action)
+    W->>W: signIn('keycloak', {redirectTo}, {kc_idp_hint: 'google'}): create state, nonce and PKCE code_verifier, keep them in short-lived encrypted cookies
+    W-->>U: 302 Keycloak /protocol/openid-connect/auth ?response_type=code &client_id=swiftdrop-web &scope=openid profile email &code_challenge=S256(verifier) &state &kc_idp_hint=google
+    U->>KC: GET /realms/swiftdrop/protocol/openid-connect/auth ...
+    KC->>KC: kc_idp_hint=google skips the Keycloak login form and starts the Google broker flow
+    KC-->>U: 302 accounts.google.com/o/oauth2/v2/auth ?client_id=GOOGLE_CLIENT_ID &redirect_uri=.../broker/google/endpoint &scope=openid profile email &state
+    U->>G: GET Google authorization endpoint
+    G-->>U: Google sign-in and consent screen
+    U->>G: Google credentials + consent
+    G-->>U: 302 /realms/swiftdrop/broker/google/endpoint ?code=GOOGLE_CODE &state
+    U->>KC: GET broker endpoint ?code=GOOGLE_CODE &state
+    KC->>G: POST token endpoint (GOOGLE_CODE, client id + secret) - back channel
+    G-->>KC: Google id_token: sub, email, email_verified, name
+    alt first Google login - no Keycloak user linked to this Google sub
+        KC->>KC: first broker login flow: create Keycloak user (trustEmail, syncMode IMPORT), link federated identity google:sub, grant default-roles-swiftdrop (includes CUSTOMER)
+    else e-mail already registered with a password
+        KC-->>U: 'Account already exists' - confirm by signing in with the existing password
+        U->>KC: existing password
+        KC->>KC: link google:sub to the existing user (no duplicate account)
+    else returning Google user
+        KC->>KC: find user by federated identity, update the imported profile
+    end
+    KC->>KC: create the SSO session (idle 30 min, max 10 h)
+    KC-->>U: 302 http://localhost:3000/api/auth/callback/keycloak ?code=KC_CODE &state
+    U->>W: GET /api/auth/callback/keycloak ?code=KC_CODE &state
+    W->>W: check state against its cookie (CSRF), load code_verifier
+    W->>KC: POST /protocol/openid-connect/token grant_type=authorization_code, code, code_verifier, client_id=swiftdrop-web + secret (internal URL, back channel)
+    KC->>KC: verify client secret and PKCE: S256(code_verifier) == code_challenge, code used once
+    KC-->>W: access_token (JWT, 5 min, aud swiftdrop-api, realm_access.roles [CUSTOMER]), refresh_token, id_token
+    W->>W: jwt callback: rolesFromAccessToken(), store tokens only inside the encrypted HTTP-only session cookie (8 h), the browser session holds id, name, email and roles
+    W-->>U: 302 /customer + Set-Cookie authjs.session-token (HttpOnly, SameSite=Lax)
+    U->>W: GET /customer (session cookie)
+    W->>W: proxy.ts: accessFor('/customer', [CUSTOMER]) = allowed, token refreshed here if < 60 s left
+    W-->>U: 200 customer dashboard
+    Note over U,KC: Access and refresh tokens never reach browser JavaScript. Later API calls go through the BFF, which adds the bearer token on the server (see sequence-m1-first-profile-jwt-chain).

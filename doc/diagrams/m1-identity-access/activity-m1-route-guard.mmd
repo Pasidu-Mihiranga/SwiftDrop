@@ -1,0 +1,28 @@
+%% M1 activity: role-based page guard. Source of truth: apps/web/src/proxy.ts and apps/web/src/lib/roles.ts
+%% (accessFor). The guard is a UX layer; APIs enforce authorisation again.
+flowchart TB
+    START((start)) --> REQ[Browser requests a page]
+    REQ --> MATCH[proxy.ts matcher skips /_next, /api, favicon]
+    MATCH --> AUTH[auth: decrypt session cookie, refresh token if under 60 s left]
+    AUTH --> D1{session present and no refresh error?}
+    D1 -- yes --> R1[roles = session.user.roles]
+    D1 -- no --> R0[roles = none]
+    R1 --> FIND
+    R0 --> FIND[find the most specific area rule for the path]
+    FIND --> D2{an area rule matches?}
+    D2 -- no rule --> D3{public page? / /login /track /quote /forbidden}
+    D3 -- yes --> PUBLIC[public]
+    D3 -- no: private by default --> D5{signed in?}
+    D5 -- yes --> ALLOWED1[allowed]
+    D5 -- no --> LOGIN1[login-required]
+    D2 -- rule found --> D4{signed in?}
+    D4 -- no --> LOGIN2[login-required]
+    D4 -- yes --> D6{rule is any-authenticated or user holds one of its roles?}
+    D6 -- yes --> ALLOWED2[allowed]
+    D6 -- no --> FORBIDDEN[forbidden]
+    PUBLIC & ALLOWED1 & ALLOWED2 --> NEXT[NextResponse.next - page renders]
+    LOGIN1 & LOGIN2 --> TOLOGIN[redirect /login?callbackUrl=path]
+    FORBIDDEN --> TOFORBID[redirect /forbidden]
+    NEXT --> END1((end))
+    TOLOGIN --> END2((end))
+    TOFORBID --> END3((end))
