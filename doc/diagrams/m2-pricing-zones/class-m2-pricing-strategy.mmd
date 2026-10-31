@@ -1,7 +1,7 @@
 %% M2 class diagram: the Strategy + Decorator pricing pipeline (domain.policy / domain.model).
-%% The fee formula lives in the shape of the object graph, not in an if-chain, so adding a
-%% rule means adding a decorator rather than editing a calculation. The chain is stateless.
-%% The whole package is free of Spring, JPA and Hibernate types (asserted by ArchUnit).
+%% Each pricing rule is its own class, so adding a rule means adding a decorator
+%% instead of editing a calculation. The chain is stateless.
+%% The whole package is plain Java: no Spring, JPA or Hibernate types.
 classDiagram
     direction TB
 
@@ -22,13 +22,13 @@ classDiagram
     class ZoneMatrixStrategy {
         +price(..) FeeBreakdown
     }
-    note for ZoneMatrixStrategy "The only rule that reads the zone matrix.\nBASE = card.baseFee, so repricing distance\nis a data change, not a code change."
+    note for ZoneMatrixStrategy "The only rule that reads the zone matrix.\nBASE = card.baseFee, so a price change\nis an edit to the rate card data."
 
     class WeightStrategy {
         +price(..) FeeBreakdown
         +chargeableKilograms(BigDecimal) BigDecimal$
     }
-    note for WeightStrategy "Part kilograms bill as whole ones:\n2.1 kg is charged as 3 kg."
+    note for WeightStrategy "Weight rounds up to the next kg:\n2.1 kg bills as 3 kg."
 
     class CompositePricingStrategy {
         -List~PricingStrategy~ strategies
@@ -54,7 +54,7 @@ classDiagram
         +FeeCalculator(PricingStrategy pipeline)
         +calculate(RateCard, SizeClassRate, BigDecimal weightKg, ServiceLevel, BigDecimal codAmount) FeeBreakdown
     }
-    note for FeeCalculator "Default chain:\nCOD( EXPRESS( SIZE( ZoneMatrix + Weight ) ) )\nThe second constructor lets a test or a future\ncaller price with a different rule set."
+    note for FeeCalculator "Default chain:\nCOD( EXPRESS( SIZE( ZoneMatrix + Weight ) ) )\nThe second constructor takes a different chain."
 
     class PricingContext {
         <<record>>
@@ -72,7 +72,7 @@ classDiagram
         +empty() FeeBreakdown$
         +plus(PricingRule, BigDecimal rawAmount) FeeBreakdown
     }
-    note for FeeBreakdown "Immutable: plus() returns a new breakdown.\nRounds each line, and drops a line that\nworks out to zero."
+    note for FeeBreakdown "Immutable: plus() returns a new breakdown.\nEach line is rounded, and a line worth\nzero is left out."
 
     class Line {
         <<record>>
@@ -135,7 +135,7 @@ classDiagram
 
     PricingDecorator o--> "1 delegate" PricingStrategy : wraps
     CompositePricingStrategy o--> "1..*" PricingStrategy : runs in order
-    FeeCalculator o--> "1" PricingStrategy : assembles only
+    FeeCalculator o--> "1" PricingStrategy : builds the chain
 
     FeeCalculator ..> PricingContext : creates
     PricingStrategy ..> PricingContext : reads

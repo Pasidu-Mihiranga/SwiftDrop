@@ -1,8 +1,6 @@
 %% M2 pricing & zones ER detail (database: pricing_db).
-%% Transcribed from the Flyway migrations V2-V4; this is the authoritative pricing
-%% schema and uses surrogate UUID keys, unlike the earlier logical sketch in er-v1.mmd
-%% (which still shows ZONE.code as the primary key - er-v1.mmd needs reconciling).
-%% .
+%% The pricing schema in detail, with surrogate UUID keys.
+%% The cross-service view of the same tables is in ../er-v1.mmd.
 %% QUOTE_SNAPSHOT is NOT a relational table: it is a Redis value under an opaque UUID,
 %% stored with a 15-minute TTL (swiftdrop.pricing.quote-ttl, PT15M) and returned verbatim.
 erDiagram
@@ -15,7 +13,7 @@ erDiagram
 
     DISTRICT_ZONE {
         varchar district PK "one of the 25 districts - not blank"
-        uuid zone_id FK "-> ZONE.id, NOT NULL; idx_district_zone_zone_id"
+        uuid zone_id FK "-> ZONE.id, NOT NULL"
     }
 
     SIZE_CLASS {
@@ -33,8 +31,8 @@ erDiagram
         numeric per_kg_fee "NUMERIC(12,2), CHECK >= 0"
         numeric express_multiplier "NUMERIC(5,3), CHECK >= 1"
         numeric cod_fee_pct "NUMERIC(5,4), CHECK between 0 and 1"
-        date effective_from "NOT NULL; half-open period start"
-        date effective_to "NULL = still in force; CHECK > effective_from"
+        date effective_from "NOT NULL; the card applies from this date"
+        date effective_to "NULL = still in force; the last day is not included"
     }
 
     QUOTE_SNAPSHOT {
@@ -44,8 +42,8 @@ erDiagram
         json breakdown "ordered lines: BASE WEIGHT SIZE EXPRESS COD"
         varchar fromZone "ZONE.code at issue time"
         varchar toZone "ZONE.code at issue time"
-        varchar fromDistrict "echoed from the stored snapshot only"
-        varchar toDistrict "echoed from the stored snapshot only"
+        varchar fromDistrict "district as quoted"
+        varchar toDistrict "district as quoted"
         numeric weightKg "kg as quoted"
         varchar sizeClass "S M L XL"
         varchar serviceLevel "STANDARD | EXPRESS"
@@ -57,5 +55,5 @@ erDiagram
     ZONE ||--o{ DISTRICT_ZONE : "covers (1 zone : many districts)"
     ZONE ||--o{ RATE_CARD : "origin of"
     ZONE ||--o{ RATE_CARD : "destination of"
-    RATE_CARD |o..o{ QUOTE_SNAPSHOT : "priced by (no FK - the snapshot is a copy, so closing the card never changes an issued quote)"
-    SIZE_CLASS |o..o{ QUOTE_SNAPSHOT : "classified by (code copied, not referenced)"
+    RATE_CARD |o..o{ QUOTE_SNAPSHOT : "priced by (copied, so closing a card leaves issued quotes unchanged)"
+    SIZE_CLASS |o..o{ QUOTE_SNAPSHOT : "classified by (code copied)"
