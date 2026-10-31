@@ -1,0 +1,39 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","fontFamily":"Arial"}}}%%
+%% M6 data model: MongoDB tracking database, Redis keys, references to other services.
+%% Editable source for er-m6-tracking-timeline.svg / .png (hand-drawn export).
+erDiagram
+    TIMELINE {
+        string trackingNumber PK
+        string parcelId
+        string[] ownerIds
+        string currentStatus
+        date lastChangedAt
+        int version
+        string publicView_city
+        string publicView_maskedRecipient
+    }
+    TIMELINE_EVENT {
+        string eventId
+        string eventType
+        string fromStatus
+        string toStatus
+        date changedAt
+        string changedBy
+    }
+    PROCESSED_EVENT {
+        string eventId PK
+        string consumer PK
+        date processedAt
+    }
+    TIMELINE ||--o{ TIMELINE_EVENT : "contains (embedded)"
+    PARCEL {
+        string parcel_id
+        string tracking_number
+        string courier_id
+        string status
+    }
+    USER_PROFILE {
+        string sub
+        string full_name
+    }
+    TIMELINE }o..|| PARCEL : "referenced by id only"

@@ -1,0 +1,35 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","fontFamily":"Arial"}}}%%
+%% M6 module architecture: four tiers. Editable source for architecture-m6-tracking-module.svg / .png.
+flowchart TB
+    subgraph CLIENT["Client tier"]
+        PUB["Public tracking page<br/>/track/[trackingNumber]"]
+        LIVE["Live timeline and toasts<br/>room user:{sub}"]
+        DBOARD["Dispatcher board<br/>room dispatch"]
+    end
+    subgraph TRANSPORT["Transport tier"]
+        BFF["Next.js BFF<br/>/api/bff/socket-token"]
+        GW["Spring Cloud Gateway<br/>/api/v1/tracking/** and /ws/tracking"]
+    end
+    subgraph APP["Application tier"]
+        TRK["tracking-service (NestJS)<br/>consumers, public and owner REST, Socket.IO"]
+        COMMON["swiftdrop-common lib<br/>Kafka template, idempotency, JWT verify"]
+    end
+    subgraph DATA["Data and infrastructure"]
+        MONGO[("MongoDB tracking<br/>timelines, processed_event")]
+        KAFKA[("Kafka KRaft<br/>parcel.status-changed.v1")]
+        REDIS[("Redis 7<br/>socket.io adapter, rate limits")]
+    end
+    KC(["Keycloak<br/>OIDC, JWKS keys"])
+    OTHER["Other services<br/>parcel, dispatch, user"]
+
+    PUB -- "REST" --> BFF
+    LIVE -- "WebSocket" --> GW
+    DBOARD -- "WebSocket" --> GW
+    BFF --> GW
+    GW -- "routes REST and WS" --> TRK
+    TRK -- "read and write" --> MONGO
+    KAFKA -- "consume parcel.*" --> TRK
+    TRK -- "socket.io adapter" --> REDIS
+    TRK -.-> COMMON
+    GW -. "JWKS" .-> KC
+    OTHER -- "events" --> KAFKA

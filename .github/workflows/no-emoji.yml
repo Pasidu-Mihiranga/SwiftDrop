@@ -21,7 +21,11 @@ jobs:
       - name: Files contain no emojis
         run: python3 scripts/check-no-emoji.py
 
+      # Dependabot copies upstream release notes, emojis included, into its commit messages and pull
+      # request text. That text is not written by the team, so it is exempt; the files it changes are not.
+      # Squash-merge Dependabot pull requests with a plain commit message so main stays clean.
       - name: Commit messages contain no emojis
+        if: github.event.pull_request.user.login != 'dependabot[bot]'
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -33,7 +37,7 @@ jobs:
           fi
 
       - name: Pull request title and description contain no emojis
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]'
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}

@@ -1,0 +1,48 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","fontFamily":"Arial"}}}%%
+%% M6 platform share: libs/node/swiftdrop-common. Editable source for class-m6-common-lib.svg / .png.
+classDiagram
+    class KafkaConsumerTemplate {
+        <<abstract>>
+        +consume(message)
+        #validate(envelope)
+        #handle(event)*
+        #commit()
+    }
+    class IdempotencyStorePort {
+        <<interface>>
+        +isProcessed(eventId)
+        +markProcessed(eventId)
+    }
+    class MongoIdempotencyStore {
+        <<adapter>>
+        +isProcessed(eventId)
+        +markProcessed(eventId)
+    }
+    KafkaConsumerTemplate ..> IdempotencyStorePort : uses
+    IdempotencyStorePort <|.. MongoIdempotencyStore
+    class JwtVerifier {
+        <<service>>
+        +verify(token) Principal
+        +fetchJwks()
+    }
+    class Principal {
+        <<record>>
+        sub
+        roles
+        merchantId
+    }
+    class AuthGuard {
+        <<guard>>
+        +canActivate(context)
+    }
+    JwtVerifier ..> Principal : creates
+    AuthGuard ..> JwtVerifier : verifies with
+    class ProblemFilter {
+        <<filter>>
+        +catch(exception, host)
+    }
+    class PiiMaskingLogger {
+        <<util>>
+        +maskPhone(value)
+        +maskEmail(value)
+    }

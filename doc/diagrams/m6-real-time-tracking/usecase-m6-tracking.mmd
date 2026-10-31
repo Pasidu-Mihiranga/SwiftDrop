@@ -1,0 +1,35 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","fontFamily":"Arial"}}}%%
+%% M6 use cases (issue #19). Editable source for usecase-m6-tracking.svg / .png.
+%% The SVG and PNG are drawn by hand to match the M10 design document style.
+flowchart LR
+    GUEST(["Guest<br/>no token"])
+    CUST(["Customer<br/>signed in"])
+    MERCH(["Merchant<br/>signed in or API client"])
+    DISP(["Dispatcher / Admin<br/>staff role"])
+    COUR(["Courier"])
+    PARCEL[["parcel-service<br/>event source"]]
+
+    subgraph SYS["SwiftDrop tracking-service (M6)"]
+        UC1("Track a parcel by number<br/>GET /api/v1/tracking/public/{no}")
+        UC2("Limit public lookups<br/>rate limit per IP")
+        UC3("Follow one parcel live<br/>join room tracking:{no}")
+        UC4("View full timeline of own parcel<br/>GET /parcels/{id}/timeline")
+        UC5("Receive live status toasts<br/>room user:{sub}")
+        UC6("Watch the live dispatcher board<br/>room dispatch")
+        UC7("Project parcel events into timelines<br/>consume parcel.* idempotently")
+    end
+
+    GUEST --> UC1
+    GUEST --> UC3
+    CUST --> UC1
+    CUST --> UC3
+    CUST --> UC4
+    CUST --> UC5
+    MERCH --> UC4
+    MERCH --> UC5
+    DISP --> UC4
+    DISP --> UC6
+    UC1 -. "include" .-> UC2
+    UC3 -. "extend" .-> UC1
+    PARCEL -- "events" --> UC7
+    COUR -- "status updates" --> PARCEL
