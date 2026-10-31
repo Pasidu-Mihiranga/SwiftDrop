@@ -51,7 +51,47 @@
   --viz-delivered: #2a78d6;
   --viz-failed: #eb6834;
   --viz-cancelled: #1baf7a;
+  --viz-created: #6250d6;
   --viz-context: #a8a69f;
+  --viz-track: #cde2fb;
   --viz-good: #006300;
   --viz-bad: #d03b3b;
+}
+
+/* Lines draw in once when a chart appears; skipped for readers who prefer reduced motion. */
+@keyframes viz-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes viz-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@utility viz-draw {
+  stroke-dasharray: 1;
+  animation: viz-draw 700ms ease-out both;
+}
+
+@utility viz-fade {
+  animation: viz-fade 500ms ease-out both;
+}
+
+@utility viz-grow {
+  transform-origin: left;
+  animation: viz-grow 600ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes viz-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .viz-draw,
+  .viz-fade,
+  .viz-grow {
+    animation: none;
+  }
 }

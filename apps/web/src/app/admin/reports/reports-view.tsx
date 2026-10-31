@@ -1,23 +1,22 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
-import { DailyTrendChart } from "@/components/reports/daily-trend-chart";
-import { type OutcomeRow, OutcomeBars } from "@/components/reports/outcome-bars";
-import { ReportFilters } from "@/components/reports/report-filters";
-import { StatTiles } from "@/components/reports/stat-tiles";
-import { TableView } from "@/components/reports/table-view";
+import { CourierLeaderboard } from "@/components/reports/courier-leaderboard";
+import { FilterBar } from "@/components/reports/filter-bar";
+import { Icon } from "@/components/reports/icons";
+import { InsightsCard } from "@/components/reports/insights-card";
+import { KpiCards } from "@/components/reports/kpi-cards";
+import { PendingFrame, ReportsNavigation, RetryButton } from "@/components/reports/reports-navigation";
+import { TrendPanel } from "@/components/reports/trend-panel";
+import { ZoneBreakdown } from "@/components/reports/zone-breakdown";
 import {
+  REPORT_TIME_ZONE,
   type ReportFilter,
-  UNKNOWN_ZONE,
+  buildInsights,
   daysInclusive,
-  formatCount,
-  formatDay,
-  formatPercent,
+  formatRange,
+  reportsHref,
   zoneLabel,
 } from "@/lib/reports";
 import type { ReportsData, Section } from "./data";
-
-/** Couriers beyond this many are left to the table, so the chart stays readable. */
-const COURIER_ROWS = 8;
 
 interface Props {
   filter: ReportFilter;
@@ -29,165 +28,144 @@ interface Props {
 export function ReportsView({ filter, notice, data }: Props) {
   const length = daysInclusive(filter.from, filter.to);
   const zoneName = filter.zone ? zoneLabel(filter.zone, data.zoneNames) : "All zones";
+  const loadedAt = new Intl.DateTimeFormat("en-GB", { timeZone: REPORT_TIME_ZONE, hour: "2-digit", minute: "2-digit" }).format(new Date());
 
-  const zoneCodes = new Set<string>(Object.keys(data.zoneNames));
-  if (data.zones.ok) data.zones.data.forEach((zone) => zoneCodes.add(zone.zoneCode));
-  if (filter.zone) zoneCodes.add(filter.zone);
+  const activity = new Map<string, number | null>();
+  for (const code of Object.keys(data.zoneNames)) activity.set(code, data.zones.ok ? 0 : null);
+  if (data.zones.ok) {
+    for (const zone of data.zones.data) activity.set(zone.zoneCode, zone.created + zone.delivered + zone.failed + zone.cancelled);
+  }
+  if (filter.zone && !activity.has(filter.zone)) activity.set(filter.zone, null);
+  const zoneOptions = [...activity.entries()]
+    .filter(([code]) => code !== "UNKNOWN")
+    .map(([code, count]) => ({ code, activity: count }))
+    .sort((a, b) => (b.activity ?? 0) - (a.activity ?? 0) || a.code.localeCompare(b.code));
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-sm text-slate-500">
-          <Link href="/admin" className="hover:underline">Operations</Link> / Reports
-        </p>
-        <h1 className="mt-1 text-2xl font-bold">Delivery reports</h1>
-        <p className="text-slate-600">
-          {formatDay(filter.from, "long")} to {formatDay(filter.to, "long")} &middot; {zoneName}. Days follow Sri Lanka time.
-        </p>
-      </div>
+    <ReportsNavigation>
+      <div className="space-y-5">
+        <header className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <nav aria-label="Breadcrumb" className="text-sm text-slate-500">
+              <Link href="/admin" className="hover:text-slate-800 hover:underline">Operations</Link>
+              <span className="mx-1.5 text-slate-300">/</span>
+              <span className="text-slate-700">Reports</span>
+            </nav>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Delivery reports</h1>
+            <p className="mt-1 text-sm text-slate-600">
+              {formatRange(filter.from, filter.to)} &middot; {zoneName} &middot; Sri Lanka time
+            </p>
+          </div>
+        </header>
 
-      <ReportFilters filter={filter} zones={[...zoneCodes].sort()} zoneNames={data.zoneNames} />
+        <FilterBar filter={filter} zones={zoneOptions} zoneNames={data.zoneNames} loadedAt={loadedAt} />
 
-      {notice && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{notice}</p>}
-
-      {data.daily.ok ? (
-        <StatTiles
-          totals={data.daily.data.totals}
-          previous={data.previous.ok ? data.previous.data.totals : null}
-          comparisonLabel={`previous ${length} ${length === 1 ? "day" : "days"}`}
-        />
-      ) : (
-        <Unavailable section={data.daily} />
-      )}
-
-      <Card title="Deliveries per day" subtitle={`Parcels delivered against parcels created · ${zoneName}`}>
-        {withData(data.daily, (daily) =>
-          daily.totals.created + daily.totals.delivered + daily.totals.failed + daily.totals.cancelled === 0 ? (
-            <Empty />
-          ) : (
-            <>
-              <DailyTrendChart days={daily.days} />
-              <TableView
-                caption="Parcels per day"
-                columns={[
-                  { label: "Day" },
-                  { label: "Created", numeric: true },
-                  { label: "Delivered", numeric: true },
-                  { label: "Failed attempts", numeric: true },
-                  { label: "Cancelled", numeric: true },
-                ]}
-                rows={daily.days.map((d) => [formatDay(d.date, "long"), d.created, d.delivered, d.failed, d.cancelled])}
-              />
-            </>
-          ),
+        {notice && (
+          <p role="status" className="flex items-center gap-2 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-200">
+            <Icon name="alert" />
+            {notice}
+          </p>
         )}
-      </Card>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card
-          title="Outcomes by zone"
-          subtitle={`Delivered, failed attempts and cancellations per dropoff zone${filter.zone ? " · all zones (not filtered by zone)" : ""}`}
-        >
-          {withData(data.zones, (zones) => {
-            const rows: OutcomeRow[] = zones
-              .map((zone) => ({
-                key: zone.zoneCode,
-                label: zoneLabel(zone.zoneCode, data.zoneNames),
-                counts: { delivered: zone.delivered, failed: zone.failed, cancelled: zone.cancelled },
-                successRate: zone.successRate,
-              }))
-              .filter((row) => row.counts.delivered + row.counts.failed + row.counts.cancelled > 0)
-              .sort((a, b) => b.counts.delivered + b.counts.failed - (a.counts.delivered + a.counts.failed));
-            if (rows.length === 0) return <Empty />;
-            return (
-              <>
-                <OutcomeBars rows={rows} outcomes={["delivered", "failed", "cancelled"]} noun="zone" />
-                {zones.some((zone) => zone.zoneCode === UNKNOWN_ZONE) && (
-                  <p className="mt-3 text-xs text-slate-500">
-                    &quot;Zone not known yet&quot; holds activity whose parcel-created event has not arrived; it moves to the right zone when it does.
-                  </p>
-                )}
-                <TableView
-                  caption="Outcomes by zone"
-                  columns={[
-                    { label: "Zone" },
-                    { label: "Created", numeric: true },
-                    { label: "Delivered", numeric: true },
-                    { label: "Failed attempts", numeric: true },
-                    { label: "Cancelled", numeric: true },
-                    { label: "Success rate", numeric: true },
-                  ]}
-                  rows={zones.map((zone) => [
-                    zoneLabel(zone.zoneCode, data.zoneNames),
-                    zone.created,
-                    zone.delivered,
-                    zone.failed,
-                    zone.cancelled,
-                    formatPercent(zone.successRate),
-                  ])}
-                />
-              </>
-            );
-          })}
-        </Card>
+        <PendingFrame>
+          {!data.daily.ok ? (
+            <Problem section={data.daily} />
+          ) : isEmpty(data.daily.data.totals) ? (
+            <Empty filter={filter} />
+          ) : (
+            <div className="space-y-5">
+              <KpiCards
+                totals={data.daily.data.totals}
+                previous={data.previous.ok ? data.previous.data.totals : null}
+                days={data.daily.data.days}
+                comparisonLabel={`vs previous ${length} ${length === 1 ? "day" : "days"}`}
+              />
 
-        <Card
-          title="Outcomes by courier"
-          subtitle={`Delivered and failed attempts per courier, most deliveries first${filter.zone ? " · all zones (not filtered by zone)" : ""}`}
-        >
-          {withData(data.couriers, (couriers) => {
-            if (couriers.length === 0) return <Empty />;
-            const rows: OutcomeRow[] = couriers.slice(0, COURIER_ROWS).map((courier) => ({
-              key: courier.courierId,
-              label: courier.courierId,
-              counts: { delivered: courier.delivered, failed: courier.failed },
-              successRate: courier.successRate,
-            }));
-            return (
-              <>
-                <OutcomeBars rows={rows} outcomes={["delivered", "failed"]} noun="courier" />
-                {couriers.length > COURIER_ROWS && (
-                  <p className="mt-3 text-xs text-slate-500">
-                    Showing the top {COURIER_ROWS} of {formatCount(couriers.length)} couriers; all of them are in the table.
-                  </p>
-                )}
-                <TableView
-                  caption="Outcomes by courier"
-                  columns={[
-                    { label: "Courier" },
-                    { label: "Delivered", numeric: true },
-                    { label: "Failed attempts", numeric: true },
-                    { label: "Success rate", numeric: true },
-                  ]}
-                  rows={couriers.map((c) => [c.courierId, c.delivered, c.failed, formatPercent(c.successRate)])}
+              <div className="grid gap-5 lg:grid-cols-3">
+                <div className="min-w-0 lg:col-span-2">
+                  <TrendPanel
+                    days={data.daily.data.days}
+                    previousDays={data.previous.ok ? data.previous.data.days : null}
+                    totals={data.daily.data.totals}
+                    previousTotals={data.previous.ok ? data.previous.data.totals : null}
+                    fileStem={`${filter.from}_${filter.to}${filter.zone ? `_${filter.zone}` : ""}`}
+                  />
+                </div>
+                <InsightsCard
+                  filter={filter}
+                  insights={buildInsights(
+                    data.daily.data,
+                    data.zones.ok ? data.zones.data : null,
+                    data.couriers.ok ? data.couriers.data : null,
+                    data.zoneNames,
+                    filter.zone,
+                  )}
                 />
-              </>
-            );
-          })}
-        </Card>
+              </div>
+
+              <div className="grid gap-5 lg:grid-cols-2">
+                {data.zones.ok ? (
+                  <ZoneBreakdown zones={data.zones.data} zoneNames={data.zoneNames} filter={filter} />
+                ) : (
+                  <Problem section={data.zones} title="Zones" />
+                )}
+                {data.couriers.ok ? (
+                  <CourierLeaderboard couriers={data.couriers.data} />
+                ) : (
+                  <Problem section={data.couriers} title="Couriers" />
+                )}
+              </div>
+            </div>
+          )}
+        </PendingFrame>
       </div>
-    </div>
+    </ReportsNavigation>
   );
 }
 
-function Card({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
+function isEmpty(totals: { created: number; delivered: number; failed: number; cancelled: number }): boolean {
+  return totals.created + totals.delivered + totals.failed + totals.cancelled === 0;
+}
+
+function Problem({ section, title }: { section: Section<unknown>; title?: string }) {
   return (
-    <section className="card">
-      <h2 className="font-semibold">{title}</h2>
-      <p className="mb-4 text-sm text-slate-600">{subtitle}</p>
-      {children}
+    <section className="flex flex-col items-center justify-center gap-3 rounded-2xl bg-white px-6 py-12 text-center shadow-sm ring-1 ring-slate-200">
+      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-amber-50 text-amber-600">
+        <Icon name="alert" className="h-5 w-5" />
+      </span>
+      <div>
+        <p className="font-semibold text-slate-900">{title ? `${title} could not be loaded` : "Reports could not be loaded"}</p>
+        <p className="mt-1 text-sm text-slate-500">{section.ok ? "" : section.message}</p>
+      </div>
+      <RetryButton />
     </section>
   );
 }
 
-function withData<T>(section: Section<T>, render: (data: T) => ReactNode): ReactNode {
-  return section.ok ? render(section.data) : <Unavailable section={section} />;
-}
-
-function Unavailable({ section }: { section: Section<unknown> }) {
-  return <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{section.ok ? "" : section.message}</p>;
-}
-
-function Empty() {
-  return <p className="py-8 text-center text-sm text-slate-500">No parcel activity in this period.</p>;
+function Empty({ filter }: { filter: ReportFilter }) {
+  return (
+    <section className="flex flex-col items-center justify-center gap-3 rounded-2xl bg-white px-6 py-16 text-center shadow-sm ring-1 ring-slate-200">
+      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+        <Icon name="empty" className="h-6 w-6" />
+      </span>
+      <div>
+        <p className="font-semibold text-slate-900">No parcel activity in this period</p>
+        <p className="mt-1 text-sm text-slate-500">
+          Nothing was created, delivered, failed or cancelled{filter.zone ? " in this zone" : ""} between these dates.
+        </p>
+      </div>
+      <div className="flex gap-2">
+        {filter.preset !== "90d" && (
+          <Link href={reportsHref({ preset: "90d", zone: filter.zone })} className="btn-secondary py-1.5 text-sm">
+            Try the last 90 days
+          </Link>
+        )}
+        {filter.zone && (
+          <Link href={reportsHref({ ...filter, zone: undefined })} className="btn-secondary py-1.5 text-sm">
+            Show all zones
+          </Link>
+        )}
+      </div>
+    </section>
+  );
 }
