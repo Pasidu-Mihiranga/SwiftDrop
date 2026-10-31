@@ -255,7 +255,7 @@ services:
     depends_on: [loki, tempo]
 
   kafka-exporter:
-    image: danielqsj/kafka-exporter:v1.10.0
+    image: danielqsj/kafka-exporter:v1.11.0
     profiles: ["observability"]
     restart: unless-stopped
     command: ["--kafka.server=kafka:19092"]
