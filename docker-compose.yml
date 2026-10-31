@@ -375,6 +375,10 @@ services:
       LLM_MODEL: ${LLM_MODEL}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # conversation memory and the encrypted PII vault
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      ASSISTANT_VAULT_SECRET: ${ASSISTANT_VAULT_SECRET:-}
+      MCP_MASK_PII: ${MCP_MASK_PII:-true}
 
   web:
     <<: *app
