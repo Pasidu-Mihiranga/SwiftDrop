@@ -6,6 +6,7 @@ from typing import Any
 
 import httpx
 from fastapi import FastAPI
+from mcp.server.transport_security import TransportSecuritySettings
 from redis.asyncio import Redis
 
 from app.agent.guardrails import RateLimiter
@@ -16,6 +17,7 @@ from app.core.config import Settings
 from app.core.metrics import AssistantMetrics
 from app.llm.base import LLMProvider
 from app.llm.factory import create_provider, provider_config
+from app.mcp_server.server import build_mcp_server
 from app.memory.conversation_store import ConversationStore
 from app.privacy import PiiRedactor, VaultCipher
 from app.tools import build_registry
@@ -34,14 +36,18 @@ def create_app(settings: Settings | None = None, verifier: JwtVerifier | None = 
     redis_client = redis or Redis.from_url(settings.redis_dsn)
     gateway = httpx.AsyncClient(base_url=settings.gateway_url, timeout=10.0, transport=gateway_transport)
 
+    mcp_server: Any = None
+
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-        yield
+        async with mcp_server.session_manager.run():
+            yield
         await gateway.aclose()
         await redis_client.aclose()
 
     app = FastAPI(title="SwiftDrop AI Assistant", version="0.1.0", docs_url="/docs", lifespan=lifespan)
-    install_swiftdrop(app, verifier or JwtVerifier(settings.issuer, jwks_uri=settings.jwks_uri))
+    jwt_verifier = verifier or JwtVerifier(settings.issuer, jwks_uri=settings.jwks_uri)
+    install_swiftdrop(app, jwt_verifier)
     metrics = AssistantMetrics(app.state.metrics_registry)
     redactor = PiiRedactor(metrics.redaction)
     registry = build_registry()
@@ -64,6 +70,14 @@ def create_app(settings: Settings | None = None, verifier: JwtVerifier | None = 
         llm, registry, redactor, store, RateLimiter(redis_client, settings.assistant_rate_limit_per_min), api_for,
         max_tool_rounds=settings.assistant_max_tool_rounds, metrics=metrics)
     app.include_router(router)
+
+    # MCP over streamable HTTP at /mcp. Stateless JSON responses suit a service behind the gateway; the
+    # DNS-rebinding check is off because requests arrive through the gateway, not from a local browser.
+    mcp_server = build_mcp_server(registry, jwt_verifier, api_for, redactor, mask_pii=settings.mcp_mask_pii)
+    mcp_app = mcp_server.streamable_http_app(
+        streamable_http_path="/mcp", stateless_http=True, json_response=True,
+        transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False))
+    app.router.routes.extend(mcp_app.routes)
     return app
 
 
