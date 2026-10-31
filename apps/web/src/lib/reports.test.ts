@@ -1,8 +1,21 @@
 import { describe, expect, it } from "vitest";
 import {
   addDays,
+  buildInsights,
   businessToday,
   countDelta,
+  dailyRate,
+  formatMetric,
+  formatRange,
+  initials,
+  isValidRange,
+  metricDelta,
+  metricValue,
+  rateTicks,
+  referenceValue,
+  smoothPath,
+  areaPath,
+  toCsv,
   daysInclusive,
   formatCount,
   formatDay,
@@ -56,6 +69,7 @@ describe("resolveFilter", () => {
   it("supports the presets", () => {
     expect(resolveFilter({ range: "7d" }, TODAY).filter).toMatchObject({ from: "2026-10-25", to: TODAY, preset: "7d" });
     expect(resolveFilter({ range: "90d" }, TODAY).filter.from).toBe("2026-08-03");
+    expect(resolveFilter({ range: "mtd" }, "2026-10-14").filter).toMatchObject({ from: "2026-10-01", to: "2026-10-14" });
     expect(resolveFilter({ range: "1y" }, TODAY).filter.preset).toBe("30d");
   });
 
@@ -86,9 +100,9 @@ describe("resolveFilter", () => {
 
 describe("links and queries", () => {
   it("builds preset and custom links", () => {
-    expect(reportsHref({ preset: "7d", zone: "CP" })).toBe("/admin/reports?range=7d&zone=CP");
+    expect(reportsHref({ preset: "7d", zone: "CP" })).toBe("?range=7d&zone=CP");
     expect(reportsHref({ preset: "custom", from: "2026-09-01", to: "2026-09-30" })).toBe(
-      "/admin/reports?from=2026-09-01&to=2026-09-30",
+      "?from=2026-09-01&to=2026-09-30",
     );
   });
 
@@ -153,5 +167,127 @@ describe("chart scales", () => {
     expect(labelIndexes(5, 8)).toEqual([0, 1, 2, 3, 4]);
     expect(labelIndexes(30, 6)).toEqual([4, 9, 14, 19, 24, 29]);
     expect(labelIndexes(0, 6)).toEqual([]);
+  });
+});
+
+describe("range and labels", () => {
+  it("validates custom ranges like reporting-service does", () => {
+    expect(isValidRange("2026-10-01", "2026-10-31")).toBe(true);
+    expect(isValidRange("2026-10-31", "2026-10-01")).toBe(false);
+    expect(isValidRange("2025-01-01", "2026-06-01")).toBe(false);
+    expect(isValidRange(undefined, "2026-10-01")).toBe(false);
+  });
+
+  it("formats a period compactly", () => {
+    expect(formatRange("2026-10-02", "2026-10-31")).toBe("2 Oct \u2013 31 Oct 2026");
+    expect(formatRange("2025-12-20", "2026-01-05")).toBe("20 Dec 2025 \u2013 5 Jan 2026");
+  });
+
+  it("makes avatar initials from ids", () => {
+    expect(initials("demo-courier-3")).toBe("D3");
+    expect(initials("a1b2c3d4-0000-4000-8000-00000000c001")).toBe("A0");
+    expect(initials("solo")).toBe("SO");
+    expect(initials("--")).toBe("?");
+  });
+});
+
+describe("metrics", () => {
+  const day = { date: "2026-10-05", created: 10, delivered: 9, failed: 1, cancelled: 0 };
+
+  it("derives the daily success rate", () => {
+    expect(dailyRate(day)).toBe(0.9);
+    expect(dailyRate({ delivered: 0, failed: 0 })).toBeNull();
+    expect(metricValue(day, "successRate")).toBe(0.9);
+    expect(metricValue(day, "created")).toBe(10);
+  });
+
+  it("formats each metric in its own unit", () => {
+    expect(formatMetric(0.9, "successRate")).toBe("90.0%");
+    expect(formatMetric(1284, "delivered")).toBe("1,284");
+    expect(formatMetric(null, "failed")).toBe("\u2014");
+  });
+
+  it("uses the period rate or the daily average as the reference line", () => {
+    const totals = { created: 60, delivered: 50, failed: 10, cancelled: 2, successRate: 50 / 60 };
+    expect(referenceValue(totals, 10, "delivered")).toBe(5);
+    expect(referenceValue(totals, 10, "successRate")).toBeCloseTo(0.8333);
+    expect(referenceValue(totals, 0, "created")).toBeNull();
+  });
+
+  it("compares metrics in their own terms", () => {
+    expect(metricDelta(12, 10, "failed")).toMatchObject({ direction: "up", tone: "bad" });
+    expect(metricDelta(0.9, 0.8, "successRate")).toMatchObject({ text: "+10.0 pts", tone: "good" });
+    expect(metricDelta(null, 3, "created")).toBeNull();
+  });
+});
+
+describe("buildInsights", () => {
+  const days = [
+    { date: "2026-10-01", created: 10, delivered: 8, failed: 2, cancelled: 0 },
+    { date: "2026-10-02", created: 12, delivered: 16, failed: 1, cancelled: 1 },
+  ];
+  const daily = { from: "2026-10-01", to: "2026-10-02", zone: null, days,
+    totals: { created: 22, delivered: 24, failed: 3, cancelled: 1, successRate: 24 / 27 } };
+  const zones = [
+    { zoneCode: "CP", created: 10, delivered: 12, failed: 3, cancelled: 0, successRate: 0.8 },
+    { zoneCode: "WP", created: 12, delivered: 19, failed: 1, cancelled: 1, successRate: 0.95 },
+    { zoneCode: "NP", created: 1, delivered: 1, failed: 1, cancelled: 0, successRate: 0.5 },
+    { zoneCode: "UNKNOWN", created: 0, delivered: 1, failed: 0, cancelled: 0, successRate: 1 },
+  ];
+  const couriers = [{ courierId: "demo-courier-1", delivered: 20, failed: 2, successRate: 20 / 22 }];
+
+  it("calls out the busiest day, the weakest and strongest zones and the top courier", () => {
+    const insights = buildInsights(daily, zones, couriers, { CP: "Central" });
+    expect(insights.map((i) => i.id)).toEqual(["busiest-day", "lowest-zone", "best-zone", "top-courier", "unknown-zone"]);
+    expect(insights[0].title).toBe("Busiest day: Fri 2 Oct 2026");
+    expect(insights[0].detail).toContain("33% above the daily average");
+    // NP has too few attempts to be judged, so CP is the weakest zone.
+    expect(insights[1]).toMatchObject({ title: "Lowest success rate: Central (CP)", zone: "CP" });
+    expect(insights[2].zone).toBe("WP");
+  });
+
+  it("compares a focused zone with all zones instead of ranking zones", () => {
+    const insights = buildInsights(daily, zones, couriers, { CP: "Central" }, "CP");
+    expect(insights.map((i) => i.id)).toEqual(["busiest-day", "zone-vs-all", "top-courier"]);
+    expect(insights[1]).toMatchObject({ title: "Central (CP) vs all zones", kind: "best" });
+    expect(insights[2].detail).toContain("across all zones");
+  });
+
+  it("says nothing about an empty period or missing sections", () => {
+    const empty = { ...daily, days: [{ ...days[0], created: 0, delivered: 0, failed: 0 }],
+      totals: { created: 0, delivered: 0, failed: 0, cancelled: 0, successRate: null } };
+    expect(buildInsights(empty, zones, couriers)).toEqual([]);
+    expect(buildInsights(daily, null, null).map((i) => i.id)).toEqual(["busiest-day"]);
+  });
+});
+
+describe("toCsv", () => {
+  it("quotes where needed and defuses spreadsheet formulas", () => {
+    expect(toCsv(["Zone", "Delivered"], [["Central (CP)", 12], ["A, \"B\"", null], ["=HYPERLINK()", 1]])).toBe(
+      'Zone,Delivered\r\nCentral (CP),12\r\n"A, ""B""",\r\n\'=HYPERLINK(),1',
+    );
+  });
+});
+
+describe("chart geometry", () => {
+  it("starts a rate axis just below the lowest rate", () => {
+    expect(rateTicks([0.82, 0.95, null])).toEqual([0.8, 0.9, 1]);
+    expect(rateTicks([0.3, 0.9])).toEqual([0.2, 0.4, 0.6, 0.8, 1]);
+    expect(rateTicks([null])).toEqual([0, 0.2, 0.4, 0.6, 0.8, 1]);
+  });
+
+  it("draws a monotone curve that never overshoots and breaks at gaps", () => {
+    expect(smoothPath([[0, 10]])).toBe("M0,10h0");
+    expect(smoothPath([[0, 10], [10, 20]])).toBe("M0,10L10,20");
+    const path = smoothPath([[0, 0], [10, 10], [20, 10], null, [40, 5], [50, 0]]);
+    expect(path.match(/M/g)).toHaveLength(2);
+    // A flat stretch stays flat: every y between the two 10s is exactly 10.
+    const flat = path.split("C")[2].split("M")[0];
+    expect(flat.split(",").filter((_, i) => i % 2 === 1).map(Number)).toEqual([10, 10, 10]);
+  });
+
+  it("closes each run of the area down to the baseline and skips lone points", () => {
+    expect(areaPath([[0, 10], [10, 20]], 30)).toBe("M0,10L10,20L10,30L0,30Z");
+    expect(areaPath([[0, 10], null, [20, 5], [30, 8]], 30).match(/Z/g)).toHaveLength(1);
   });
 });
