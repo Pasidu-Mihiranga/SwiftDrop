@@ -1,15 +1,15 @@
 %% M2 key flow 2: parcel-service validates an issued quote before booking.
 %% GET /api/v1/pricing/quotes/{quoteId} - requires a bearer token.
-%% The response is derived only from the stored snapshot; request data is never
-%% substituted into it, and expiry is indistinguishable from a guessed identifier.
+%% The reply is built from the stored snapshot only. An expired quote and an
+%% unknown id get the same 404.
 sequenceDiagram
     autonumber
-    participant P as parcel-service (M3)
+    participant P as parcel-service
     participant GW as api-gateway
     participant KC as Keycloak
     participant QC as QuoteController
     participant QLS as QuoteLookupService
-    participant CL as Clock (injected)
+    participant CL as Clock
     participant RD as RedisQuoteStore
 
     Note over P: CreateParcelRequest carries the quoteId<br/>the customer was shown
@@ -32,11 +32,11 @@ sequenceDiagram
             alt now is not before expiresAt
                 QLS-->>QC: ResourceNotFoundException
                 QC-->>P: 404 problem+json QUOTE_NOT_FOUND
-                Note over QLS,P: deliberately the same answer as "unknown",<br/>so expiry leaks nothing
+                Note over QLS,P: the same answer as "unknown",<br/>so expiry cannot be probed
             else still valid
                 QLS-->>QC: the stored snapshot, verbatim
                 QC-->>P: 200 fee, breakdown, zones, districts, weight,<br/>size class, service level, COD, issuedAt, expiresAt
-                Note over P: the booking is persisted with the fee<br/>the customer was actually quoted
+                Note over P: the booking is saved with the quoted fee
             end
         end
     end

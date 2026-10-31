@@ -3,7 +3,7 @@
 sequenceDiagram
     autonumber
     actor G as Guest (browser)
-    participant W as Fee-estimate widget<br/>+ apps/web/src/lib/pricing.ts
+    participant W as Fee-estimate widget
     participant B as Next.js BFF<br/>/api/bff/[...path]
     participant GW as api-gateway
     participant QC as QuoteController
@@ -16,16 +16,16 @@ sequenceDiagram
     participant RD as RedisQuoteStore
 
     G->>W: pick districts, weight, size class,<br/>service level, COD amount
-    W->>W: validateQuoteForm(...) - client-side gate,<br/>districts come from GET /pricing/zones
+    W->>W: validate the form in the browser,<br/>districts come from GET /pricing/zones
     alt form invalid
         W-->>G: field errors, no request sent
     else form valid
         W->>B: POST /api/bff/v1/pricing/quotes
-        B->>GW: POST /api/v1/pricing/quotes (anonymous allow-list)
+        B->>GW: POST /api/v1/pricing/quotes (public path)
         GW->>QC: forward
         QC->>QC: Bean Validation on QuoteRequest
         QC->>QIS: issue(input)
-        QIS->>QIS: issuedAt = clock.instant()<br/>quoteDate = LocalDate.ofInstant(...)
+        QIS->>QIS: issuedAt = clock.instant()<br/>quoteDate = today
         QIS->>QPS: prepare(input, quoteDate)
         QPS->>DR: findActiveZoneCodeByDistrict(fromDistrict)
         QPS->>DR: findActiveZoneCodeByDistrict(toDistrict)
@@ -45,15 +45,15 @@ sequenceDiagram
                 QPS->>FC: calculate(card, sizeClass, weightKg,<br/>serviceLevel, codAmount)
                 FC-->>QPS: FeeBreakdown<br/>BASE, WEIGHT, SIZE, EXPRESS, COD + exact total
                 QPS-->>QIS: PreparedQuote
-                QIS->>QIS: build QuoteSnapshot<br/>quoteId = UUID.randomUUID()<br/>expiresAt = issuedAt + PT15M
+                QIS->>QIS: build QuoteSnapshot<br/>quoteId = UUID.randomUUID()<br/>expiresAt = issuedAt + 15 min
                 QIS->>RD: save(snapshot, remaining TTL)
-                Note over QIS,RD: stored BEFORE the response is returned,<br/>so no quote is ever shown that cannot be looked up
+                Note over QIS,RD: saved before the reply is sent, so every<br/>quote shown can be looked up
                 RD-->>QIS: ok
                 QIS-->>QC: QuoteSnapshot
                 QC-->>GW: 201 with fee, breakdown, zones, expiresAt
                 GW-->>B: 201
                 B-->>W: quote
-                W->>W: onQuote(quote) - exposes quoteId<br/>for the M3 booking flow (handoff still open)
+                W->>W: onQuote(quote) - returns the quoteId<br/>with the fee
                 W-->>G: itemised fee + expiry countdown
             end
         end

@@ -1,8 +1,8 @@
 %% M2 activity: the fee calculation pipeline inside FeeCalculator.
 %% Chain shape: COD( EXPRESS( SIZE( ZoneMatrix + Weight ) ) ).
 %% Every line is rounded to 2 decimals HALF_UP before it feeds the next rule, so the
-%% breakdown the customer sees always reconciles exactly with the total charged.
-%% A rule worth 0.00 is omitted from the breakdown rather than shown as a zero line.
+%% lines in the breakdown add up to the total charged.
+%% A rule worth 0.00 is left out of the breakdown.
 flowchart TD
     classDef guard fill:#fff5f5,stroke:#e03131,color:#7a1212
     classDef rule fill:#ebfbee,stroke:#2f9e44,color:#14532d
@@ -13,9 +13,9 @@ flowchart TD
     G1{"weightKg present<br/>and > 0?"}:::guard
     G2{"sizeClass.accepts(weightKg)?"}:::guard
     G3{"codAmount present<br/>and >= 0?"}:::guard
-    REJ(["IllegalArgumentException<br/>surfaced as 422 problem+json"]):::guard
+    REJ(["rejected<br/>422 problem+json"]):::guard
 
-    CTX["build PricingContext<br/>(immutable, shared safely)"]:::io
+    CTX["build PricingContext"]:::io
     EMPTY["FeeBreakdown.empty()<br/>total = 0.00"]:::io
 
     BASE["ZoneMatrixStrategy<br/>BASE = card.baseFee"]:::rule
@@ -32,7 +32,7 @@ flowchart TD
     R4["round, append the EXPRESS line"]:::round
 
     CODQ{"codAmount > 0?"}:::rule
-    COD["CodFeeDecorator<br/>COD = codAmount x card.codFeePct<br/>charged on the cash, not on the fee,<br/>so it does not compound"]:::rule
+    COD["CodFeeDecorator<br/>COD = codAmount x card.codFeePct<br/>charged on the cash amount"]:::rule
     R5["round, append the COD line"]:::round
 
     OUT(["FeeBreakdown:<br/>ordered lines BASE, WEIGHT, SIZE, EXPRESS, COD<br/>fee = exact sum of the lines present"]):::io
@@ -44,9 +44,9 @@ flowchart TD
     G2 -- yes --> G3
     G3 -- no --> REJ
     G3 -- yes --> CTX --> EMPTY --> BASE --> R1 --> WEIGHT --> R2 --> SIZEQ
-    SIZEQ -- no, surcharge is 0.00 --> EXPQ
+    SIZEQ -- no --> EXPQ
     SIZEQ -- yes --> SIZE --> R3 --> EXPQ
-    EXPQ -- "no (STANDARD adds nothing)" --> CODQ
+    EXPQ -- "no (STANDARD)" --> CODQ
     EXPQ -- yes --> EXP --> R4 --> CODQ
     CODQ -- no --> OUT
     CODQ -- yes --> COD --> R5 --> OUT

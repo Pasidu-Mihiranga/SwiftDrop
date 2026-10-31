@@ -1,7 +1,7 @@
 # M2 Pricing & Zones diagrams
 
-These Mermaid sources support [Issue #15](../../04-m2-pricing-zones-issue-15.md)
-and the [design notes](../../05-m2-design-notes.md).
+Mermaid sources and their exports for the M2 pricing and zones design: who uses the
+service, how a fee is worked out, what is stored, and how it is deployed.
 
 | View | Source | Export |
 |---|---|---|
@@ -17,19 +17,13 @@ and the [design notes](../../05-m2-design-notes.md).
 | Admin rate change | [sequence-m2-admin-rate-change.mmd](sequence-m2-admin-rate-change.mmd) | [SVG](sequence-m2-admin-rate-change.svg), [PNG](sequence-m2-admin-rate-change.png) |
 | Kubernetes deployment | [deployment-m2-kubernetes.mmd](deployment-m2-kubernetes.mmd) | [SVG](deployment-m2-kubernetes.svg), [PNG](deployment-m2-kubernetes.png) |
 
-The Kubernetes diagram now describes a deployment that exists: the charts are in
-`infra/helm` and the dev slice has been installed on kind. What that run did and did not
-prove is recorded in the Phase 4 verification section of
-[../04-m2-pricing-zones-issue-15.md](../04-m2-pricing-zones-issue-15.md).
+[m2-pricing-zones-diagrams.pdf](m2-pricing-zones-diagrams.pdf) collects all eleven
+diagrams: each one gets a page listing its name, file paths and what it shows, followed
+by a full page of the image.
 
-The detailed ER diagram reflects the pricing database schema, and the cross-service
-`er-v1.mmd` has been reconciled with it: surrogate UUID keys on `ZONE` and `RATE_CARD`,
-`zone.code` as a unique key, `district_zone.zone_id`, and the `cod_fee_pct` and
-`max_dimensions_cm` columns that migrations V2 to V4 actually create.
-
-The SVG and PNG exports are drawn in the same black-and-white UML style as the other
-design diagrams (M10 and the system diagrams), so the design PDF reads as one document. Each
-export shows the same participants, steps, guards and relationships as its Mermaid source:
+The exports are drawn in the same black-and-white UML style as the other design
+diagrams, so the design PDF reads as one document. Each export shows the same
+participants, steps, guards and relationships as its Mermaid source:
 
 - Sequence diagrams: underlined participant names, activation bars, solid calls with filled
   arrowheads, dashed replies with open arrowheads, `alt` fragments and folded-corner notes.
@@ -38,8 +32,9 @@ export shows the same participants, steps, guards and relationships as its Merma
 - Class diagram: realization, generalization, aggregation and composition in UML notation.
 - Data model: crow's-foot lines for foreign keys; dashed lines for values copied into the
   Redis snapshot.
-- Deployment: boxes with a black title strip are M2 deliverables; plain boxes are context.
+- Deployment: boxes with a black title strip are the pricing parts; plain boxes are context.
 
-The Mermaid files stay the editable source. If one changes, redraw its export to match. The
-architecture export states the injected `Clock` inside the PricingClockConfiguration box
-instead of drawing the two arrows, because those arrows would have to cross the outbound ports.
+The detailed ER diagram matches the pricing database, and the cross-service `er-v1.mmd`
+uses the same keys and columns.
+
+The Mermaid files stay the editable source. If one changes, redraw its export to match.

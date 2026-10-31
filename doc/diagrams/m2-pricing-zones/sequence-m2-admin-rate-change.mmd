@@ -1,5 +1,5 @@
 %% M2 key flow 3: an admin changes the price of a lane.
-%% Rate cards are versioned, never edited: the card in force is closed and a new one added.
+%% A price change closes the card in force and adds a new one.
 %% Quotes already issued keep their fee, because each holds its own Redis snapshot.
 sequenceDiagram
     autonumber
@@ -35,7 +35,7 @@ sequenceDiagram
         else valid
             RAS->>RR: save(existing.closedOn(effectiveTo))
             RR->>PG: UPDATE rate_card SET effective_to = ...
-            Note over RR,PG: never a DELETE - the card stays on record<br/>so an issued quote remains auditable
+            Note over RR,PG: the old card is kept, not deleted,<br/>so an issued quote stays on record
             RAS-->>ARC: the closed card
             ARC-->>UI: 200
         end
@@ -52,7 +52,7 @@ sequenceDiagram
     else zones exist
         RAS->>RAS: build RateCard (domain invariants -> 422 INVALID_RATE_CARD)
         RAS->>RR: findByPair(fromZone, toZone)
-        RAS->>RAS: rejectOverlap - periods are half-open,<br/>so one card ending the day another starts is fine
+        RAS->>RAS: rejectOverlap - a card may start on<br/>the day the previous one ends
         alt an overlapping card is already in force
             RAS-->>ARC: 409 RATE_CARD_OVERLAP
         else no overlap
@@ -60,8 +60,8 @@ sequenceDiagram
             RR->>PG: INSERT INTO rate_card
             RAS-->>ARC: the new card
             ARC-->>UI: 201
-            UI-->>A: both periods shown, no gap and no overlap
+            UI-->>A: both periods shown
         end
     end
 
-    Note over RD: untouched by the change - a quote issued<br/>yesterday is still returned at its original fee<br/>until its own TTL expires
+    Note over RD: untouched by the change - quotes already<br/>issued keep their fee until they expire

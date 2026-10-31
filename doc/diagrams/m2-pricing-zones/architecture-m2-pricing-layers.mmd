@@ -2,7 +2,7 @@
 %% Style (inherited from doc/01-architecture.md): microservices behind an API gateway,
 %% with Next.js acting as the BFF. Each service is internally layered / hexagonal.
 %% Dependencies point inwards only: api -> application -> domain; infrastructure
-%% implements the application's outbound ports. Enforced by LayeredArchitectureTest (ArchUnit).
+%% implements the application's outbound ports.
 flowchart TB
     classDef pres fill:#eef4ff,stroke:#3b5bdb,color:#1b2a5e
     classDef app fill:#fff4e6,stroke:#e8590c,color:#7f2d00
@@ -14,9 +14,9 @@ flowchart TB
     subgraph PRESENTATION["PRESENTATION LAYER"]
         direction TB
         BROWSER["Browser<br/>/quote page + fee-estimate widget<br/>/admin/pricing/{zones,rate-cards}"]:::pres
-        WEBLIB["apps/web/src/lib<br/>pricing.ts (validation, labels, coverage gate)<br/>pricing-api.ts - pricing-actions.ts<br/>pure, unit-tested, counts to the web coverage gate"]:::pres
+        WEBLIB["apps/web/src/lib<br/>pricing.ts - form validation, labels,<br/>district coverage<br/>pricing-api.ts - pricing-actions.ts"]:::pres
         BFF["Next.js BFF<br/>/api/bff/[...path]<br/>attaches the access token server-side"]:::pres
-        GW["api-gateway :8080<br/>Spring Cloud Gateway - JWT via Keycloak JWKS<br/>route: /api/v1/pricing/**, /api/v1/admin/pricing/**<br/>anonymous allow-list: /pricing/quotes, /pricing/zones"]:::pres
+        GW["api-gateway :8080<br/>Spring Cloud Gateway - JWT via Keycloak JWKS<br/>route: /api/v1/pricing/**, /api/v1/admin/pricing/**"]:::pres
         subgraph CTRL["pricing-service :8083 - api package"]
             QC["QuoteController<br/>POST /quotes - GET /quotes/{id}"]:::pres
             ZC["ZoneController<br/>GET /pricing/zones (public)"]:::pres
@@ -33,11 +33,11 @@ flowchart TB
             QIS["QuoteIssuanceService<br/>stores the snapshot before answering"]:::app
             QPS["QuotePricingService<br/>resolves coverage + size limits"]:::app
             RCS["RateCardSelectionService<br/>newest in force wins; a tie is AMBIGUOUS_RATE_CARD"]:::app
-            QLS["QuoteLookupService<br/>404 for unknown AND expired"]:::app
+            QLS["QuoteLookupService<br/>404 for unknown or expired"]:::app
             ADMIN_SVC["ZoneAdminService - RateCardAdminService<br/>SizeClassAdminService - RateCardQueryService<br/>ZoneQueryService"]:::app
             PORTS["port/out (interfaces only)<br/>ZoneRepository - DistrictAssignmentRepository<br/>RateCardRepository - SizeClassRepository - QuoteStore"]:::app
         end
-        subgraph DOMAIN["domain - no Spring, JPA or Hibernate types"]
+        subgraph DOMAIN["domain - plain Java, no framework types"]
             POLICY["policy: FeeCalculator<br/>PricingStrategy + PricingDecorator<br/>ZoneMatrix / Weight / Size / Express / Cod"]:::dom
             MODEL["model: Zone - ZoneCode - RateCard<br/>SizeClassRate - DistrictAssignment<br/>FeeBreakdown - PricingRule - MonetaryRounding<br/>ServiceLevel - SizeClassCode"]:::dom
         end
@@ -48,13 +48,13 @@ flowchart TB
         subgraph ADAPTERS["infrastructure - outbound adapters"]
             JPA["*RepositoryAdapter + *JpaRepository<br/>*Entity + PricingPersistenceMapper"]:::infra
             REDISA["RedisQuoteStore<br/>SET with the remaining TTL"]:::infra
-            CLOCKC["PricingClockConfiguration<br/>injected Clock - makes expiry testable"]:::infra
+            CLOCKC["PricingClockConfiguration<br/>Clock used for issue and expiry times"]:::infra
         end
-        PG[("Postgres pricing_db<br/>Flyway V1-V6<br/>9 zones, 25 districts,<br/>4 size classes, 81 rate cards")]:::store
+        PG[("Postgres pricing_db<br/>9 zones, 25 districts,<br/>4 size classes, 81 rate cards")]:::store
         RD[("Redis<br/>quote snapshots, TTL PT15M")]:::store
     end
 
-    PARCEL["parcel-service (M3)<br/>validates a quoteId before booking"]:::ext
+    PARCEL["parcel-service<br/>validates a quoteId before booking"]:::ext
     KC["Keycloak 26<br/>OIDC / OAuth 2.0 - realm role ADMIN"]:::ext
 
     BROWSER --> WEBLIB --> BFF --> GW
