@@ -1,39 +1,39 @@
-%%{init: {"theme":"base","themeVariables":{"background":"#ffffff","mainBkg":"#ffffff","primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","secondaryColor":"#f2f2f2","tertiaryColor":"#ffffff","lineColor":"#000000","textColor":"#000000","clusterBkg":"#ffffff","clusterBorder":"#000000","titleColor":"#000000","edgeLabelBackground":"#ffffff","fontFamily":"Arial, Helvetica, sans-serif","attributeBackgroundColorOdd":"#ffffff","attributeBackgroundColorEven":"#f2f2f2"}}}%%
-%% M6 data model: MongoDB documents in database tracking (CQRS read model, not a relational schema).
-%% Cross-service references are IDs only (parcelId, ownerIds), never foreign keys.
-%% publicView is the only part served to guests; it has no phone and no street address.
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","fontFamily":"Arial"}}}%%
+%% M6 data model: MongoDB tracking database, Redis keys, references to other services.
+%% Editable source for er-m6-tracking-timeline.svg / .png (hand-drawn export).
 erDiagram
     TIMELINE {
-        ObjectId _id PK
-        string trackingNumber UK "SD + base32 + check, unique"
-        string parcelId UK "UUID from parcel-service"
-        string ownerIds "customerId, merchantId, courierId"
-        string currentStatus "parcel status enum"
-        date lastChangedAt "guards out-of-order events"
-        int version "optimistic concurrency"
-        date updatedAt
+        string trackingNumber PK
+        string parcelId
+        string[] ownerIds
+        string currentStatus
+        date lastChangedAt
+        int version
+        string publicView_city
+        string publicView_maskedRecipient
     }
     TIMELINE_EVENT {
-        string eventId "envelope eventId, unique in timeline"
-        string eventType "ParcelCreated, ParcelStatusChanged, ParcelAssigned"
+        string eventId
+        string eventType
         string fromStatus
         string toStatus
-        string failureReason "enum, when FAILED"
-        string note "max 500"
-        string actorRole
         date changedAt
-    }
-    PUBLIC_VIEW {
-        string city "district-level only"
-        string maskedRecipient "K*** P. style"
-        string currentStatus
+        string changedBy
     }
     PROCESSED_EVENT {
-        string eventId PK "unique index"
-        string consumer "consumer name"
-        date processedAt "TTL index, 30 days"
+        string eventId PK
+        string consumer PK
+        date processedAt
     }
-
-    TIMELINE ||--o{ TIMELINE_EVENT : "embeds events[]"
-    TIMELINE ||--|| PUBLIC_VIEW : "embeds publicView"
-    TIMELINE_EVENT }o..o| PROCESSED_EVENT : "dedupe by eventId"
+    TIMELINE ||--o{ TIMELINE_EVENT : "contains (embedded)"
+    PARCEL {
+        string parcel_id
+        string tracking_number
+        string courier_id
+        string status
+    }
+    USER_PROFILE {
+        string sub
+        string full_name
+    }
+    TIMELINE }o..|| PARCEL : "referenced by id only"

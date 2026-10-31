@@ -1,27 +1,14 @@
-%%{init: {"theme":"base","themeVariables":{"background":"#ffffff","mainBkg":"#ffffff","primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","secondaryColor":"#f2f2f2","tertiaryColor":"#ffffff","lineColor":"#000000","textColor":"#000000","clusterBkg":"#ffffff","clusterBorder":"#000000","titleColor":"#000000","edgeLabelBackground":"#ffffff","fontFamily":"Arial, Helvetica, sans-serif"}}}%%
-%% M6 activity: decision flow for a socket join request (RoomPolicy).
-%% Every join is checked on the server; the client's choice of room is never trusted.
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","fontFamily":"Arial"}}}%%
+%% M6 room join decision. Editable source for activity-m6-room-subscription.svg / .png (hand-drawn export, swimlanes).
 flowchart TD
-    S(["join request<br/>room name in payload"]) --> T{"Handshake has auth.token?"}
-    T -- "no [anonymous]" --> P{"Room starts with tracking:?"}
-    P -- "yes" --> OK1["Join room (public)"]
-    P -- "no" --> NO1["Reply error forbidden"]
-    T -- "yes" --> JV{"Signature, issuer, audience<br/>and expiry valid?"}
-    JV -- "no [invalid]" --> DC["Disconnect, reply connect_error"]
-    JV -- "yes" --> K{"Room kind"}
-    K -- "tracking:TRACKING_NO" --> OK2["Join room (public)"]
-    K -- "user:SUB" --> Q{"SUB equals token sub?"}
-    Q -- "yes [owner]" --> OK3["Join room"]
-    Q -- "no [another user]" --> NO2["Reply error forbidden,<br/>log the attempt without PII"]
-    K -- "dispatch" --> R{"Role DISPATCHER or ADMIN?"}
-    R -- "yes" --> OK4["Join room (staff)"]
-    R -- "no" --> NO3["Reply error forbidden"]
-    K -- "unknown room" --> NO4["Reply error not_found"]
-    OK1 --> DONE(["Done"])
-    OK2 --> DONE
-    OK3 --> DONE
-    OK4 --> DONE
-    NO1 --> DONE
-    NO2 --> DONE
-    NO3 --> DONE
-    NO4 --> DONE
+    S((start)) --> REQ["emit join room"]
+    REQ --> PUB{"public room tracking:no?"}
+    PUB -- "yes" --> OKP["join public room, no login needed"]
+    PUB -- "no" --> PR{"principal on socket?"}
+    PR -- "no: anonymous socket" --> REF["error forbidden, room not joined"]
+    PR -- "yes" --> CAN["RoomPolicy canJoin principal, room"]
+    CAN --> ALW{"allowed?"}
+    ALW -- "yes" --> JO["joined, ack to browser"]
+    ALW -- "no" --> REF
+    OKP --> JO
+    JO --> END((end))

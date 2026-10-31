@@ -1,36 +1,29 @@
-%%{init: {"theme":"base","themeVariables":{"background":"#ffffff","mainBkg":"#ffffff","primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","secondaryColor":"#f2f2f2","tertiaryColor":"#ffffff","lineColor":"#000000","textColor":"#000000","clusterBkg":"#ffffff","clusterBorder":"#000000","titleColor":"#000000","edgeLabelBackground":"#ffffff","fontFamily":"Arial, Helvetica, sans-serif","actorBkg":"#ffffff","actorBorder":"#000000","actorTextColor":"#000000","actorLineColor":"#000000","signalColor":"#000000","signalTextColor":"#000000","labelBoxBkgColor":"#ffffff","labelBoxBorderColor":"#000000","labelTextColor":"#000000","loopTextColor":"#000000","noteBkgColor":"#f2f2f2","noteBorderColor":"#000000","noteTextColor":"#000000","activationBkgColor":"#e6e6e6","activationBorderColor":"#000000"}}}%%
-%% M6 required sequence: courier status update -> Kafka -> tracking-service -> Socket.IO -> browser.
-%% Source of truth: contracts/events/parcel-status-changed.v1.schema.json, contracts/openapi/tracking-service.v1.yaml
-%% (server event parcel.status), doc/01-architecture.md section 5.3.
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","actorBkg":"#ffffff","actorBorder":"#000000","signalColor":"#000000","noteBkgColor":"#f2f2f2","noteBorderColor":"#000000","fontFamily":"Arial"}}}%%
+%% M6 required real-time tracking sequence: courier update to browser.
+%% Editable source for sequence-m6-status-event-to-live-update.svg / .png.
 sequenceDiagram
     autonumber
-    actor CO as Courier
+    actor C as Courier
     participant P as parcel-service
-    participant OB as Outbox relay
-    participant K as Kafka<br/>parcel.status-changed.v1
-    participant TC as ParcelStatusChangedConsumer
-    participant DB as MongoDB<br/>tracking.timelines
-    participant SG as Socket.IO gateway<br/>/ws/tracking
-    participant RD as Redis adapter
-    actor CU as Customer browser<br/>live timeline
-    actor GU as Guest browser<br/>/track/TRACKING_NO
-
-    CO->>P: PATCH /api/v1/courier/parcels/{id}/status OUT_FOR_DELIVERY
-    P->>P: TX: update parcel, insert history row, insert outbox row
-    P-->>CO: 200 OK
-    OB->>K: publish ParcelStatusChanged, key = parcelId
-    K-->>TC: deliver (one partition per parcelId, so order is kept)
-    TC->>TC: validate envelope against JSON Schema
-    TC->>DB: is eventId in processed_events?
-    alt duplicate eventId (at-least-once redelivery)
-        TC-->>K: commit offset, no change
-    else new event
-        TC->>DB: TX: push event, set currentStatus, refresh publicView, insert processed_events
-        TC->>SG: emitStatus(rooms: tracking:TRACKING_NO, user:CUSTOMER_SUB, user:MERCHANT_SUB, dispatch)
-        SG->>RD: publish to adapter channel
-        RD-->>SG: fan out to sockets on every replica
-        SG-->>CU: emit parcel.status (owner payload)
-        SG-->>GU: emit parcel.status (masked payload only)
-        TC-->>K: commit offset
+    participant K as Kafka
+    participant T as tracking-service
+    participant M as MongoDB tracking
+    participant S as Socket.IO gateway
+    actor B as Browser or dispatcher
+    C->>P: PATCH /courier/parcels/{id}/status OUT_FOR_DELIVERY
+    P->>P: one transaction parcel, history, outbox row
+    P-->>C: 200 OK
+    P->>K: outbox relay publishes ParcelStatusChanged, key parcelId
+    K->>T: deliver to group tracking-service
+    alt first delivery of eventId
+        T->>M: insert processed_event, unique eventId and consumer
+        M-->>T: ok
+        T->>M: upsert timeline, append event, currentStatus, publicView
+        M-->>T: timeline updated
+        T->>S: emit parcel.status to tracking:no, user:sub, dispatch
+        S-->>B: parcel.status, masked view, no PII
+    else duplicate eventId
+        M-->>T: already processed, no write, no emit
     end
-    Note over CU,GU: Target: the page updates within about 1 second, with no refresh
+    T-->>K: commit consumer offset
+    Note over S: Redis adapter forwards the emit to every replica
