@@ -1,0 +1,32 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","fontFamily":"Arial"}}}%%
+%% M6 integration design. Numbers match the pattern table in README.md.
+%% Editable source for integration-m6-tracking.svg / .png.
+flowchart LR
+    subgraph ASYNC["Asynchronous: builds the read model"]
+        PS["parcel-service<br/>status change"]
+        OB[("outbox_event")]
+        KB[("Kafka broker<br/>key = parcelId")]
+        TS["tracking-service<br/>competing consumers"]
+        PE[("processed_event")]
+        TL[("MongoDB timelines<br/>read model")]
+        PS -- "1 transactional outbox" --> OB
+        OB -- "2 publish and subscribe" --> KB
+        KB -- "3 consumer group" --> TS
+        TS -- "4 idempotent consumer" --> PE
+        TS -- "5 CQRS read model" --> TL
+    end
+    subgraph SYNC["Synchronous: serves users"]
+        PAGE["Public tracking page"]
+        GW["API gateway<br/>JWT and rate limit"]
+        TSR["tracking-service<br/>REST"]
+        LIVEC["Live components"]
+        BFF["Next.js BFF<br/>socket-token endpoint"]
+        SIO["Socket.IO gateway<br/>/ws/tracking"]
+        RD[("Redis 7<br/>counters and adapter")]
+        PAGE -- "6 request and reply (REST)" --> GW
+        GW -- "6 request and reply (REST)" --> TSR
+        LIVEC -- "9 token relay" --> BFF
+        LIVEC -- "7 WebSocket push" --> SIO
+        SIO -- "8 pub and sub across replicas" --> RD
+        GW -- "10 rate limit per IP" --> RD
+    end

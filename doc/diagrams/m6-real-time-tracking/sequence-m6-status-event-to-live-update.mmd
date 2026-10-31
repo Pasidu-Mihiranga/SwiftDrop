@@ -1,0 +1,29 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","actorBkg":"#ffffff","actorBorder":"#000000","signalColor":"#000000","noteBkgColor":"#f2f2f2","noteBorderColor":"#000000","fontFamily":"Arial"}}}%%
+%% M6 required real-time tracking sequence: courier update to browser.
+%% Editable source for sequence-m6-status-event-to-live-update.svg / .png.
+sequenceDiagram
+    autonumber
+    actor C as Courier
+    participant P as parcel-service
+    participant K as Kafka
+    participant T as tracking-service
+    participant M as MongoDB tracking
+    participant S as Socket.IO gateway
+    actor B as Browser or dispatcher
+    C->>P: PATCH /courier/parcels/{id}/status OUT_FOR_DELIVERY
+    P->>P: one transaction parcel, history, outbox row
+    P-->>C: 200 OK
+    P->>K: outbox relay publishes ParcelStatusChanged, key parcelId
+    K->>T: deliver to group tracking-service
+    alt first delivery of eventId
+        T->>M: insert processed_event, unique eventId and consumer
+        M-->>T: ok
+        T->>M: upsert timeline, append event, currentStatus, publicView
+        M-->>T: timeline updated
+        T->>S: emit parcel.status to tracking:no, user:sub, dispatch
+        S-->>B: parcel.status, masked view, no PII
+    else duplicate eventId
+        M-->>T: already processed, no write, no emit
+    end
+    T-->>K: commit consumer offset
+    Note over S: Redis adapter forwards the emit to every replica

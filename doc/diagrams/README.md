@@ -11,3 +11,4 @@ Cross-service diagrams such as `er-v1.mmd` stay at this level.
 | Folder | Milestone | Owner |
 |---|---|---|
 | [`m2-pricing-zones/`](m2-pricing-zones/) | M2 — Pricing & Zones (Issue #15) | Sasindu345 |
+| [`m6-real-time-tracking/`](m6-real-time-tracking/) | M6 — Real-time Tracking (Issue #19) | ashmax77 |
