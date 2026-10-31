@@ -36,3 +36,22 @@
 @utility input {
   @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100;
 }
+
+/*
+ * Chart colours (reports dashboard). Series colours follow the entity everywhere: delivered,
+ * failed and cancelled keep the same hue in every chart. Validated as a categorical set on the
+ * white card surface (dataviz validator: CVD and normal-vision separation pass; cancelled is below
+ * 3:1 contrast, so every chart also has a legend and a table view). Text never uses these colours.
+ */
+.viz-root {
+  --viz-surface: #ffffff;
+  --viz-grid: #e1e0d9;
+  --viz-axis: #c3c2b7;
+  --viz-muted: #898781;
+  --viz-delivered: #2a78d6;
+  --viz-failed: #eb6834;
+  --viz-cancelled: #1baf7a;
+  --viz-context: #a8a69f;
+  --viz-good: #006300;
+  --viz-bad: #d03b3b;
+}
