@@ -38,7 +38,7 @@ echo "== Loading images into kind"
 arch="$(docker version --format '{{.Server.Arch}}')"
 load_image() {
   local image="$1" archive
-  archive="$(mktemp -t swiftdrop-image)"
+  archive="$(mktemp -t swiftdrop-image.XXXXXX)"
   if docker save --platform "linux/${arch}" "${image}" -o "${archive}" 2>/dev/null; then
     kind load image-archive --name "${cluster}" "${archive}"
   else
