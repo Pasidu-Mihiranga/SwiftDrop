@@ -5,8 +5,9 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lk.swiftdrop.pricing.api.dto.QuoteRequest;
+import lk.swiftdrop.pricing.api.dto.QuoteResponse;
+import lk.swiftdrop.pricing.api.mapper.QuoteApiMapper;
 import lk.swiftdrop.pricing.application.command.QuoteIssuanceService;
-import lk.swiftdrop.pricing.application.model.QuoteSnapshot;
 import lk.swiftdrop.pricing.application.query.QuoteLookupService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -32,13 +33,13 @@ public class QuoteController {
 
     @PostMapping
     @Operation(summary = "Issue a fee quote (public)")
-    public QuoteSnapshot create(@Valid @RequestBody QuoteRequest request) {
-        return quotes.issue(request.toPricingInput());
+    public QuoteResponse create(@Valid @RequestBody QuoteRequest request) {
+        return QuoteApiMapper.toResponse(quotes.issue(request.toPricingInput()));
     }
 
     @GetMapping("/{quoteId}")
     @Operation(summary = "Validate an issued quote", security = @SecurityRequirement(name = "bearerAuth"))
-    public QuoteSnapshot get(@PathVariable UUID quoteId) {
-        return lookup.get(quoteId);
+    public QuoteResponse get(@PathVariable UUID quoteId) {
+        return QuoteApiMapper.toResponse(lookup.get(quoteId));
     }
 }
