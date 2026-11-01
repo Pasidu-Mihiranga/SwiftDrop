@@ -4,7 +4,9 @@ import lk.swiftdrop.common.web.error.BusinessRuleViolationException;
 import lk.swiftdrop.pricing.application.port.out.DistrictAssignmentRepository;
 import lk.swiftdrop.pricing.application.port.out.SizeClassRepository;
 import lk.swiftdrop.pricing.application.port.out.VolumetricDivisorRepository;
+import lk.swiftdrop.pricing.application.port.out.WeightTierRepository;
 import lk.swiftdrop.pricing.domain.model.ChargeableWeight;
+import lk.swiftdrop.pricing.domain.model.RateCard;
 import lk.swiftdrop.pricing.domain.model.SizeClassRate;
 import lk.swiftdrop.pricing.domain.model.ZoneCode;
 import lk.swiftdrop.pricing.domain.policy.ChargeableWeightPolicy;
@@ -27,15 +29,17 @@ public class QuotePricingService {
     private final SizeClassRepository sizeClasses;
     private final RateCardSelectionService rateCards;
     private final VolumetricDivisorRepository divisors;
+    private final WeightTierRepository weightTiers;
     private final FeeCalculator calculator;
 
     public QuotePricingService(DistrictAssignmentRepository districts, SizeClassRepository sizeClasses,
                                RateCardSelectionService rateCards, VolumetricDivisorRepository divisors,
-                               FeeCalculator calculator) {
+                               WeightTierRepository weightTiers, FeeCalculator calculator) {
         this.districts = districts;
         this.sizeClasses = sizeClasses;
         this.rateCards = rateCards;
         this.divisors = divisors;
+        this.weightTiers = weightTiers;
         this.calculator = calculator;
     }
 
@@ -49,10 +53,11 @@ public class QuotePricingService {
                 divisors.findInForce(quoteDate).orElse(null));
         SizeClassRate charged = chargedSizeClass(input);
 
+        RateCard card = rateCards.select(fromZone, toZone, quoteDate);
         PricingContext context = new PricingContext(
                 new PricingContext.Parcel(weight.actualKg(), weight.chargeableKg(), charged,
                         input.serviceLevel(), input.codAmount()),
-                new PricingContext.Rates(rateCards.select(fromZone, toZone, quoteDate)));
+                new PricingContext.Rates(card, weightTiers.findByRateCard(card.id())));
         return new PreparedQuote(input, fromZone, toZone, calculator.calculate(context), weight, charged);
     }
 

@@ -41,7 +41,7 @@ public final class FeeCalculator {
         return new CodFeeDecorator(
                 new ExpressSurchargeDecorator(
                         new SizeSurchargeDecorator(
-                                new CompositePricingStrategy(new ZoneMatrixStrategy(), new WeightStrategy()))));
+                                new CompositePricingStrategy(new ZoneMatrixStrategy(), new TieredWeightStrategy()))));
     }
 
     /**

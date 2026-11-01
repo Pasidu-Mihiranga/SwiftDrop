@@ -10,7 +10,11 @@ info:
     order: BASE and WEIGHT from the rate card, then SIZE, then EXPRESS, then COD.
 
         chargeable_kg = max(weightKg, length * width * height / volumetric_divisor)
-    subtotal = base_fee + per_kg_fee * ceil(chargeable_kg)
+    subtotal = base_fee + weight_charge(ceil(chargeable_kg))
+
+    weight_charge is per_kg_fee for every kilogram when the card has no weight bands.
+    Where it has bands they are marginal: each band's rate applies only to the kilograms
+    falling inside it, so the price rises smoothly rather than jumping at a boundary.
         SIZE     = subtotal * (size_class.multiplier - 1)
         EXPRESS  = (subtotal + SIZE) * (express_multiplier - 1)
         COD      = codAmount * cod_fee_pct
@@ -528,6 +532,24 @@ components:
           format: date
           description: Exclusive end date. Absent or null means the card is still in force.
           example: null
+        tiers:
+          type: array
+          description: >
+            Weight bands, marginal: each band's rate applies only to the kilograms inside it.
+            Empty means the lane charges perKgFee for every kilogram. Bands are set when a card
+            is created and never edited, because a card is never edited.
+          items: { $ref: "#/components/schemas/WeightTier" }
+    WeightTier:
+      type: object
+      required: [perKgFee]
+      properties:
+        upToKg:
+          type: number
+          exclusiveMinimum: 0
+          description: Top of the band. Omit for the open-ended last band.
+          example: 5
+        perKgFee: { type: number, minimum: 0, example: 100 }
+
     RateCardCreateRequest:
       type: object
       required: [fromZone, toZone, baseFee, perKgFee, expressMultiplier, codFeePct, effectiveFrom]

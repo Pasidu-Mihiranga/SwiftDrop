@@ -4,8 +4,10 @@ import lk.swiftdrop.common.web.error.BusinessRuleViolationException;
 import lk.swiftdrop.common.web.error.ConflictException;
 import lk.swiftdrop.common.web.error.ResourceNotFoundException;
 import lk.swiftdrop.pricing.application.port.out.RateCardRepository;
+import lk.swiftdrop.pricing.application.port.out.WeightTierRepository;
 import lk.swiftdrop.pricing.application.port.out.ZoneRepository;
 import lk.swiftdrop.pricing.domain.model.RateCard;
+import lk.swiftdrop.pricing.domain.model.WeightTier;
 import lk.swiftdrop.pricing.domain.model.ZoneCode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,15 +30,25 @@ public class RateCardAdminService {
 
     private final RateCardRepository rateCards;
     private final ZoneRepository zones;
+    private final WeightTierRepository weightTiers;
 
-    public RateCardAdminService(RateCardRepository rateCards, ZoneRepository zones) {
+    public RateCardAdminService(RateCardRepository rateCards, ZoneRepository zones,
+                                WeightTierRepository weightTiers) {
         this.rateCards = rateCards;
         this.zones = zones;
+        this.weightTiers = weightTiers;
     }
 
+    /**
+     * Publishes a new card, optionally with weight bands.
+     *
+     * <p>Bands are written with the card rather than through an endpoint of their own, because
+     * a card is never edited: changing how a lane charges for weight means closing it and
+     * publishing a replacement, exactly as changing its base fee does.
+     */
     public RateCard create(ZoneCode fromZone, ZoneCode toZone, BigDecimal baseFee, BigDecimal perKgFee,
                            BigDecimal expressMultiplier, BigDecimal codFeePct,
-                           LocalDate effectiveFrom, LocalDate effectiveTo) {
+                           LocalDate effectiveFrom, LocalDate effectiveTo, List<WeightTier> tiers) {
         requireZone(fromZone);
         if (!fromZone.equals(toZone)) {
             requireZone(toZone);
@@ -44,7 +56,17 @@ public class RateCardAdminService {
         RateCard candidate = buildCard(fromZone, toZone, baseFee, perKgFee, expressMultiplier, codFeePct,
                 effectiveFrom, effectiveTo);
         rejectOverlap(candidate);
-        return rateCards.save(candidate);
+        RateCard saved = rateCards.save(candidate);
+        weightTiers.setForRateCard(saved.id(), tiers == null ? List.of() : tiers);
+        return saved;
+    }
+
+    /** A lane charging a single per-kilogram rate. */
+    public RateCard create(ZoneCode fromZone, ZoneCode toZone, BigDecimal baseFee, BigDecimal perKgFee,
+                           BigDecimal expressMultiplier, BigDecimal codFeePct,
+                           LocalDate effectiveFrom, LocalDate effectiveTo) {
+        return create(fromZone, toZone, baseFee, perKgFee, expressMultiplier, codFeePct,
+                effectiveFrom, effectiveTo, List.of());
     }
 
     /** Ends a card's period so it stops applying to new quotes from {@code effectiveTo} onwards. */

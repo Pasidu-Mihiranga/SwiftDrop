@@ -3,6 +3,7 @@ package lk.swiftdrop.pricing.application.command;
 import lk.swiftdrop.common.web.error.BusinessRuleViolationException;
 import lk.swiftdrop.common.web.error.ConflictException;
 import lk.swiftdrop.common.web.error.ResourceNotFoundException;
+import lk.swiftdrop.pricing.application.port.out.WeightTierRepository;
 import lk.swiftdrop.pricing.application.port.out.RateCardRepository;
 import lk.swiftdrop.pricing.application.port.out.ZoneRepository;
 import lk.swiftdrop.pricing.domain.model.RateCard;
@@ -39,7 +40,7 @@ class RateCardAdminServiceTest {
     void setUp() {
         rateCards = mock(RateCardRepository.class);
         zones = mock(ZoneRepository.class);
-        service = new RateCardAdminService(rateCards, zones);
+        service = new RateCardAdminService(rateCards, zones, mock(WeightTierRepository.class));
         when(zones.existsByCode(any())).thenReturn(true);
         when(rateCards.findByPair(any(), any())).thenReturn(List.of());
         when(rateCards.save(any())).thenAnswer(invocation -> invocation.getArgument(0));

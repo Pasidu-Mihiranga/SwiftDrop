@@ -2,6 +2,8 @@ package lk.swiftdrop.pricing.infrastructure.persistence;
 
 import lk.swiftdrop.pricing.application.port.out.DistrictAssignmentRepository;
 import lk.swiftdrop.pricing.application.port.out.RateCardRepository;
+import lk.swiftdrop.pricing.application.port.out.VolumetricDivisorRepository;
+import lk.swiftdrop.pricing.application.port.out.WeightTierRepository;
 import lk.swiftdrop.pricing.application.port.out.SizeClassRepository;
 import lk.swiftdrop.pricing.application.port.out.ZoneRepository;
 import lk.swiftdrop.pricing.domain.model.DistrictAssignment;
@@ -59,6 +61,10 @@ class PricingReferenceDataIT {
     private SizeClassRepository sizeClasses;
     @Autowired
     private RateCardRepository rateCards;
+    @Autowired
+    private VolumetricDivisorRepository divisors;
+    @Autowired
+    private WeightTierRepository weightTiers;
 
     @Test
     void seedsTheNineProvinceZonesAllActiveAndSortedByCode() {
@@ -207,5 +213,52 @@ class PricingReferenceDataIT {
         Optional<RateCard> card = rateCards.findInForce(ZoneCode.of(fromZone), ZoneCode.of(toZone), TODAY)
                 .stream().findFirst();
         return card.orElseThrow().baseFee();
+    }
+
+    @Test
+    void seedsOneVolumetricDivisorAtTheCourierConvention() {
+        assertThat(divisors.findInForce(TODAY)).contains(new java.math.BigDecimal("5000.0"));
+    }
+
+    @Test
+    void appliesNoVolumetricDivisorBeforeItTakesEffect() {
+        assertThat(divisors.findInForce(java.time.LocalDate.of(2025, 12, 31))).isEmpty();
+    }
+
+    @Test
+    void givesEverySizeClassGeometryThatMatchesItsPublishedLabel() {
+        var classes = sizeClasses.findAll();
+
+        assertThat(classes).hasSize(4);
+        assertThat(classes).allSatisfy(rate -> {
+            assertThat(rate.maxDimensions()).isNotNull();
+            assertThat(rate.maxDimensionsLabel()).matches("\\d+(\\.\\d+)?x\\d+(\\.\\d+)?x\\d+(\\.\\d+)?");
+        });
+        assertThat(sizeClasses.findByCode(SizeClassCode.M).orElseThrow().maxDimensionsLabel())
+                .isEqualTo("40x30x20");
+    }
+
+    @Test
+    void seedsNoWeightBandsSoEveryLaneKeepsItsFlatRate() {
+        var anyCard = rateCards.findAll().get(0);
+
+        assertThat(weightTiers.findByRateCard(anyCard.id())).isEmpty();
+    }
+
+    @Test
+    void storesWeightBandsAgainstTheCardAndReadsThemBackOpenEndedLast() {
+        var card = rateCards.findAll().get(0);
+        weightTiers.setForRateCard(card.id(), java.util.List.of(
+                new lk.swiftdrop.pricing.domain.model.WeightTier(null, new java.math.BigDecimal("40.00")),
+                new lk.swiftdrop.pricing.domain.model.WeightTier(
+                        new java.math.BigDecimal("5.00"), new java.math.BigDecimal("100.00"))));
+
+        var bands = weightTiers.findByRateCard(card.id());
+
+        // Written open-ended first, read back open-ended last, which is the order the charge
+        // walks them in.
+        assertThat(bands).hasSize(2);
+        assertThat(bands.get(0).upToKg()).isEqualByComparingTo("5.00");
+        assertThat(bands.get(1).isOpenEnded()).isTrue();
     }
 }

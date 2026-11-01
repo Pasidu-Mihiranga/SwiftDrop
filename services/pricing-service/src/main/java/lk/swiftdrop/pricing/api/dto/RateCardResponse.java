@@ -2,6 +2,7 @@ package lk.swiftdrop.pricing.api.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -9,8 +10,10 @@ import java.util.UUID;
  *
  * @param codFeePct fraction of the cash-on-delivery amount, not a percentage
  * @param effectiveTo exclusive end date; null while the card is still in force
+ * @param tiers       weight bands, or empty when the lane charges perKgFee for every kilogram
  */
 public record RateCardResponse(UUID id, String fromZone, String toZone, BigDecimal baseFee, BigDecimal perKgFee,
                                BigDecimal expressMultiplier, BigDecimal codFeePct,
-                               LocalDate effectiveFrom, LocalDate effectiveTo) {
+                               LocalDate effectiveFrom, LocalDate effectiveTo,
+                               List<WeightTierRequest> tiers) {
 }
