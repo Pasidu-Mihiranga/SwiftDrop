@@ -12,7 +12,7 @@ jobs:
     name: compose · realm · contracts
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: docker compose config (all profiles)
         run: |
           cp .env.example .env

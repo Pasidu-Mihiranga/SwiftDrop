@@ -1,0 +1,18 @@
+%% M8 activity (required): webhook retry. Planned design, issue #21 and contracts/openapi/webhook-service.v1.yaml.
+flowchart TB
+    START((start)) --> JOB[Take a delivery job]
+    JOB --> D1{merchant active?}
+    D1 -- suspended --> HOLD[Hold the delivery, stays PENDING] --> E0((end))
+    D1 -- active --> SIGN[Sign the payload: PII stripped, fresh t, HMAC-SHA256]
+    SIGN --> POST[Re-check the URL, then POST with 10 s timeout]
+    POST --> REC[Record the attempt]
+    REC --> D2{outcome?}
+    D2 -- 2xx --> OK[Mark DELIVERED] --> E1((end))
+    D2 -- non-2xx or timeout --> D3{attempts left?}
+    D3 -- yes, under 7 --> WAIT[Mark RETRYING, wait 30 s, 2 m, 10 m, 30 m, 2 h, 6 h] --> JOB
+    D3 -- no --> DEAD[Mark DEAD]
+    DEAD --> PUB[Publish WebhookDeliveryDeadLettered]
+    PUB --> LOOK[Admin reviews the dead-letter list]
+    LOOK --> D4{replay?}
+    D4 -- no --> E2((end))
+    D4 -- yes --> REPLAY[Replay: status PENDING, new job, log kept] --> JOB
