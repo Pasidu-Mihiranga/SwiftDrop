@@ -184,7 +184,7 @@ services:
 
   # S3-compatible object storage for proof-of-delivery photos (RustFS, Apache-2.0).
   object-storage:
-    image: rustfs/rustfs:1.0.3
+    image: rustfs/rustfs:1.0.4
     profiles: ["infra"]
     restart: unless-stopped
     environment:
