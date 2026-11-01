@@ -2,6 +2,7 @@ package lk.swiftdrop.pricing.infrastructure.persistence;
 
 import lk.swiftdrop.pricing.domain.model.DistrictAssignment;
 import lk.swiftdrop.pricing.domain.model.RateCard;
+import lk.swiftdrop.pricing.domain.model.Dimensions;
 import lk.swiftdrop.pricing.domain.model.SizeClassCode;
 import lk.swiftdrop.pricing.domain.model.SizeClassRate;
 import lk.swiftdrop.pricing.domain.model.Zone;
@@ -30,7 +31,8 @@ final class PricingPersistenceMapper {
 
     static SizeClassRate toDomain(SizeClassEntity entity) {
         return new SizeClassRate(SizeClassCode.valueOf(entity.getCode()), entity.getMaxWeightKg(),
-                entity.getMaxDimensionsCm(), entity.getMultiplier());
+                new Dimensions(entity.getMaxLengthCm(), entity.getMaxWidthCm(), entity.getMaxHeightCm()),
+                entity.getMultiplier());
     }
 
     static RateCard toDomain(RateCardEntity entity) {

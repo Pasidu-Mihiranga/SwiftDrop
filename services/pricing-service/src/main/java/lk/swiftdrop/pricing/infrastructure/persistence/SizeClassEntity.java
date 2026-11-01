@@ -22,6 +22,15 @@ class SizeClassEntity {
     @Column(name = "max_dimensions_cm", nullable = false, length = 32)
     private String maxDimensionsCm;
 
+    @Column(name = "max_length_cm", nullable = false, precision = 6, scale = 1)
+    private BigDecimal maxLengthCm;
+
+    @Column(name = "max_width_cm", nullable = false, precision = 6, scale = 1)
+    private BigDecimal maxWidthCm;
+
+    @Column(name = "max_height_cm", nullable = false, precision = 6, scale = 1)
+    private BigDecimal maxHeightCm;
+
     @Column(name = "multiplier", nullable = false, precision = 5, scale = 3)
     private BigDecimal multiplier;
 
@@ -29,16 +38,29 @@ class SizeClassEntity {
         // for JPA
     }
 
-    SizeClassEntity(String code, BigDecimal maxWeightKg, String maxDimensionsCm, BigDecimal multiplier) {
+    SizeClassEntity(String code, BigDecimal maxWeightKg, String maxDimensionsCm,
+                    BigDecimal maxLengthCm, BigDecimal maxWidthCm, BigDecimal maxHeightCm,
+                    BigDecimal multiplier) {
         this.code = code;
         this.maxWeightKg = maxWeightKg;
         this.maxDimensionsCm = maxDimensionsCm;
+        this.maxLengthCm = maxLengthCm;
+        this.maxWidthCm = maxWidthCm;
+        this.maxHeightCm = maxHeightCm;
         this.multiplier = multiplier;
     }
 
-    void reprice(BigDecimal newMaxWeightKg, String newMaxDimensionsCm, BigDecimal newMultiplier) {
+    /**
+     * The label is written from the numbers rather than supplied, so the two can never
+     * disagree about how big the class is.
+     */
+    void reprice(BigDecimal newMaxWeightKg, String newMaxDimensionsCm, BigDecimal newMaxLengthCm,
+                 BigDecimal newMaxWidthCm, BigDecimal newMaxHeightCm, BigDecimal newMultiplier) {
         this.maxWeightKg = newMaxWeightKg;
         this.maxDimensionsCm = newMaxDimensionsCm;
+        this.maxLengthCm = newMaxLengthCm;
+        this.maxWidthCm = newMaxWidthCm;
+        this.maxHeightCm = newMaxHeightCm;
         this.multiplier = newMultiplier;
     }
 
@@ -52,6 +74,18 @@ class SizeClassEntity {
 
     String getMaxDimensionsCm() {
         return maxDimensionsCm;
+    }
+
+    BigDecimal getMaxLengthCm() {
+        return maxLengthCm;
+    }
+
+    BigDecimal getMaxWidthCm() {
+        return maxWidthCm;
+    }
+
+    BigDecimal getMaxHeightCm() {
+        return maxHeightCm;
     }
 
     BigDecimal getMultiplier() {

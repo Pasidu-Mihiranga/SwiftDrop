@@ -33,11 +33,15 @@ class SizeClassRepositoryAdapter implements SizeClassRepository {
     public SizeClassRate save(SizeClassRate rate) {
         SizeClassEntity entity = sizeClasses.findById(rate.code().name())
                 .map(existing -> {
-                    existing.reprice(rate.maxWeightKg(), rate.maxDimensionsCm(), rate.multiplier());
+                    existing.reprice(rate.maxWeightKg(), rate.maxDimensionsLabel(),
+                            rate.maxDimensions().lengthCm(), rate.maxDimensions().widthCm(),
+                            rate.maxDimensions().heightCm(), rate.multiplier());
                     return existing;
                 })
                 .orElseGet(() -> new SizeClassEntity(rate.code().name(), rate.maxWeightKg(),
-                        rate.maxDimensionsCm(), rate.multiplier()));
+                        rate.maxDimensionsLabel(), rate.maxDimensions().lengthCm(),
+                        rate.maxDimensions().widthCm(), rate.maxDimensions().heightCm(),
+                        rate.multiplier()));
         return PricingPersistenceMapper.toDomain(sizeClasses.save(entity));
     }
 }

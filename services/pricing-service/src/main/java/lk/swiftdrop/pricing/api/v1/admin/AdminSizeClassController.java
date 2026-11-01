@@ -3,6 +3,7 @@ package lk.swiftdrop.pricing.api.v1.admin;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lk.swiftdrop.pricing.api.dto.SizeClassRateResponse;
 import lk.swiftdrop.pricing.api.dto.SizeClassUpdateRequest;
 import lk.swiftdrop.pricing.application.command.SizeClassAdminService;
 import lk.swiftdrop.pricing.domain.model.SizeClassCode;
@@ -31,13 +32,15 @@ public class AdminSizeClassController {
 
     @GetMapping
     @Operation(summary = "List configured size classes (ADMIN)")
-    public List<SizeClassRate> list() {
-        return sizeClasses.list();
+    public List<SizeClassRateResponse> list() {
+        return sizeClasses.list().stream().map(SizeClassRateResponse::of).toList();
     }
 
     @PutMapping("/{code}")
     @Operation(summary = "Update an existing size class (ADMIN)")
-    public SizeClassRate update(@PathVariable SizeClassCode code, @Valid @RequestBody SizeClassUpdateRequest request) {
-        return sizeClasses.update(code, request.maxWeightKg(), request.maxDimensionsCm(), request.multiplier());
+    public SizeClassRateResponse update(@PathVariable SizeClassCode code,
+                                        @Valid @RequestBody SizeClassUpdateRequest request) {
+        return SizeClassRateResponse.of(sizeClasses.update(code, request.maxWeightKg(),
+                request.toDimensions(), request.multiplier()));
     }
 }
