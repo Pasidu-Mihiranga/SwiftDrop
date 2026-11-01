@@ -419,6 +419,44 @@ export function periodStatus(row: { effectiveFrom: string; effectiveTo?: string 
   return row.effectiveFrom > on ? "Scheduled" : "Superseded";
 }
 
+export interface RateMatrixCell {
+  fromZone: string;
+  toZone: string;
+  /** The card in force. Absent means the lane cannot be quoted. */
+  card?: RateCard;
+}
+
+export interface RateMatrix {
+  zones: string[];
+  rows: { fromZone: string; cells: RateMatrixCell[] }[];
+  /** Lanes with no card in force, which is every lane a customer would be refused on. */
+  unpriced: number;
+}
+
+/**
+ * Lays the cards in force out as a grid of every ordered lane between active zones.
+ *
+ * Should two cards overlap, the newest wins, which is the rule pricing-service applies when it
+ * selects a card, so the grid shows what a quote would actually use.
+ */
+export function buildRateMatrix(zones: readonly Zone[], cards: readonly RateCard[], on: string): RateMatrix {
+  const codes = zones.filter((zone) => zone.active).map((zone) => zone.code);
+  const inForce = new Map<string, RateCard>();
+  for (const card of cards) {
+    if (!isInForceOn(card, on)) continue;
+    const lane = `${card.fromZone}>${card.toZone}`;
+    const current = inForce.get(lane);
+    if (!current || card.effectiveFrom > current.effectiveFrom) inForce.set(lane, card);
+  }
+
+  const rows = codes.map((fromZone) => ({
+    fromZone,
+    cells: codes.map((toZone) => ({ fromZone, toZone, card: inForce.get(`${fromZone}>${toZone}`) })),
+  }));
+  const unpriced = rows.flatMap((row) => row.cells).filter((cell) => !cell.card).length;
+  return { zones: codes, rows, unpriced };
+}
+
 /** A card's weight charge in a sentence, or undefined when it has no bands. */
 export function describeWeightBands(tiers: readonly WeightBand[] | undefined): string | undefined {
   if (!tiers || tiers.length === 0) return undefined;
@@ -491,7 +529,12 @@ export function laneLabel(fromZone: string, toZone: string): string {
   return fromZone === toZone ? `${fromZone} (within zone)` : `${fromZone} to ${toZone}`;
 }
 
-/** Today as the date-only string the rate-card API expects. */
+/**
+ * Today as the date-only string the rate-card API expects, on the Sri Lankan calendar.
+ *
+ * pricing-service decides which card is in force in this zone, so the screens have to agree with
+ * it. UTC would show yesterday's rates between midnight and 05:30.
+ */
 export function isoDate(date: Date = new Date()): string {
-  return date.toISOString().slice(0, 10);
+  return date.toLocaleDateString("en-CA", { timeZone: "Asia/Colombo" });
 }

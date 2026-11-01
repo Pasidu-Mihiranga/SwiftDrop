@@ -22,6 +22,7 @@ import {
   zoneForDistrict,
   type RateCard,
   type Zone,
+  buildRateMatrix,
   describeAgreement,
   describeWeightBands,
   isUuid,
@@ -484,5 +485,59 @@ describe("describeAgreement", () => {
   it("counts lanes in the plural", () => {
     const lane = { fromZone: "WP", toZone: "CP", discountPct: 0.2 };
     expect(describeAgreement({ ...terms, laneOverrides: [lane, { ...lane, toZone: "SP" }] })).toBe("2 negotiated lanes");
+  });
+});
+
+describe("buildRateMatrix", () => {
+  const zone = (code: string, active = true) => ({ code, name: code, districts: [], active });
+  const card = (fromZone: string, toZone: string, baseFee: number, effectiveFrom = "2026-01-01", effectiveTo?: string) => ({
+    id: `${fromZone}-${toZone}-${effectiveFrom}`,
+    fromZone,
+    toZone,
+    baseFee,
+    perKgFee: 50,
+    expressMultiplier: 1.5,
+    codFeePct: 0.01,
+    effectiveFrom,
+    effectiveTo,
+  });
+
+  it("gives every ordered pair of active zones a cell, in both directions", () => {
+    const matrix = buildRateMatrix([zone("WP"), zone("CP"), zone("OLD", false)], [card("WP", "CP", 400)], "2026-06-01");
+
+    expect(matrix.zones).toEqual(["WP", "CP"]);
+    expect(matrix.rows.map((row) => row.cells.length)).toEqual([2, 2]);
+    expect(matrix.rows[0].cells[1].card?.baseFee).toBe(400);
+    expect(matrix.rows[1].cells[0].card).toBeUndefined();
+  });
+
+  it("counts the lanes that could not be quoted", () => {
+    expect(buildRateMatrix([zone("WP"), zone("CP")], [card("WP", "CP", 400)], "2026-06-01").unpriced).toBe(3);
+  });
+
+  it("ignores cards that have ended or not started", () => {
+    const matrix = buildRateMatrix(
+      [zone("WP")],
+      [card("WP", "WP", 100, "2026-01-01", "2026-06-01"), card("WP", "WP", 900, "2026-07-01")],
+      "2026-06-01",
+    );
+
+    expect(matrix.rows[0].cells[0].card).toBeUndefined();
+  });
+
+  it("shows the newest card, whichever order they arrive in", () => {
+    const older = card("WP", "WP", 100, "2026-01-01");
+    const newer = card("WP", "WP", 200, "2026-03-01");
+
+    for (const cards of [[older, newer], [newer, older]]) {
+      expect(buildRateMatrix([zone("WP")], cards, "2026-06-01").rows[0].cells[0].card?.baseFee).toBe(200);
+    }
+  });
+});
+
+describe("isoDate", () => {
+  it("follows the Sri Lankan calendar, which pricing-service quotes on", () => {
+    expect(isoDate(new Date("2026-06-01T18:29:00Z"))).toBe("2026-06-01");
+    expect(isoDate(new Date("2026-06-01T18:31:00Z"))).toBe("2026-06-02");
   });
 });
