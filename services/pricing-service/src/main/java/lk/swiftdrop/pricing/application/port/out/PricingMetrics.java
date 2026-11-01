@@ -1,5 +1,6 @@
 package lk.swiftdrop.pricing.application.port.out;
 
+import lk.swiftdrop.pricing.domain.model.DistanceSource;
 import lk.swiftdrop.pricing.domain.model.ServiceLevel;
 import lk.swiftdrop.pricing.domain.model.SizeClassCode;
 
@@ -30,4 +31,13 @@ public interface PricingMetrics {
      *               AMBIGUOUS_RATE_CARD or DISTRICT_NOT_SERVICED
      */
     void rateCardSelectionFailed(String reason);
+
+    /**
+     * A lane was measured for a same-day quote.
+     *
+     * <p>Worth a meter of its own because a rising share of ESTIMATED means the routing engine
+     * is failing and customers are being quoted approximate prices, which is invisible in an
+     * error rate: nothing failed, the answers are just worse.
+     */
+    void laneDistanceResolved(DistanceSource source);
 }
