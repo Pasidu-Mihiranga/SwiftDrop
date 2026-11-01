@@ -19,9 +19,9 @@ public final class ExpressSurchargeDecorator extends PricingDecorator {
 
     @Override
     protected BigDecimal surcharge(PricingContext context, BigDecimal chargedSoFar) {
-        if (context.serviceLevel() != ServiceLevel.EXPRESS) {
+        if (context.parcel().serviceLevel() != ServiceLevel.EXPRESS) {
             return BigDecimal.ZERO;
         }
-        return chargedSoFar.multiply(context.card().expressMultiplier().subtract(BigDecimal.ONE));
+        return chargedSoFar.multiply(context.rates().card().expressMultiplier().subtract(BigDecimal.ONE));
     }
 }

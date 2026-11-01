@@ -21,6 +21,6 @@ public final class SizeSurchargeDecorator extends PricingDecorator {
 
     @Override
     protected BigDecimal surcharge(PricingContext context, BigDecimal chargedSoFar) {
-        return chargedSoFar.multiply(context.sizeClass().multiplier().subtract(BigDecimal.ONE));
+        return chargedSoFar.multiply(context.parcel().sizeClass().multiplier().subtract(BigDecimal.ONE));
     }
 }

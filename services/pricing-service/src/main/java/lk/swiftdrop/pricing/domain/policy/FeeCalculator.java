@@ -20,17 +20,15 @@ import java.util.Objects;
  * </pre>
  *
  * <p>Adding a rule means adding a decorator, not editing a calculation. The chain is stateless
- * and holds no parcel data, so one calculator can serve every request.
+ * and holds no parcel data, so one calculator can serve every request. It is a plain object so
+ * the domain stays free of Spring; {@code PricingPolicyConfiguration} publishes it as a bean.
  */
 public final class FeeCalculator {
 
     private final PricingStrategy pipeline;
 
     public FeeCalculator() {
-        this(new CodFeeDecorator(
-                new ExpressSurchargeDecorator(
-                        new SizeSurchargeDecorator(
-                                new CompositePricingStrategy(new ZoneMatrixStrategy(), new WeightStrategy())))));
+        this(defaultPipeline());
     }
 
     /** Lets a test or a future caller price with a different set of rules. */
@@ -38,6 +36,45 @@ public final class FeeCalculator {
         this.pipeline = Objects.requireNonNull(pipeline, "pipeline");
     }
 
+    /** The rule chain as the contract documents it. Kept in one place so the order is reviewable. */
+    public static PricingStrategy defaultPipeline() {
+        return new CodFeeDecorator(
+                new ExpressSurchargeDecorator(
+                        new SizeSurchargeDecorator(
+                                new CompositePricingStrategy(new ZoneMatrixStrategy(), new WeightStrategy()))));
+    }
+
+    /**
+     * Prices one parcel against one set of rates.
+     *
+     * <p>This is the entry point the chain is built for. Validation lives here rather than in the
+     * rules, so a rule only ever describes its own charge.
+     */
+    public FeeBreakdown calculate(PricingContext context) {
+        Objects.requireNonNull(context, "context");
+        PricingContext.Parcel parcel = context.parcel();
+        if (parcel.actualWeightKg().signum() <= 0) {
+            throw new IllegalArgumentException("Weight must be positive");
+        }
+        if (parcel.chargeableWeightKg().signum() <= 0) {
+            throw new IllegalArgumentException("Chargeable weight must be positive");
+        }
+        if (!parcel.sizeClass().accepts(parcel.actualWeightKg())) {
+            throw new IllegalArgumentException("Weight exceeds the size class limit");
+        }
+        if (parcel.codAmount().signum() < 0) {
+            throw new IllegalArgumentException("COD amount must not be negative");
+        }
+        return pipeline.price(context, FeeBreakdown.empty());
+    }
+
+    /**
+     * Prices a parcel whose billable weight is simply what it weighs.
+     *
+     * <p>Kept for callers that have no parcel dimensions to offer; it builds the context with
+     * chargeable weight equal to actual weight, which is the same answer the service gave before
+     * volumetric weight existed.
+     */
     public FeeBreakdown calculate(RateCard card, SizeClassRate sizeClass, BigDecimal weightKg,
                                   ServiceLevel serviceLevel, BigDecimal codAmount) {
         Objects.requireNonNull(card, "card");
@@ -46,14 +83,11 @@ public final class FeeCalculator {
         if (weightKg == null || weightKg.signum() <= 0) {
             throw new IllegalArgumentException("Weight must be positive");
         }
-        if (!sizeClass.accepts(weightKg)) {
-            throw new IllegalArgumentException("Weight exceeds the size class limit");
-        }
         if (codAmount == null || codAmount.signum() < 0) {
             throw new IllegalArgumentException("COD amount must not be negative");
         }
-
-        PricingContext context = new PricingContext(card, sizeClass, weightKg, serviceLevel, codAmount);
-        return pipeline.price(context, FeeBreakdown.empty());
+        return calculate(new PricingContext(
+                new PricingContext.Parcel(weightKg, weightKg, sizeClass, serviceLevel, codAmount),
+                new PricingContext.Rates(card)));
     }
 }

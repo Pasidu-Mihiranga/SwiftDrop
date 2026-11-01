@@ -15,8 +15,8 @@ public final class WeightStrategy implements PricingStrategy {
 
     @Override
     public FeeBreakdown price(PricingContext context, FeeBreakdown soFar) {
-        BigDecimal chargeableKg = context.weightKg().setScale(0, RoundingMode.CEILING);
-        return soFar.plus(PricingRule.WEIGHT, context.card().perKgFee().multiply(chargeableKg));
+        BigDecimal chargeableKg = context.parcel().chargeableWeightKg().setScale(0, RoundingMode.CEILING);
+        return soFar.plus(PricingRule.WEIGHT, context.rates().card().perKgFee().multiply(chargeableKg));
     }
 
     /** Exposed so the quote breakdown and tests can agree on what "chargeable weight" means. */

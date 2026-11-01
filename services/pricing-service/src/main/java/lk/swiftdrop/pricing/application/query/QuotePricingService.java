@@ -20,13 +20,14 @@ public class QuotePricingService {
     private final DistrictAssignmentRepository districts;
     private final SizeClassRepository sizeClasses;
     private final RateCardSelectionService rateCards;
-    private final FeeCalculator calculator = new FeeCalculator();
+    private final FeeCalculator calculator;
 
     public QuotePricingService(DistrictAssignmentRepository districts, SizeClassRepository sizeClasses,
-                               RateCardSelectionService rateCards) {
+                               RateCardSelectionService rateCards, FeeCalculator calculator) {
         this.districts = districts;
         this.sizeClasses = sizeClasses;
         this.rateCards = rateCards;
+        this.calculator = calculator;
     }
 
     public PreparedQuote prepare(QuotePricingInput input, LocalDate quoteDate) {
