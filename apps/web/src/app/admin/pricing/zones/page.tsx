@@ -156,23 +156,48 @@ export default async function ZonesAdminPage() {
                   <p className="text-xs text-slate-500">
                     Up to {size.maxWeightKg} kg, {size.maxDimensionsCm} cm
                   </p>
-                  <PricingForm action={updateSizeClass} submitLabel="Save" className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <PricingForm action={updateSizeClass} submitLabel="Save" className="space-y-2">
                     <input type="hidden" name="code" value={size.code} />
-                    <span className="flex-1">
-                      <label className="block text-xs font-medium text-slate-700" htmlFor={`multiplier-${size.code}`}>
-                        Multiplier
-                      </label>
-                      <input
-                        id={`multiplier-${size.code}`}
-                        name="multiplier"
-                        className="input"
-                        type="number"
-                        min="1"
-                        step="0.001"
-                        defaultValue={size.multiplier}
-                        required
-                      />
-                    </span>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      <span>
+                        <label className="block text-xs font-medium text-slate-700" htmlFor={`multiplier-${size.code}`}>
+                          Multiplier
+                        </label>
+                        <input
+                          id={`multiplier-${size.code}`}
+                          name="multiplier"
+                          className="input"
+                          type="number"
+                          min="1"
+                          step="0.001"
+                          defaultValue={size.multiplier}
+                          required
+                        />
+                      </span>
+                      {([
+                        ["maxLengthCm", "Length", size.maxLengthCm],
+                        ["maxWidthCm", "Width", size.maxWidthCm],
+                        ["maxHeightCm", "Height", size.maxHeightCm],
+                      ] as const).map(([field, label, current]) => (
+                        <span key={field}>
+                          <label
+                            className="block text-xs font-medium text-slate-700"
+                            htmlFor={`${field}-${size.code}`}
+                          >
+                            {label} (cm)
+                          </label>
+                          <input
+                            id={`${field}-${size.code}`}
+                            name={field}
+                            className="input"
+                            type="number"
+                            min="0.1"
+                            step="0.1"
+                            defaultValue={current}
+                          />
+                        </span>
+                      ))}
+                    </div>
                   </PricingForm>
                 </li>
               ))}

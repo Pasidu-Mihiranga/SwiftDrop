@@ -112,7 +112,22 @@ export async function updateSizeClass(_previous: ActionState, formData: FormData
     return { status: "error", message: "A size class needs a numeric multiplier." };
   }
 
-  const result = await send(`/api/v1/admin/pricing/size-classes/${encodeURIComponent(code)}`, "PUT", { multiplier });
+  // The three sides go together or not at all, matching the API. A class with two of them
+  // would have no enforceable shape.
+  const sides = ["maxLengthCm", "maxWidthCm", "maxHeightCm"] as const;
+  const given = sides.map((side) => emptyToNull(formData.get(side)));
+  if (given.some((side) => side !== null) && given.some((side) => side === null)) {
+    return { status: "error", message: "Give all three measurements, or leave all blank." };
+  }
+  const dimensions = given[0] === null
+    ? {}
+    : Object.fromEntries(sides.map((side, index) => [side, Number(given[index])]));
+  if (Object.values(dimensions).some((side) => !Number.isFinite(side) || (side as number) <= 0)) {
+    return { status: "error", message: "Each measurement must be more than 0 cm." };
+  }
+
+  const result = await send(`/api/v1/admin/pricing/size-classes/${encodeURIComponent(code)}`, "PUT",
+    { multiplier, ...dimensions });
   return result.status === "ok" ? { status: "ok", message: `Size ${code} updated.` } : result;
 }
 

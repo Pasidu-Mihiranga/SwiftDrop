@@ -18,6 +18,9 @@ export type PricingRule = (typeof PRICING_RULES)[number];
 /** Upper bound published by the quote contract. */
 export const MAX_WEIGHT_KG = 100;
 
+/** Upper bound for one side of a parcel, published by the quote contract. */
+export const MAX_SIDE_CM = 500;
+
 export interface Zone {
   id?: string;
   code: string;
@@ -100,6 +103,10 @@ export interface QuoteFormValues {
   sizeClass: string;
   serviceLevel: string;
   codAmount: string;
+  /** Optional, and all three or none. Kept as strings so a half-typed value is not lost. */
+  lengthCm: string;
+  widthCm: string;
+  heightCm: string;
 }
 
 export const EMPTY_QUOTE_FORM: QuoteFormValues = {
@@ -109,6 +116,9 @@ export const EMPTY_QUOTE_FORM: QuoteFormValues = {
   sizeClass: "M",
   serviceLevel: "STANDARD",
   codAmount: "",
+  lengthCm: "",
+  widthCm: "",
+  heightCm: "",
 };
 
 export interface QuoteRequestBody {
@@ -174,6 +184,26 @@ export function validateQuoteForm(values: QuoteFormValues, districts: readonly s
     errors.codAmount = "Cash to collect cannot be negative.";
   }
 
+  // All three sides or none, the same rule the API applies. Two sides would mean guessing
+  // the third, and a guess that lowers a price is not one worth making.
+  const sides = [
+    ["lengthCm", values.lengthCm],
+    ["widthCm", values.widthCm],
+    ["heightCm", values.heightCm],
+  ] as const;
+  const given = sides.filter(([, value]) => value.trim() !== "");
+  if (given.length > 0 && given.length < 3) {
+    for (const [field, value] of sides) {
+      if (value.trim() === "") errors[field] = "Give all three measurements, or leave all blank.";
+    }
+  }
+  for (const [field, value] of given) {
+    const side = Number(value);
+    if (!Number.isFinite(side) || side <= 0) errors[field] = "Must be more than 0 cm.";
+    else if (side > MAX_SIDE_CM) errors[field] = `Must be ${MAX_SIDE_CM} cm or less.`;
+  }
+  const hasDimensions = given.length === 3 && !sides.some(([field]) => errors[field]);
+
   if (Object.keys(errors).length > 0) return { ok: false, errors };
 
   return {
@@ -185,8 +215,36 @@ export function validateQuoteForm(values: QuoteFormValues, districts: readonly s
       sizeClass: values.sizeClass as SizeClass,
       serviceLevel: values.serviceLevel as ServiceLevel,
       ...(hasCod ? { codAmount } : {}),
+      ...(hasDimensions
+        ? {
+            lengthCm: Number(values.lengthCm),
+            widthCm: Number(values.widthCm),
+            heightCm: Number(values.heightCm),
+          }
+        : {}),
     },
   };
+}
+
+/**
+ * How the billed weight came about, or undefined when there is nothing to explain.
+ *
+ * A customer who sends three kilograms and is charged for fifteen deserves a sentence saying
+ * why, rather than being left to work it out from the total.
+ */
+export function weightExplanation(quote: Quote): string | undefined {
+  if (quote.weightBasis !== "VOLUMETRIC" || quote.volumetricWeightKg === undefined) {
+    return undefined;
+  }
+  return `Billed as ${quote.volumetricWeightKg} kg. A parcel this size takes up more room in the van than its ${quote.weightKg} kg suggests, so it is charged on the space it occupies.`;
+}
+
+/** The notice shown when measurements put the parcel in a class the customer did not pick. */
+export function sizeClassNotice(quote: Quote): string | undefined {
+  if (!quote.declaredSizeClass || quote.declaredSizeClass === quote.sizeClass) {
+    return undefined;
+  }
+  return `Priced as ${sizeClassLabel(quote.sizeClass)} (${quote.sizeClass}). The measurements you gave do not fit ${sizeClassLabel(quote.declaredSizeClass)} (${quote.declaredSizeClass}).`;
 }
 
 export function isSizeClass(value: string): value is SizeClass {
