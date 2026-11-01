@@ -5,8 +5,9 @@
 #   pnpm infra:up                     # Kafka, Keycloak, Postgres, Mongo, Redis, RustFS, Mailpit
 #   pnpm obs:up                       # + Grafana / Loki / Tempo / Prometheus / Alloy
 #   pnpm stack:up                     # + every SwiftDrop service and the web app
+#   pnpm routing:up                   # OSRM road routing (first run downloads and builds the map)
 #
-# Profiles: infra | observability | apps
+# Profiles: infra | observability | apps | routing
 # Host ports are configurable in .env (defaults avoid clashing with other local Postgres/Redis/MinIO stacks).
 # =====================================================================
 name: swiftdrop
@@ -182,6 +183,53 @@ services:
       <<: *healthcheck-defaults
       test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
 
+  # Road routing for same-day pricing. Separate from "infra" because the first run downloads
+  # the Sri Lanka extract and builds a routing graph. pricing-service works without it: set
+  # OSRM_URL to use it, leave it blank and distances are estimated and labelled as such.
+  osrm-fetch:
+    image: curlimages/curl:8.17.0
+    profiles: ["routing"]
+    user: "0:0"
+    volumes:
+      - osrm-data:/data
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        [ -f /data/map.osm.pbf ] || curl -fsSL -o /data/map.osm.pbf.part "$$OSRM_EXTRACT_URL"
+        [ -f /data/map.osm.pbf ] || mv /data/map.osm.pbf.part /data/map.osm.pbf
+    environment:
+      OSRM_EXTRACT_URL: ${OSRM_EXTRACT_URL:-https://download.geofabrik.de/asia/sri-lanka-latest.osm.pbf}
+
+  osrm-prepare:
+    image: ghcr.io/project-osrm/osrm-backend:v6.0.0
+    profiles: ["routing"]
+    depends_on:
+      osrm-fetch: { condition: service_completed_successfully }
+    volumes:
+      - osrm-data:/data
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        [ -f /data/map.osrm.mldgr ] && exit 0
+        osrm-extract -t 2 -p /opt/car.lua /data/map.osm.pbf
+        osrm-partition -t 2 /data/map.osrm
+        osrm-customize -t 2 /data/map.osrm
+
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend:v6.0.0
+    profiles: ["routing"]
+    restart: unless-stopped
+    depends_on:
+      osrm-prepare: { condition: service_completed_successfully }
+    volumes:
+      - osrm-data:/data:ro
+    command: ["osrm-routed", "--algorithm", "mld", "/data/map.osrm"]
+    ports: ["${OSRM_HOST_PORT:-15000}:5000"]
+
   # S3-compatible object storage for proof-of-delivery photos (RustFS, Apache-2.0).
   object-storage:
     image: rustfs/rustfs:1.0.3
@@ -313,7 +361,7 @@ services:
   pricing-service:
     <<: *app
     build: { context: ., dockerfile: services/pricing-service/Dockerfile }
-    environment: { <<: *java-env, DB_NAME: pricing_db, DB_USER: pricing_svc }
+    environment: { <<: *java-env, DB_NAME: pricing_db, DB_USER: pricing_svc, OSRM_URL: "${OSRM_URL:-}" }
 
   parcel-service:
     <<: *app
@@ -394,6 +442,7 @@ volumes:
   postgres-data:
   mongo-data:
   redis-data:
+  osrm-data:
   object-data:
   prometheus-data:
   loki-data:

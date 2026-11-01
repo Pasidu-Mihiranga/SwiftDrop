@@ -91,6 +91,13 @@ they are operators with their own lifecycle:
 - **RustFS** (S3-compatible storage for proof-of-delivery photos), needed by
   parcel-service. `parcel-service` expects it at `http://object-storage:9000`.
 
+OSRM, the routing engine behind same-day pricing, is templated but optional. Set
+`osrm.enabled=true` and `pricing-service.config.OSRM_URL=http://osrm:5000`, as
+`values-prod.yaml` does. Its first start downloads the Sri Lanka extract and builds the
+graph in init containers, which takes about 2 minutes, 1.3 GB of memory and 1 GB of disk.
+It stays off in dev to keep a kind cluster small. pricing-service does not wait for it:
+until it answers, and whenever it fails, distances are estimated and labelled `ESTIMATED`.
+
 MongoDB is likewise not templated here; the three Nest services need it and stay disabled
 in dev until it is provided.
 

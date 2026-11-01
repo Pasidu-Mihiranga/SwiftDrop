@@ -29,3 +29,5 @@ config:
   # Quote lifetime. The issued snapshot is returned verbatim until it expires.
   PRICING_QUOTE_TTL: PT15M
   PRICING_QUOTE_ZONE_ID: Asia/Colombo
+  # Blank runs without a router: same-day distances are estimated and labelled as such.
+  OSRM_URL: ""
