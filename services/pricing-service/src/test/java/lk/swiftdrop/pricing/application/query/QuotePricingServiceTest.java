@@ -8,6 +8,7 @@ import lk.swiftdrop.pricing.domain.model.ServiceLevel;
 import lk.swiftdrop.pricing.domain.model.SizeClassCode;
 import lk.swiftdrop.pricing.domain.model.SizeClassRate;
 import lk.swiftdrop.pricing.domain.model.ZoneCode;
+import lk.swiftdrop.pricing.domain.policy.FeeCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -41,7 +42,7 @@ class QuotePricingServiceTest {
         districts = mock(DistrictAssignmentRepository.class);
         sizeClasses = mock(SizeClassRepository.class);
         rateCards = mock(RateCardSelectionService.class);
-        service = new QuotePricingService(districts, sizeClasses, rateCards);
+        service = new QuotePricingService(districts, sizeClasses, rateCards, new FeeCalculator());
         when(districts.findActiveZoneCodeByDistrict("Colombo")).thenReturn(Optional.of(WP));
         when(districts.findActiveZoneCodeByDistrict("Kandy")).thenReturn(Optional.of(CP));
     }

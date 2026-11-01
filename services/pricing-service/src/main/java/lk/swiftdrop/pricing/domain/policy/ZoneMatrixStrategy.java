@@ -12,6 +12,6 @@ public final class ZoneMatrixStrategy implements PricingStrategy {
 
     @Override
     public FeeBreakdown price(PricingContext context, FeeBreakdown soFar) {
-        return soFar.plus(PricingRule.BASE, context.card().baseFee());
+        return soFar.plus(PricingRule.BASE, context.rates().card().baseFee());
     }
 }

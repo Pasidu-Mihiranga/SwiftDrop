@@ -21,6 +21,6 @@ public final class CodFeeDecorator extends PricingDecorator {
 
     @Override
     protected BigDecimal surcharge(PricingContext context, BigDecimal chargedSoFar) {
-        return context.codAmount().multiply(context.card().codFeePct());
+        return context.parcel().codAmount().multiply(context.rates().card().codFeePct());
     }
 }

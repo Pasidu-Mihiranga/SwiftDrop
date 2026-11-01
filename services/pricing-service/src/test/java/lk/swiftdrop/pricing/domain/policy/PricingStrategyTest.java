@@ -142,8 +142,11 @@ class PricingStrategyTest {
     private static PricingContext context(String base, String perKg, String express, String codPct,
                                           String multiplier, String maxWeight, String weightKg,
                                           ServiceLevel serviceLevel, String codAmount) {
-        return new PricingContext(card(base, perKg, express, codPct), size(multiplier, maxWeight),
-                money(weightKg), serviceLevel, money(codAmount));
+        BigDecimal weight = money(weightKg);
+        return new PricingContext(
+                new PricingContext.Parcel(weight, weight, size(multiplier, maxWeight), serviceLevel,
+                        money(codAmount)),
+                new PricingContext.Rates(card(base, perKg, express, codPct)));
     }
 
     private static BigDecimal money(String amount) {
