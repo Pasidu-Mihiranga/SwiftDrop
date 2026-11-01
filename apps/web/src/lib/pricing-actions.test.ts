@@ -15,6 +15,8 @@ import {
   closeRateCard,
   createRateCard,
   createZone,
+  publishMerchantAgreement,
+  publishRemoteArea,
   updateSizeClass,
   updateZone,
 } from "@/lib/pricing-actions";
@@ -401,6 +403,136 @@ describe("admin pricing actions", () => {
         status: "error",
         message: "A size class needs a numeric multiplier.",
       });
+      expect(gatewayFetchMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("weight bands on a new rate", () => {
+    it("sends the bands with the open-ended rate last", async () => {
+      asAdmin();
+      respondOk();
+
+      const result = await createRateCard(IDLE, rateCardForm({ bandUpTo1: "5", bandRate1: "80", bandRateAbove: "60" }));
+
+      expect(result.status).toBe("ok");
+      const body = JSON.parse(gatewayFetchMock.mock.calls[0][1].body);
+      expect(body.tiers).toEqual([
+        { upToKg: 5, perKgFee: 80 },
+        { upToKg: null, perKgFee: 60 },
+      ]);
+    });
+
+    it("leaves bands out of a flat-rate card", async () => {
+      asAdmin();
+      respondOk();
+
+      await createRateCard(IDLE, rateCardForm());
+
+      expect(JSON.parse(gatewayFetchMock.mock.calls[0][1].body)).not.toHaveProperty("tiers");
+    });
+
+    it("stops a malformed band before it reaches the service", async () => {
+      asAdmin();
+
+      const result = await createRateCard(IDLE, rateCardForm({ bandUpTo1: "5" }));
+
+      expect(result.status).toBe("error");
+      expect(gatewayFetchMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("publishRemoteArea", () => {
+    const charge = (overrides: Record<string, string> = {}) =>
+      form({ district: "Mannar", flatFee: "150", effectiveFrom: "2026-11-01", ...overrides });
+
+    it("publishes under the district's own path", async () => {
+      asAdmin();
+      respondOk();
+
+      const result = await publishRemoteArea(IDLE, charge({ district: "Nuwara Eliya" }));
+
+      expect(result).toEqual({ status: "ok", message: "Charge for Nuwara Eliya takes effect 2026-11-01." });
+      expect(gatewayFetchMock.mock.calls[0][0]).toBe("/api/v1/admin/pricing/remote-areas/Nuwara%20Eliya");
+      expect(revalidatePathMock).toHaveBeenCalledWith("/admin/pricing/remote-areas");
+    });
+
+    it("accepts a charge of 0, which is how a charge is stopped", async () => {
+      asAdmin();
+      respondOk();
+
+      expect((await publishRemoteArea(IDLE, charge({ flatFee: "0" }))).status).toBe("ok");
+    });
+
+    it.each([
+      ["no district", { district: "" }],
+      ["no charge", { flatFee: " " }],
+      ["no date", { effectiveFrom: "" }],
+      ["a negative charge", { flatFee: "-1" }],
+      ["a charge that is not a number", { flatFee: "abc" }],
+    ])("refuses %s", async (_name, overrides) => {
+      asAdmin();
+
+      expect((await publishRemoteArea(IDLE, charge(overrides))).status).toBe("error");
+      expect(gatewayFetchMock).not.toHaveBeenCalled();
+    });
+
+    it("shows the service's reason for refusing a period", async () => {
+      asAdmin();
+      respondProblem(409, { code: "REMOTE_AREA_PERIOD_CONFLICT", detail: "Publish from a later date." });
+
+      expect((await publishRemoteArea(IDLE, charge())).message).toBe("Publish from a later date.");
+    });
+  });
+
+  describe("publishMerchantAgreement", () => {
+    const MERCHANT = "7b9f2c1e-52c7-4f6e-9d1a-3b1c2d4e5f60";
+    const terms = (overrides: Record<string, string> = {}) =>
+      form({ merchantId: MERCHANT, effectiveFrom: "2026-11-01", ...overrides });
+
+    it("sends the terms, waivers and lanes", async () => {
+      asAdmin();
+      respondOk();
+
+      const result = await publishMerchantAgreement(
+        IDLE,
+        terms({
+          discountPct: "0.1",
+          discountFlat: "25",
+          waivesCodFee: "on",
+          laneFrom2: "wp",
+          laneTo2: "cp",
+          laneBaseFee2: "300",
+        }),
+      );
+
+      expect(result.status).toBe("ok");
+      expect(gatewayFetchMock.mock.calls[0][0]).toBe(`/api/v1/admin/pricing/merchants/${MERCHANT}/agreements`);
+      expect(JSON.parse(gatewayFetchMock.mock.calls[0][1].body)).toEqual({
+        discountPct: 0.1,
+        discountFlat: 25,
+        waivesRemoteArea: false,
+        waivesInsurance: false,
+        waivesCodFee: true,
+        effectiveFrom: "2026-11-01",
+        laneOverrides: [{ fromZone: "WP", toZone: "CP", discountPct: null, flatBaseFee: 300 }],
+      });
+    });
+
+    it.each([
+      ["a malformed merchant id", { merchantId: "abc" }, "merchant"],
+      ["no date", { effectiveFrom: "" }, "date"],
+      ["a negative discount", { discountPct: "-0.1" }, "0 or more"],
+      ["a percentage where a fraction belongs", { discountPct: "10" }, "fraction"],
+      ["a lane with one zone", { laneFrom1: "WP", laneBaseFee1: "300" }, "both zones"],
+      ["a lane that changes nothing", { laneFrom1: "WP", laneTo1: "CP" }, "discount or a base fee"],
+      ["a lane with a negative fee", { laneFrom1: "WP", laneTo1: "CP", laneBaseFee1: "-5" }, "0 or more"],
+    ])("refuses %s", async (_name, overrides, message) => {
+      asAdmin();
+
+      const result = await publishMerchantAgreement(IDLE, terms(overrides));
+
+      expect(result.status).toBe("error");
+      expect(result.message).toContain(message);
       expect(gatewayFetchMock).not.toHaveBeenCalled();
     });
   });

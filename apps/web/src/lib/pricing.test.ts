@@ -22,6 +22,12 @@ import {
   zoneForDistrict,
   type RateCard,
   type Zone,
+  describeAgreement,
+  describeWeightBands,
+  isUuid,
+  parseWeightBands,
+  periodStatus,
+  type MerchantAgreement,
 } from "./pricing";
 
 const WESTERN: Zone = { code: "WP", name: "Western", districts: ["Colombo", "Gampaha", "Kalutara"], active: true };
@@ -364,5 +370,119 @@ describe("quoteLifetime", () => {
       expect(sizeClassNotice({ ...priced, declaredSizeClass: "L" })).toBeUndefined();
       expect(sizeClassNotice(priced)).toBeUndefined();
     });
+  });
+});
+
+describe("periodStatus", () => {
+  it("names where a versioned row stands", () => {
+    expect(periodStatus({ effectiveFrom: "2026-01-01" }, "2026-06-01")).toBe("In force");
+    expect(periodStatus({ effectiveFrom: "2026-07-01" }, "2026-06-01")).toBe("Scheduled");
+    expect(periodStatus({ effectiveFrom: "2026-01-01", effectiveTo: "2026-06-01" }, "2026-06-01")).toBe("Superseded");
+  });
+});
+
+describe("describeWeightBands", () => {
+  it("has nothing to say about a flat-rate card", () => {
+    expect(describeWeightBands(undefined)).toBeUndefined();
+    expect(describeWeightBands([])).toBeUndefined();
+  });
+
+  it("reads the bands in order", () => {
+    expect(
+      describeWeightBands([
+        { upToKg: 5, perKgFee: 80 },
+        { upToKg: 20, perKgFee: 70 },
+        { upToKg: null, perKgFee: 60 },
+      ]),
+    ).toBe("LKR 80.00 per kg up to 5 kg, then LKR 70.00 per kg up to 20 kg, then LKR 60.00 per kg");
+  });
+
+  it("copes with a lone open band", () => {
+    expect(describeWeightBands([{ upToKg: null, perKgFee: 60 }])).toBe("LKR 60.00 per kg");
+  });
+});
+
+describe("parseWeightBands", () => {
+  const blank = { upToKg: "", perKgFee: "" };
+
+  it("treats an untouched form as a flat-rate card", () => {
+    expect(parseWeightBands([blank, blank], "")).toEqual({ ok: true, tiers: [] });
+  });
+
+  it("closes the bands with the open-ended rate", () => {
+    expect(parseWeightBands([{ upToKg: "5", perKgFee: "80" }, blank, { upToKg: "20", perKgFee: "70" }], "60")).toEqual({
+      ok: true,
+      tiers: [
+        { upToKg: 5, perKgFee: 80 },
+        { upToKg: 20, perKgFee: 70 },
+        { upToKg: null, perKgFee: 60 },
+      ],
+    });
+  });
+
+  it.each([
+    ["a rate above no bands", [blank], "60", "at least one band"],
+    ["half a band", [{ upToKg: "5", perKgFee: "" }], "60", "both a limit and a rate"],
+    ["no open-ended rate", [{ upToKg: "5", perKgFee: "80" }], "", "above the last band"],
+    ["a negative rate", [{ upToKg: "5", perKgFee: "-1" }], "60", "0 or more"],
+    ["a zero limit", [{ upToKg: "0", perKgFee: "80" }], "60", "go up"],
+    [
+      "limits out of order",
+      [
+        { upToKg: "20", perKgFee: "80" },
+        { upToKg: "5", perKgFee: "70" },
+      ],
+      "60",
+      "go up",
+    ],
+  ])("refuses %s", (_name, rows, rest, message) => {
+    const result = parseWeightBands(rows, rest);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.message).toContain(message);
+  });
+});
+
+describe("isUuid", () => {
+  it("accepts a merchant id and nothing else", () => {
+    expect(isUuid(" 7b9f2c1e-52c7-4f6e-9d1a-3b1c2d4e5f60 ")).toBe(true);
+    expect(isUuid("7b9f2c1e")).toBe(false);
+    expect(isUuid("")).toBe(false);
+  });
+});
+
+describe("describeAgreement", () => {
+  const terms: MerchantAgreement = {
+    id: "a",
+    merchantId: "m",
+    discountPct: 0,
+    discountFlat: 0,
+    waivesRemoteArea: false,
+    waivesInsurance: false,
+    waivesCodFee: false,
+    laneOverrides: [],
+    effectiveFrom: "2026-01-01",
+  };
+
+  it("says when terms change nothing", () => {
+    expect(describeAgreement(terms)).toBe("Standard rates");
+  });
+
+  it("lists everything the terms change", () => {
+    expect(
+      describeAgreement({
+        ...terms,
+        discountPct: 0.1,
+        discountFlat: 25,
+        waivesRemoteArea: true,
+        waivesInsurance: true,
+        waivesCodFee: true,
+        laneOverrides: [{ fromZone: "WP", toZone: "CP", flatBaseFee: 300 }],
+      }),
+    ).toBe("10% off, LKR 25.00 off each parcel, no remote-area charge, no cover charge, no cash-on-delivery fee, 1 negotiated lane");
+  });
+
+  it("counts lanes in the plural", () => {
+    const lane = { fromZone: "WP", toZone: "CP", discountPct: 0.2 };
+    expect(describeAgreement({ ...terms, laneOverrides: [lane, { ...lane, toZone: "SP" }] })).toBe("2 negotiated lanes");
   });
 });

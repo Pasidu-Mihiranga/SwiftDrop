@@ -1,6 +1,14 @@
 import "server-only";
 import { gatewayFetch } from "@/lib/gateway";
-import type { DistrictAssignment, Quote, RateCard, SizeClassRate, Zone } from "@/lib/pricing";
+import type {
+  DistrictAssignment,
+  MerchantAgreement,
+  Quote,
+  RateCard,
+  RemoteAreaCharge,
+  SizeClassRate,
+  Zone,
+} from "@/lib/pricing";
 
 /**
  * Server-side reads of pricing-service through the gateway.
@@ -42,6 +50,21 @@ export async function fetchSizeClasses(): Promise<SizeClassRate[]> {
 
 export async function fetchRateCards(search: string = ""): Promise<PricingPage<RateCard>> {
   return readJson<PricingPage<RateCard>>(`/api/v1/admin/pricing/rate-cards${search}`, "rate cards");
+}
+
+export async function fetchRemoteAreas(): Promise<RemoteAreaCharge[]> {
+  return readJson<RemoteAreaCharge[]>("/api/v1/admin/pricing/remote-areas", "remote-area charges");
+}
+
+export async function fetchAgreementsInForce(): Promise<MerchantAgreement[]> {
+  return readJson<MerchantAgreement[]>("/api/v1/admin/pricing/merchants", "merchant agreements");
+}
+
+export async function fetchMerchantAgreements(merchantId: string): Promise<MerchantAgreement[]> {
+  return readJson<MerchantAgreement[]>(
+    `/api/v1/admin/pricing/merchants/${encodeURIComponent(merchantId)}/agreements`,
+    "merchant agreements",
+  );
 }
 
 export async function fetchQuote(quoteId: string): Promise<Quote> {
