@@ -1,0 +1,20 @@
+%% M8 use cases: tools/merchant-simulator, the demo online store. Planned design, issue #21.
+flowchart LR
+    P(["Presenter"])
+    G["api-gateway"]
+    KC["Keycloak"]
+    W["webhook-service"]
+    subgraph SIM["tools/merchant-simulator"]
+        S1("Create a delivery order")
+        S2("Get a client-credentials token")
+        S3("Receive a SwiftDrop webhook")
+        S4("Verify signature and timestamp")
+        S5("See received webhooks on a page")
+        S6("Toggle fail mode")
+    end
+    P --> S1 & S5 & S6
+    S1 --> G
+    S2 --> KC
+    W --> S3
+    S1 -. "include" .-> S2
+    S3 -. "include" .-> S4

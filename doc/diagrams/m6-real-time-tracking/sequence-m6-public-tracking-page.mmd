@@ -1,0 +1,28 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","actorBkg":"#ffffff","actorBorder":"#000000","signalColor":"#000000","noteBkgColor":"#f2f2f2","noteBorderColor":"#000000","fontFamily":"Arial"}}}%%
+%% M6 public tracking page (guest, masked). Editable source for sequence-m6-public-tracking-page.svg / .png.
+sequenceDiagram
+    autonumber
+    actor G as Guest
+    participant PG as Next.js page /track
+    participant GW as API gateway
+    participant T as tracking-service
+    participant M as MongoDB tracking
+    participant S as Socket.IO /ws/tracking
+    G->>PG: open /track/SD261020K7Q2M9X
+    PG->>GW: GET /api/v1/tracking/public/{trackingNumber} no token
+    GW->>GW: rate limit per IP, Redis counter
+    GW->>T: forward public route
+    T->>M: find timeline by trackingNumber
+    M-->>T: timeline document
+    alt found
+        T->>T: PublicViewMapper, city and masked name K*** P.
+        T-->>GW: 200 status, city, masked recipient, steps
+        GW-->>PG: 200 JSON
+        PG->>S: connect, join tracking:SD261020K7Q2M9X
+        S-->>PG: joined
+        S-->>PG: parcel.status OUT_FOR_DELIVERY, Kandy
+    else not found
+        T-->>GW: 404 problem+json, same answer for any unknown number
+        GW-->>PG: 404 problem+json
+    end
+    Note over G,PG: Page shows city and masked name only, never phone or street

@@ -1,0 +1,43 @@
+%% M1 diagram: customer use cases (required design diagram "use case - customer", owned by M1).
+%% M1 owns sign-up, sign-in (incl. Google), profile and address book; other use cases are tagged with
+%% the member that implements them. Customer generalises Guest.
+flowchart LR
+    GUEST(["Guest<br/>(no account, no token)"])
+    CUST(["Customer<br/>(realm role CUSTOMER)"])
+    GOOGLE["Google<br/>external identity provider"]
+
+    subgraph SYS["SwiftDrop platform - customer scope"]
+        subgraph PUB["Public - no token needed"]
+            B1("Get a delivery fee estimate<br/>M2 - POST /api/v1/pricing/quotes")
+            B2("Track a parcel by tracking number<br/>M6 - /track/{trackingNumber}")
+        end
+        subgraph AUTH["Sign-up and sign-in - M1"]
+            A1("Register an account<br/>e-mail as username, role CUSTOMER")
+            A3("Sign in with Google<br/>OAuth 2.0 / OIDC via Keycloak")
+            A2("Sign in with e-mail and password<br/>Authorization Code + PKCE")
+        end
+        subgraph ACC["My account - M1"]
+            A5("View and edit my profile<br/>GET / PUT /api/v1/users/me")
+            A6("Manage my address book<br/>/api/v1/users/me/addresses")
+            A4("Sign out")
+        end
+        subgraph DEL["Deliveries - role CUSTOMER"]
+            C2("Pick a saved address - M1")
+            C1("Create a delivery request - M3")
+            C3("Confirm the estimated fee - M3")
+            C4("Follow my parcel live - M6")
+            C7("Cancel a delivery - M3, only while CREATED")
+            C5("View my delivery history - M9")
+            C6("Download a delivery receipt - M9")
+        end
+    end
+
+    CUST -. "generalisation" .-> GUEST
+    GUEST --> B1 & B2 & A1 & A3 & A2
+    CUST --> A5 & A6 & A4 & C1 & C4 & C7 & C5
+    GOOGLE --- A3
+    A3 -. "extend: first Google sign-in creates the account" .-> A1
+    C2 -. "extend" .-> C1
+    C1 -. "include" .-> C3
+    C3 -. "include" .-> B1
+    C6 -. "extend" .-> C5

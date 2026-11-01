@@ -1,0 +1,53 @@
+%% M1 flow: the first authenticated request after login.
+%% Shows the JWT chain browser -> BFF -> gateway -> user-service and just-in-time profile creation.
+%% Source of truth: apps/web/src/app/api/bff/[...path]/route.ts, services/api-gateway (SecurityConfig, application.yml),
+%% libs/java/swiftdrop-common-security, contracts/openapi/user-service.v1.yaml (GET /api/v1/users/me).
+sequenceDiagram
+    autonumber
+    actor U as Signed-in user (browser)
+    participant B as Next.js BFF<br/>/api/bff/[...path]
+    participant GW as api-gateway<br/>Spring Cloud Gateway
+    participant KC as Keycloak<br/>JWKS endpoint
+    participant UC as UserController<br/>(api)
+    participant PS as UserProfileService<br/>(application)
+    participant R as UserProfileRepository<br/>(port -> JPA adapter)
+    participant DB as users_db<br/>PostgreSQL
+    U->>B: GET /api/bff/api/v1/users/me (session cookie only)
+    B->>B: path must start with api/v1/, getToken() decrypts the cookie and reads the access token, only allow-listed headers are forwarded
+    alt no session or refresh failed
+        B->>GW: GET /api/v1/users/me (no Authorization header)
+        GW-->>B: 401 application/problem+json
+        B-->>U: 401 - UI sends the user to /login
+    else session present
+        B->>GW: GET /api/v1/users/me, Authorization: Bearer <access token>
+        GW->>GW: CorrelationIdGlobalFilter: create X-Correlation-Id
+        opt signing keys not cached yet or key id unknown (key rotation)
+            GW->>KC: GET /realms/swiftdrop/protocol/openid-connect/certs
+            KC-->>GW: JWKS public keys (cached)
+        end
+        GW->>GW: verify RS256 signature, iss = realm swiftdrop, aud contains swiftdrop-api, exp not passed
+        alt token invalid, expired or wrong audience
+            GW-->>B: 401 problem+json (no token details leaked)
+        else token valid
+            GW->>UC: route user-service: GET /api/v1/users/me + bearer + X-Correlation-Id
+            UC->>UC: resource server validates the same JWT again (defence in depth), KeycloakRealmRoleConverter maps realm roles to ROLE_*, AuthenticatedUser built from sub, email, name, roles
+            UC->>PS: getOrCreate(currentUser)
+            PS->>R: findById(sub)
+            alt first call for this user - profile does not exist yet
+                R-->>PS: empty
+                PS->>PS: new UserProfile(id = Keycloak sub, email, fullName from token, status ACTIVE), mirror realm roles into user_role
+                PS->>R: save(profile)
+                R->>DB: INSERT user_profile, user_role (one transaction)
+                DB-->>R: ok
+                R-->>PS: UserProfile
+            else profile exists
+                R-->>PS: UserProfile (phone decrypted by the AES-GCM AttributeConverter)
+                PS->>PS: re-sync user_role if the token roles changed (Keycloak is the source of truth)
+            end
+            PS-->>UC: UserProfile
+            UC-->>GW: 200 ProfileResponse (DTO, never the JPA entity)
+            GW-->>B: 200 + X-Correlation-Id
+            B-->>U: 200 profile JSON
+        end
+    end
+    Note over B,UC: Gateway checks authentication only, authorisation (roles, ownership) is enforced again inside every service with @PreAuthorize and the AuthenticatedUser record.

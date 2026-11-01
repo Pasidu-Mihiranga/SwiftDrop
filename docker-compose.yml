@@ -246,7 +246,7 @@ services:
     ports: ["${S3_HOST_PORT:-9010}:9000", "${S3_CONSOLE_HOST_PORT:-9011}:9001"]
 
   mailpit:
-    image: axllent/mailpit:v1.31.6
+    image: axllent/mailpit:v1.32.0
     profiles: ["infra"]
     restart: unless-stopped
     environment:
@@ -256,7 +256,7 @@ services:
 
   # ---------------------------------------------------------- OBSERVABILITY
   prometheus:
-    image: prom/prometheus:v3.15.0
+    image: prom/prometheus:v3.15.1
     profiles: ["observability"]
     restart: unless-stopped
     command:
@@ -303,7 +303,7 @@ services:
     depends_on: [loki, tempo]
 
   kafka-exporter:
-    image: danielqsj/kafka-exporter:v1.10.0
+    image: danielqsj/kafka-exporter:v1.11.0
     profiles: ["observability"]
     restart: unless-stopped
     command: ["--kafka.server=kafka:19092"]

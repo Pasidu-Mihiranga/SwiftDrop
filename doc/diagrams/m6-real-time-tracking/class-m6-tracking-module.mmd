@@ -1,0 +1,79 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","fontFamily":"Arial"}}}%%
+%% M6 class design for tracking-service. Editable source for class-m6-tracking-module.svg / .png.
+classDiagram
+    class KafkaConsumerTemplate {
+        <<abstract>>
+        +consume(message)
+        #validate(envelope)
+        #handle(event)*
+        #commit()
+    }
+    class ParcelCreatedConsumer
+    class ParcelStatusChangedConsumer
+    class ParcelAssignedConsumer
+    KafkaConsumerTemplate <|-- ParcelCreatedConsumer
+    KafkaConsumerTemplate <|-- ParcelStatusChangedConsumer
+    KafkaConsumerTemplate <|-- ParcelAssignedConsumer
+    class TimelineProjector {
+        +applyCreated(event)
+        +applyStatus(timeline, event)
+        +applyAssigned(timeline, event)
+    }
+    ParcelCreatedConsumer ..> TimelineProjector
+    ParcelStatusChangedConsumer ..> TimelineProjector
+    ParcelAssignedConsumer ..> TimelineProjector
+    class TimelineRepositoryPort {
+        <<interface>>
+        +upsert(timeline)
+        +findByTrackingNumber(no)
+        +findByParcelId(id)
+    }
+    class MongoTimelineRepository {
+        <<adapter>>
+    }
+    class IdempotencyStorePort {
+        <<interface>>
+        +isProcessed(eventId)
+        +markProcessed(eventId)
+    }
+    class MongoIdempotencyStore {
+        <<adapter>>
+    }
+    class BroadcastPort {
+        <<interface>>
+        +emitStatus(rooms, payload)
+    }
+    class SocketIoBroadcaster {
+        <<adapter>>
+    }
+    TimelineProjector --> TimelineRepositoryPort
+    TimelineProjector ..> BroadcastPort
+    TimelineRepositoryPort <|.. MongoTimelineRepository
+    IdempotencyStorePort <|.. MongoIdempotencyStore
+    BroadcastPort <|.. SocketIoBroadcaster
+    class TrackingController {
+        <<api>>
+        +getPublic(trackingNumber)
+        +getTimeline(parcelId, principal)
+    }
+    class TrackingQueryService {
+        <<facade>>
+        +publicView(trackingNumber)
+        +ownerTimeline(parcelId, principal)
+    }
+    class PublicViewMapper {
+        +toPublicView(timeline)
+        +maskName(fullName)
+    }
+    class TrackingGateway {
+        <<websocket>>
+        +handleConnection(socket)
+        +onJoinRoom(socket, room)
+    }
+    class RoomPolicy {
+        <<policy>>
+        +canJoin(principal, room)
+    }
+    TrackingController --> TrackingQueryService
+    TrackingQueryService ..> PublicViewMapper
+    TrackingGateway ..> RoomPolicy
