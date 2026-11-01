@@ -1,0 +1,34 @@
+%% M8 sequence: register an endpoint and send a test ping. Planned design: follows contracts/openapi/webhook-service.v1.yaml and issue #21.
+sequenceDiagram
+    autonumber
+    actor P0 as Merchant
+    participant P1 as Merchant page<br/>+ BFF
+    participant P2 as api-gateway
+    participant P3 as webhook-service
+    participant P4 as MongoDB<br/>webhooks
+    participant P5 as Redis<br/>BullMQ
+        P0->>P1: enter https URL and event types
+        P1->>P2: POST /api/v1/webhooks/endpoints (bearer, via BFF)
+        P2->>P3: forward (JWT valid)
+        P3->>P3: role MERCHANT, merchant_id comes from the token, never the body
+        P3->>P3: validate URL: https in production, resolve host, block private, loopback and link-local IPs
+        alt URL rejected or body invalid
+            P3-->>P1: 400 problem+json
+        else URL accepted
+            P3->>P3: generate random secret, encrypt it for storage
+            P3->>P4: insert endpoint (secret_enc, event_types, active)
+            P4-->>P3: endpointId
+            P3-->>P1: 201 endpoint + secret (returned only this once)
+            P1-->>P0: show the secret once, with a copy button
+        end
+        P0->>P1: click Send test ping
+        P1->>P3: POST /endpoints/{id}/test via gateway
+        P3->>P4: find endpoint by id AND merchant_id
+        P4-->>P3: endpoint, or nothing
+        alt other merchant's endpoint or unknown id
+            P3-->>P1: 404 problem+json (existence is not revealed)
+        else own endpoint
+            P3->>P4: insert delivery (status PENDING)
+            P3->>P5: enqueue delivery job
+            P3-->>P1: 202 Queued, the worker sends the signed ping
+        end
