@@ -15,6 +15,7 @@ import lk.swiftdrop.pricing.application.command.RateCardAdminService;
 import lk.swiftdrop.pricing.application.model.RateCardFilter;
 import lk.swiftdrop.pricing.application.query.RateCardQueryService;
 import lk.swiftdrop.pricing.domain.model.RateCard;
+import lk.swiftdrop.pricing.domain.model.WeightTier;
 import lk.swiftdrop.pricing.domain.model.ZoneCode;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -72,7 +73,9 @@ public class AdminRateCardController {
     public ResponseEntity<RateCardResponse> create(@Valid @RequestBody RateCardCreateRequest request) {
         RateCard created = commands.create(ZoneCode.of(request.fromZone()), ZoneCode.of(request.toZone()),
                 request.baseFee(), request.perKgFee(), request.expressMultiplier(), request.codFeePct(),
-                request.effectiveFrom(), request.effectiveTo());
+                request.effectiveFrom(), request.effectiveTo(),
+                request.tiersOrEmpty().stream()
+                        .map(tier -> new WeightTier(tier.upToKg(), tier.perKgFee())).toList());
         return ResponseEntity
                 .created(URI.create("/api/v1/admin/pricing/rate-cards/" + created.id()))
                 .body(RateCardApiMapper.toResponse(created));

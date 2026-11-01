@@ -6,7 +6,7 @@ import lk.swiftdrop.pricing.domain.model.FeeBreakdown;
  * One way of pricing a parcel (Strategy).
  *
  * <p>Implementations either compute a charge of their own, such as
- * {@link ZoneMatrixStrategy} and {@link WeightStrategy}, or wrap another strategy and layer a
+ * {@link ZoneMatrixStrategy} and {@link TieredWeightStrategy}, or wrap another strategy and layer a
  * surcharge on top of it, which is what the {@link PricingDecorator} subclasses do. Because the
  * interface is the same either way, the quote pipeline is assembled by composition rather than
  * by a fixed sequence of if-statements.

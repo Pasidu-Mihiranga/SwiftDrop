@@ -34,12 +34,12 @@ class PricingStrategyTest {
 
     @Test
     void weightIsBilledInWholeKilogramsRoundedUp() {
-        FeeBreakdown result = new WeightStrategy().price(context("0", "60", "1", "0",
+        FeeBreakdown result = new TieredWeightStrategy().price(context("0", "60", "1", "0",
                 "1", "10", "2.1", ServiceLevel.STANDARD, "0"), FeeBreakdown.empty());
 
         assertThat(result.fee()).isEqualByComparingTo("180.00");
-        assertThat(WeightStrategy.chargeableKilograms(money("2.1"))).isEqualByComparingTo("3");
-        assertThat(WeightStrategy.chargeableKilograms(money("3.0"))).isEqualByComparingTo("3");
+        assertThat(TieredWeightStrategy.chargeableKilograms(money("2.1"))).isEqualByComparingTo("3");
+        assertThat(TieredWeightStrategy.chargeableKilograms(money("3.0"))).isEqualByComparingTo("3");
     }
 
     @Test
@@ -113,7 +113,7 @@ class PricingStrategyTest {
         PricingContext context = context("400", "60", "1", "0",
                 "1", "10", "2", ServiceLevel.STANDARD, "0");
 
-        FeeBreakdown both = new CompositePricingStrategy(new ZoneMatrixStrategy(), new WeightStrategy())
+        FeeBreakdown both = new CompositePricingStrategy(new ZoneMatrixStrategy(), new TieredWeightStrategy())
                 .price(context, FeeBreakdown.empty());
         FeeBreakdown none = new CompositePricingStrategy().price(context, FeeBreakdown.empty());
 

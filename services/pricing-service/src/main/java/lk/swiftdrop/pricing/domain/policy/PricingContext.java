@@ -3,8 +3,10 @@ package lk.swiftdrop.pricing.domain.policy;
 import lk.swiftdrop.pricing.domain.model.RateCard;
 import lk.swiftdrop.pricing.domain.model.ServiceLevel;
 import lk.swiftdrop.pricing.domain.model.SizeClassRate;
+import lk.swiftdrop.pricing.domain.model.WeightTier;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -47,10 +49,16 @@ public record PricingContext(Parcel parcel, Rates rates) {
      * No rule needs to branch on that beyond its own concern, because {@code FeeBreakdown.plus}
      * drops a zero line rather than reporting it.
      */
-    public record Rates(RateCard card) {
+    public record Rates(RateCard card, List<WeightTier> weightTiers) {
 
         public Rates {
             Objects.requireNonNull(card, "card");
+            weightTiers = weightTiers == null ? List.of() : List.copyOf(weightTiers);
+        }
+
+        /** A lane priced by a single per-kilogram rate rather than by bands. */
+        public Rates(RateCard card) {
+            this(card, List.of());
         }
     }
 }

@@ -3,6 +3,7 @@ package lk.swiftdrop.pricing.application.query;
 import lk.swiftdrop.pricing.domain.model.Dimensions;
 import lk.swiftdrop.common.web.error.BusinessRuleViolationException;
 import lk.swiftdrop.pricing.application.port.out.VolumetricDivisorRepository;
+import lk.swiftdrop.pricing.application.port.out.WeightTierRepository;
 import lk.swiftdrop.pricing.application.port.out.DistrictAssignmentRepository;
 import lk.swiftdrop.pricing.application.port.out.SizeClassRepository;
 import lk.swiftdrop.pricing.domain.model.RateCard;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -39,6 +41,7 @@ class QuotePricingServiceTest {
     private SizeClassRepository sizeClasses;
     private RateCardSelectionService rateCards;
     private VolumetricDivisorRepository divisors;
+    private WeightTierRepository weightTiers;
     private QuotePricingService service;
 
     @BeforeEach
@@ -48,7 +51,10 @@ class QuotePricingServiceTest {
         rateCards = mock(RateCardSelectionService.class);
         divisors = mock(VolumetricDivisorRepository.class);
         when(divisors.findInForce(any())).thenReturn(Optional.empty());
-        service = new QuotePricingService(districts, sizeClasses, rateCards, divisors, new FeeCalculator());
+        weightTiers = mock(WeightTierRepository.class);
+        when(weightTiers.findByRateCard(any())).thenReturn(List.of());
+        service = new QuotePricingService(districts, sizeClasses, rateCards, divisors, weightTiers,
+                new FeeCalculator());
         when(districts.findActiveZoneCodeByDistrict("Colombo")).thenReturn(Optional.of(WP));
         when(districts.findActiveZoneCodeByDistrict("Kandy")).thenReturn(Optional.of(CP));
     }

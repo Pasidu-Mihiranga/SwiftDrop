@@ -142,7 +142,7 @@ class AdminRateCardControllerTest {
     @Test
     void creatingARateCardReturnsItsLocation() throws Exception {
         UUID id = UUID.randomUUID();
-        when(commands.create(any(), any(), any(), any(), any(), any(), any(), any()))
+        when(commands.create(any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(card(id, null));
 
         mvc.perform(post("/api/v1/admin/pricing/rate-cards")
@@ -176,7 +176,7 @@ class AdminRateCardControllerTest {
 
     @Test
     void reportsAnOverlappingPeriodAsAConflict() throws Exception {
-        when(commands.create(any(), any(), any(), any(), any(), any(), any(), any()))
+        when(commands.create(any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenThrow(new ConflictException("RATE_CARD_OVERLAP",
                         "A rate card for WP to CP is already in force from 2026-01-01"));
 
@@ -189,7 +189,7 @@ class AdminRateCardControllerTest {
 
     @Test
     void reportsAnUnknownZoneAsNotFound() throws Exception {
-        when(commands.create(any(), any(), any(), any(), any(), any(), any(), any()))
+        when(commands.create(any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenThrow(ResourceNotFoundException.of("Zone", "CP"));
 
         mvc.perform(post("/api/v1/admin/pricing/rate-cards")
