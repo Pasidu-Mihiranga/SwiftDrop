@@ -35,6 +35,8 @@ redis:
   enabled: false
 keycloak:
   enabled: false
+osrm:
+  enabled: true
 
 ingress:
   enabled: true
@@ -76,6 +78,8 @@ merchant-service:
 pricing-service:
   enabled: true
   replicaCount: 3
+  config:
+    OSRM_URL: http://osrm:5000
 parcel-service:
   enabled: true
 dispatch-service:
