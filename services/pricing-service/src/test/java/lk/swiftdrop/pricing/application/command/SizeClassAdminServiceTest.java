@@ -1,5 +1,6 @@
 package lk.swiftdrop.pricing.application.command;
 
+import lk.swiftdrop.pricing.domain.model.Dimensions;
 import lk.swiftdrop.common.web.error.ResourceNotFoundException;
 import lk.swiftdrop.pricing.application.port.out.SizeClassRepository;
 import lk.swiftdrop.pricing.domain.model.SizeClassCode;
@@ -20,7 +21,7 @@ import static org.mockito.Mockito.when;
 class SizeClassAdminServiceTest {
 
     private static final SizeClassRate CURRENT = new SizeClassRate(SizeClassCode.M,
-            new BigDecimal("5.00"), "40x30x20", new BigDecimal("1.250"));
+            new BigDecimal("5.00"), Dimensions.of("40", "30", "20"), new BigDecimal("1.250"));
 
     private final SizeClassRepository repository = mock(SizeClassRepository.class);
     private final SizeClassAdminService service = new SizeClassAdminService(repository);
@@ -36,7 +37,7 @@ class SizeClassAdminServiceTest {
     void preservesUnspecifiedLimitsWhenChangingTheMultiplier() {
         when(repository.findByCode(SizeClassCode.M)).thenReturn(Optional.of(CURRENT));
         SizeClassRate expected = new SizeClassRate(SizeClassCode.M,
-                CURRENT.maxWeightKg(), CURRENT.maxDimensionsCm(), new BigDecimal("1.400"));
+                CURRENT.maxWeightKg(), CURRENT.maxDimensions(), new BigDecimal("1.400"));
         when(repository.save(expected)).thenReturn(expected);
 
         assertThat(service.update(SizeClassCode.M, null, null, new BigDecimal("1.400"))).isEqualTo(expected);
@@ -47,11 +48,11 @@ class SizeClassAdminServiceTest {
     void updatesTheConfiguredWeightAndDimensionsTogether() {
         when(repository.findByCode(SizeClassCode.M)).thenReturn(Optional.of(CURRENT));
         SizeClassRate expected = new SizeClassRate(SizeClassCode.M,
-                new BigDecimal("7.50"), "45x35x25", new BigDecimal("1.300"));
+                new BigDecimal("7.50"), Dimensions.of("45", "35", "25"), new BigDecimal("1.300"));
         when(repository.save(expected)).thenReturn(expected);
 
         assertThat(service.update(SizeClassCode.M, expected.maxWeightKg(),
-                expected.maxDimensionsCm(), expected.multiplier())).isEqualTo(expected);
+                expected.maxDimensions(), expected.multiplier())).isEqualTo(expected);
     }
 
     @Test

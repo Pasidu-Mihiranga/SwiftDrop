@@ -1,5 +1,6 @@
 package lk.swiftdrop.pricing.domain.model;
 
+import lk.swiftdrop.pricing.domain.model.Dimensions;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -10,7 +11,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class SizeClassRateTest {
 
     private static SizeClassRate medium(BigDecimal multiplier) {
-        return new SizeClassRate(SizeClassCode.M, new BigDecimal("5.00"), "40x30x20", multiplier);
+        return new SizeClassRate(SizeClassCode.M, new BigDecimal("5.00"), Dimensions.of("40", "30", "20"), multiplier);
     }
 
     @Test
@@ -20,7 +21,7 @@ class SizeClassRateTest {
         assertThat(rate.accepts(new BigDecimal("4.99"))).isTrue();
         assertThat(rate.accepts(new BigDecimal("5.00"))).isTrue();
         assertThat(rate.accepts(new BigDecimal("5.01"))).isFalse();
-        assertThat(rate.accepts(null)).isFalse();
+        assertThat(rate.accepts((BigDecimal) null)).isFalse();
     }
 
     @Test
@@ -32,9 +33,9 @@ class SizeClassRateTest {
 
     @Test
     void requiresACodeAndAPositiveWeightLimit() {
-        assertThatThrownBy(() -> new SizeClassRate(null, BigDecimal.ONE, "40x30x20", BigDecimal.ONE))
+        assertThatThrownBy(() -> new SizeClassRate(null, BigDecimal.ONE, Dimensions.of("40", "30", "20"), BigDecimal.ONE))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new SizeClassRate(SizeClassCode.S, BigDecimal.ZERO, "x", BigDecimal.ONE))
+        assertThatThrownBy(() -> new SizeClassRate(SizeClassCode.S, BigDecimal.ZERO, Dimensions.of("40", "30", "20"), BigDecimal.ONE))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }

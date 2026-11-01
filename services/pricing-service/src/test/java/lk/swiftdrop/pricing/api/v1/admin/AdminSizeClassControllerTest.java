@@ -1,5 +1,6 @@
 package lk.swiftdrop.pricing.api.v1.admin;
 
+import lk.swiftdrop.pricing.domain.model.Dimensions;
 import lk.swiftdrop.common.security.KeycloakRealmRoleConverter;
 import lk.swiftdrop.common.security.SwiftDropSecurityAutoConfiguration;
 import lk.swiftdrop.common.web.SwiftDropWebAutoConfiguration;
@@ -61,7 +62,7 @@ class AdminSizeClassControllerTest {
     @Test
     void adminCanListAndUpdateExistingClass() throws Exception {
         SizeClassRate current = new SizeClassRate(SizeClassCode.M, new BigDecimal("5.00"),
-                "40x30x20", new BigDecimal("1.250"));
+                Dimensions.of("40", "30", "20"), new BigDecimal("1.250"));
         when(sizeClasses.list()).thenReturn(List.of(current));
         when(sizeClasses.update(SizeClassCode.M, null, null, new BigDecimal("1.250")))
                 .thenReturn(current);
