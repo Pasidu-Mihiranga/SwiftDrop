@@ -71,6 +71,8 @@ describe("adminNavigationFor", () => {
       "/admin/dispatch",
       "/admin/pricing/zones",
       "/admin/pricing/rate-cards",
+      "/admin/pricing/remote-areas",
+      "/admin/pricing/merchants",
     ]);
     expect(adminNavigationFor(["DISPATCHER"]).map((i) => i.href)).toEqual(["/admin", "/admin/dispatch"]);
   });
@@ -86,6 +88,8 @@ describe("adminNavigationFor", () => {
       "/admin/dispatch",
       "/admin/pricing/zones",
       "/admin/pricing/rate-cards",
+      "/admin/pricing/remote-areas",
+      "/admin/pricing/merchants",
     ]);
   });
 });

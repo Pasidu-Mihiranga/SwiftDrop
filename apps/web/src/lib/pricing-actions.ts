@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { gatewayFetch } from "@/lib/gateway";
 import type { Problem } from "@/lib/bff";
+import { isUuid, parseWeightBands, type LaneOverride } from "@/lib/pricing";
 
 /**
  * Server actions behind the admin pricing forms.
@@ -19,6 +20,10 @@ export interface ActionState {
   /** Field-level messages from a problem+json validation response. */
   errors?: Record<string, string>;
 }
+
+/** Row numbers of the repeated form fields. They are fixed so the forms work without scripting. */
+const WEIGHT_BAND_ROWS = [1, 2, 3, 4];
+const LANE_ROWS = [1, 2, 3];
 
 export async function assignDistrict(_previous: ActionState, formData: FormData): Promise<ActionState> {
   const district = String(formData.get("district") ?? "").trim();
@@ -64,6 +69,15 @@ export async function createRateCard(_previous: ActionState, formData: FormData)
       return { status: "error", message: "Enter every fee and multiplier.", errors: { [field]: "required" } };
     }
   }
+  const bands = parseWeightBands(
+    WEIGHT_BAND_ROWS.map((row) => ({
+      upToKg: String(formData.get(`bandUpTo${row}`) ?? ""),
+      perKgFee: String(formData.get(`bandRate${row}`) ?? ""),
+    })),
+    String(formData.get("bandRateAbove") ?? ""),
+  );
+  if (!bands.ok) return { status: "error", message: bands.message };
+
   const body = {
     fromZone: String(formData.get("fromZone") ?? "").trim().toUpperCase(),
     toZone: String(formData.get("toZone") ?? "").trim().toUpperCase(),
@@ -73,6 +87,7 @@ export async function createRateCard(_previous: ActionState, formData: FormData)
     codFeePct: Number(formData.get("codFeePct")),
     effectiveFrom: String(formData.get("effectiveFrom") ?? ""),
     effectiveTo: emptyToNull(formData.get("effectiveTo")),
+    ...(bands.tiers.length > 0 ? { tiers: bands.tiers } : {}),
   };
 
   if (!body.fromZone || !body.toZone || !body.effectiveFrom) {
@@ -131,6 +146,82 @@ export async function updateSizeClass(_previous: ActionState, formData: FormData
   return result.status === "ok" ? { status: "ok", message: `Size ${code} updated.` } : result;
 }
 
+export async function publishRemoteArea(_previous: ActionState, formData: FormData): Promise<ActionState> {
+  const district = String(formData.get("district") ?? "").trim();
+  const flatFee = Number(formData.get("flatFee"));
+  const effectiveFrom = String(formData.get("effectiveFrom") ?? "");
+  if (!district || !effectiveFrom || String(formData.get("flatFee") ?? "").trim() === "") {
+    return { status: "error", message: "Choose a district, a charge and a start date." };
+  }
+  if (!Number.isFinite(flatFee) || flatFee < 0) {
+    return { status: "error", message: "The charge must be a number of 0 or more." };
+  }
+
+  const result = await send(`/api/v1/admin/pricing/remote-areas/${encodeURIComponent(district)}`, "PUT", {
+    flatFee,
+    effectiveFrom,
+  });
+  return result.status === "ok" ? { status: "ok", message: `Charge for ${district} takes effect ${effectiveFrom}.` } : result;
+}
+
+export async function publishMerchantAgreement(_previous: ActionState, formData: FormData): Promise<ActionState> {
+  const merchantId = String(formData.get("merchantId") ?? "").trim();
+  const effectiveFrom = String(formData.get("effectiveFrom") ?? "");
+  if (!isUuid(merchantId)) {
+    return { status: "error", message: "Enter the merchant's id exactly as merchant-service shows it." };
+  }
+  if (!effectiveFrom) return { status: "error", message: "Choose the date the terms start." };
+
+  const discountPct = optionalNumber(formData.get("discountPct"));
+  const discountFlat = optionalNumber(formData.get("discountFlat"));
+  if ([discountPct, discountFlat].some((value) => value !== null && (!Number.isFinite(value) || value < 0))) {
+    return { status: "error", message: "Discounts must be numbers of 0 or more." };
+  }
+  if (discountPct !== null && discountPct > 1) {
+    return { status: "error", message: "The discount is a fraction, so 0.1 is 10 per cent." };
+  }
+
+  const lanes = readLaneOverrides(formData);
+  if (typeof lanes === "string") return { status: "error", message: lanes };
+
+  const result = await send(`/api/v1/admin/pricing/merchants/${encodeURIComponent(merchantId)}/agreements`, "PUT", {
+    discountPct,
+    discountFlat,
+    waivesRemoteArea: formData.get("waivesRemoteArea") === "on",
+    waivesInsurance: formData.get("waivesInsurance") === "on",
+    waivesCodFee: formData.get("waivesCodFee") === "on",
+    effectiveFrom,
+    laneOverrides: lanes,
+  });
+  return result.status === "ok" ? { status: "ok", message: `Terms take effect ${effectiveFrom}.` } : result;
+}
+
+/** The negotiated lanes filled in on the form, or a sentence saying what is wrong with one. */
+function readLaneOverrides(formData: FormData): LaneOverride[] | string {
+  const lanes: LaneOverride[] = [];
+  for (const row of LANE_ROWS) {
+    const fromZone = String(formData.get(`laneFrom${row}`) ?? "").trim().toUpperCase();
+    const toZone = String(formData.get(`laneTo${row}`) ?? "").trim().toUpperCase();
+    const discountPct = optionalNumber(formData.get(`laneDiscount${row}`));
+    const flatBaseFee = optionalNumber(formData.get(`laneBaseFee${row}`));
+    if (!fromZone && !toZone && discountPct === null && flatBaseFee === null) continue;
+    if (!fromZone || !toZone) return "A negotiated lane needs both zones.";
+    if (discountPct === null && flatBaseFee === null) {
+      return `Give ${fromZone} to ${toZone} a discount or a base fee.`;
+    }
+    if ([discountPct, flatBaseFee].some((value) => value !== null && (!Number.isFinite(value) || value < 0))) {
+      return `The terms for ${fromZone} to ${toZone} must be numbers of 0 or more.`;
+    }
+    lanes.push({ fromZone, toZone, discountPct, flatBaseFee });
+  }
+  return lanes;
+}
+
+function optionalNumber(value: FormDataEntryValue | null): number | null {
+  const text = emptyToNull(value);
+  return text === null ? null : Number(text);
+}
+
 function emptyToNull(value: FormDataEntryValue | null): string | null {
   const text = String(value ?? "").trim();
   return text === "" ? null : text;
@@ -158,6 +249,8 @@ async function send(path: string, method: "POST" | "PUT", body: unknown): Promis
     // Pricing data drives both admin screens and the public coverage list.
     revalidatePath("/admin/pricing/zones");
     revalidatePath("/admin/pricing/rate-cards");
+    revalidatePath("/admin/pricing/remote-areas");
+    revalidatePath("/admin/pricing/merchants");
     revalidatePath("/quote");
     return { status: "ok" };
   }

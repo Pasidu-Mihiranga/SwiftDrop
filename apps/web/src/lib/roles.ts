@@ -74,6 +74,8 @@ export function adminNavigationFor(roles: readonly string[]): { href: string; la
   if (roles.includes("ADMIN")) {
     items.push({ href: "/admin/pricing/zones", label: "Zones & districts" });
     items.push({ href: "/admin/pricing/rate-cards", label: "Rate cards" });
+    items.push({ href: "/admin/pricing/remote-areas", label: "Remote areas" });
+    items.push({ href: "/admin/pricing/merchants", label: "Merchant rates" });
   }
   return items;
 }

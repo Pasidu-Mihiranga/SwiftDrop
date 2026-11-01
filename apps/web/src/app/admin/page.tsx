@@ -14,7 +14,7 @@ export default async function AdminHome() {
         <section className="card space-y-3">
           <h2 className="font-semibold">Zones &amp; pricing</h2>
           <p className="text-sm text-slate-600">
-            Zone coverage, district assignments, size multipliers and the rate cards every quote is priced from.
+            Zone coverage, district assignments, size multipliers, the rate cards every quote is priced from, and the charges and negotiated terms layered on top.
           </p>
           <div className="flex flex-wrap gap-2">
             <Link className="btn-primary" href="/admin/pricing/zones">
@@ -22,6 +22,12 @@ export default async function AdminHome() {
             </Link>
             <Link className="btn-secondary" href="/admin/pricing/rate-cards">
               Rate cards
+            </Link>
+            <Link className="btn-secondary" href="/admin/pricing/remote-areas">
+              Remote areas
+            </Link>
+            <Link className="btn-secondary" href="/admin/pricing/merchants">
+              Merchant rates
             </Link>
           </div>
         </section>

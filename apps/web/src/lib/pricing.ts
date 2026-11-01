@@ -91,6 +91,46 @@ export interface RateCard {
   codFeePct: number;
   effectiveFrom: string;
   effectiveTo?: string | null;
+  /** Marginal weight bands. Empty means perKgFee applies to every kilogram. */
+  tiers?: WeightBand[];
+}
+
+/** One weight band. A null limit is the open-ended last band. */
+export interface WeightBand {
+  upToKg: number | null;
+  perKgFee: number;
+}
+
+/** A charge for serving a hard-to-reach district, versioned like a rate card. */
+export interface RemoteAreaCharge {
+  district: string;
+  flatFee: number;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+}
+
+export interface LaneOverride {
+  fromZone: string;
+  toZone: string;
+  /** Replaces the agreement's discount on this lane. A fraction, not a percentage. */
+  discountPct?: number | null;
+  /** Replaces the rate card's base fee on this lane. */
+  flatBaseFee?: number | null;
+}
+
+/** A merchant's negotiated terms, versioned like a rate card. */
+export interface MerchantAgreement {
+  id: string;
+  merchantId: string;
+  /** A fraction, not a percentage. */
+  discountPct: number;
+  discountFlat: number;
+  waivesRemoteArea: boolean;
+  waivesInsurance: boolean;
+  waivesCodFee: boolean;
+  laneOverrides: LaneOverride[];
+  effectiveFrom: string;
+  effectiveTo?: string | null;
 }
 
 export interface SizeClassRate {
@@ -367,10 +407,84 @@ export function formatEffectivePeriod(effectiveFrom: string, effectiveTo?: strin
   return effectiveTo ? `${effectiveFrom} to ${effectiveTo}` : `${effectiveFrom} onwards`;
 }
 
-/** Whether a card governs quotes on the given day. The end date is an exclusive bound. */
-export function isInForceOn(card: RateCard, on: string): boolean {
-  if (card.effectiveFrom > on) return false;
-  return !card.effectiveTo || card.effectiveTo > on;
+/** Whether a versioned row governs quotes on the given day. The end date is an exclusive bound. */
+export function isInForceOn(row: { effectiveFrom: string; effectiveTo?: string | null }, on: string): boolean {
+  if (row.effectiveFrom > on) return false;
+  return !row.effectiveTo || row.effectiveTo > on;
+}
+
+/** Where a versioned row stands today, in the words the admin screens use. */
+export function periodStatus(row: { effectiveFrom: string; effectiveTo?: string | null }, on: string): string {
+  if (isInForceOn(row, on)) return "In force";
+  return row.effectiveFrom > on ? "Scheduled" : "Superseded";
+}
+
+/** A card's weight charge in a sentence, or undefined when it has no bands. */
+export function describeWeightBands(tiers: readonly WeightBand[] | undefined): string | undefined {
+  if (!tiers || tiers.length === 0) return undefined;
+  return tiers
+    .map((band, index) => {
+      const rate = `${formatMoney(band.perKgFee)} per kg`;
+      if (band.upToKg === null) return index === 0 ? rate : `then ${rate}`;
+      return index === 0 ? `${rate} up to ${band.upToKg} kg` : `then ${rate} up to ${band.upToKg} kg`;
+    })
+    .join(", ");
+}
+
+/**
+ * Turns the band rows of the rate-card form into what the API takes, or says why it cannot.
+ *
+ * Blank rows are skipped, so an administrator fills in as many as the lane needs. The rate for
+ * everything above the last limit is asked for separately, because the API requires the last
+ * band to be open ended and a form should not leave that to be remembered.
+ */
+export function parseWeightBands(
+  rows: readonly { upToKg: string; perKgFee: string }[],
+  rateAboveLastBand: string,
+): { ok: true; tiers: WeightBand[] } | { ok: false; message: string } {
+  const filled = rows.filter((row) => row.upToKg.trim() !== "" || row.perKgFee.trim() !== "");
+  const rest = rateAboveLastBand.trim();
+  if (filled.length === 0) {
+    return rest === ""
+      ? { ok: true, tiers: [] }
+      : { ok: false, message: "Add at least one band limit, or clear the rate above the last band." };
+  }
+  if (filled.some((row) => row.upToKg.trim() === "" || row.perKgFee.trim() === "")) {
+    return { ok: false, message: "Each weight band needs both a limit and a rate." };
+  }
+  if (rest === "") return { ok: false, message: "Give the rate for weight above the last band." };
+
+  const tiers: WeightBand[] = filled.map((row) => ({ upToKg: Number(row.upToKg), perKgFee: Number(row.perKgFee) }));
+  tiers.push({ upToKg: null, perKgFee: Number(rest) });
+  if (tiers.some((band) => !Number.isFinite(band.perKgFee) || band.perKgFee < 0)) {
+    return { ok: false, message: "Band rates must be numbers of 0 or more." };
+  }
+  const limits = filled.map((row) => Number(row.upToKg));
+  if (limits.some((limit, index) => !Number.isFinite(limit) || limit <= 0 || (index > 0 && limit <= limits[index - 1]))) {
+    return { ok: false, message: "Band limits must be more than 0 and go up from one band to the next." };
+  }
+  return { ok: true, tiers };
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Whether a merchant identifier is worth sending to the API at all. */
+export function isUuid(value: string): boolean {
+  return UUID_PATTERN.test(value.trim());
+}
+
+/** What an agreement changes, in the words the admin list uses. */
+export function describeAgreement(agreement: MerchantAgreement): string {
+  const parts: string[] = [];
+  if (agreement.discountPct > 0) parts.push(`${formatPercent(agreement.discountPct)} off`);
+  if (agreement.discountFlat > 0) parts.push(`${formatMoney(agreement.discountFlat)} off each parcel`);
+  if (agreement.waivesRemoteArea) parts.push("no remote-area charge");
+  if (agreement.waivesInsurance) parts.push("no cover charge");
+  if (agreement.waivesCodFee) parts.push("no cash-on-delivery fee");
+  if (agreement.laneOverrides.length > 0) {
+    parts.push(`${agreement.laneOverrides.length} negotiated ${agreement.laneOverrides.length === 1 ? "lane" : "lanes"}`);
+  }
+  return parts.length > 0 ? parts.join(", ") : "Standard rates";
 }
 
 export function laneLabel(fromZone: string, toZone: string): string {

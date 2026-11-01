@@ -2,7 +2,15 @@ import Link from "next/link";
 import { PricingForm } from "@/components/pricing-form";
 import { closeRateCard, createRateCard } from "@/lib/pricing-actions";
 import { fetchAdminZones, fetchRateCards } from "@/lib/pricing-api";
-import { formatEffectivePeriod, formatMoney, formatPercent, isInForceOn, isoDate, laneLabel } from "@/lib/pricing";
+import {
+  describeWeightBands,
+  formatEffectivePeriod,
+  formatMoney,
+  formatPercent,
+  isInForceOn,
+  isoDate,
+  laneLabel,
+} from "@/lib/pricing";
 
 export const metadata = { title: "Rate cards" };
 
@@ -109,6 +117,7 @@ export default async function RateCardsAdminPage({
           <ul className="divide-y divide-slate-100 text-sm">
             {cards.content.map((card) => {
               const current = isInForceOn(card, today);
+              const bands = describeWeightBands(card.tiers);
               return (
                 <li key={card.id} className="space-y-2 py-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -125,10 +134,11 @@ export default async function RateCardsAdminPage({
                   </div>
                   <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-600 sm:grid-cols-4">
                     <Detail label="Base" value={formatMoney(card.baseFee)} />
-                    <Detail label="Per kg" value={formatMoney(card.perKgFee)} />
+                    <Detail label="Per kg" value={bands ? "See bands" : formatMoney(card.perKgFee)} />
                     <Detail label="Express" value={`x${card.expressMultiplier}`} />
                     <Detail label="Cash on delivery" value={formatPercent(card.codFeePct)} />
                   </dl>
+                  {bands ? <p className="text-xs text-slate-600">Weight: {bands}</p> : null}
                   <p className="text-xs text-slate-500">
                     {formatEffectivePeriod(card.effectiveFrom, card.effectiveTo)}
                   </p>
@@ -265,6 +275,37 @@ export default async function RateCardsAdminPage({
               <input id="effectiveTo" name="effectiveTo" type="date" className="input" />
             </span>
           </div>
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium text-slate-700">Weight bands (optional)</legend>
+            <p className="text-xs text-slate-500">
+              Each rate applies only to the kilograms inside its band, so a heavier parcel never pays less than a lighter
+              one. Leave these blank to charge the per-kilogram rate above for every kilogram.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {[1, 2, 3, 4].map((row) => (
+                <div key={row} className="grid grid-cols-2 gap-2">
+                  <span>
+                    <label className="block text-xs font-medium text-slate-700" htmlFor={`bandUpTo${row}`}>
+                      Band {row} up to (kg)
+                    </label>
+                    <input id={`bandUpTo${row}`} name={`bandUpTo${row}`} type="number" min="0.01" step="0.01" className="input" />
+                  </span>
+                  <span>
+                    <label className="block text-xs font-medium text-slate-700" htmlFor={`bandRate${row}`}>
+                      Per kg (LKR)
+                    </label>
+                    <input id={`bandRate${row}`} name={`bandRate${row}`} type="number" min="0" step="0.01" className="input" />
+                  </span>
+                </div>
+              ))}
+            </div>
+            <span className="block sm:w-1/2">
+              <label className="block text-xs font-medium text-slate-700" htmlFor="bandRateAbove">
+                Above the last band, per kg (LKR)
+              </label>
+              <input id="bandRateAbove" name="bandRateAbove" type="number" min="0" step="0.01" className="input" />
+            </span>
+          </fieldset>
           <p className="text-xs text-slate-500">
             Periods may not overlap for the same lane, so close the current rate first. A rate starting the day another
             ends leaves neither a gap nor an overlap.
