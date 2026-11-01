@@ -53,4 +53,12 @@ class RemoteAreaSurchargeEntity {
     BigDecimal getFlatFee() {
         return flatFee;
     }
+
+    LocalDate getEffectiveFrom() {
+        return effectiveFrom;
+    }
+
+    LocalDate getEffectiveTo() {
+        return effectiveTo;
+    }
 }

@@ -1,6 +1,7 @@
 package lk.swiftdrop.pricing.domain.model;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -14,7 +15,16 @@ import java.util.UUID;
  */
 public record MerchantAgreement(UUID id, UUID merchantId, BigDecimal discountPct, BigDecimal discountFlat,
                                 boolean waivesRemoteArea, boolean waivesInsurance, boolean waivesCodFee,
-                                List<LaneOverride> laneOverrides) {
+                                List<LaneOverride> laneOverrides,
+                                LocalDate effectiveFrom, LocalDate effectiveTo) {
+
+    /** Terms not yet tied to a period, as they are before being published. */
+    public MerchantAgreement(UUID id, UUID merchantId, BigDecimal discountPct, BigDecimal discountFlat,
+                             boolean waivesRemoteArea, boolean waivesInsurance, boolean waivesCodFee,
+                             List<LaneOverride> laneOverrides) {
+        this(id, merchantId, discountPct, discountFlat, waivesRemoteArea, waivesInsurance, waivesCodFee,
+                laneOverrides, null, null);
+    }
 
     public MerchantAgreement {
         if (merchantId == null) {

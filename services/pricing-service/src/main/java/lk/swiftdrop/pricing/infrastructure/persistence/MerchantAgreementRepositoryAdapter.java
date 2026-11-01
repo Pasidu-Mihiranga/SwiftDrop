@@ -43,6 +43,18 @@ class MerchantAgreementRepositoryAdapter implements MerchantAgreementRepository 
     }
 
     @Override
+    public List<MerchantAgreement> findAllInForce(LocalDate on) {
+        return agreements.findAllInForce(on).stream()
+                .map(MerchantAgreementRepositoryAdapter::toDomain)
+                .toList();
+    }
+
+    @Override
+    public boolean hasPeriodStartingOnOrAfter(UUID merchantId, LocalDate date) {
+        return agreements.existsByMerchantIdAndEffectiveFromGreaterThanEqual(merchantId, date);
+    }
+
+    @Override
     @Transactional
     public MerchantAgreement publish(MerchantAgreement agreement, LocalDate effectiveFrom) {
         agreements.findInForce(agreement.merchantId(), effectiveFrom)
@@ -71,6 +83,6 @@ class MerchantAgreementRepositoryAdapter implements MerchantAgreementRepository 
                 .toList();
         return new MerchantAgreement(entity.getId(), entity.getMerchantId(), entity.getDiscountPct(),
                 entity.getDiscountFlat(), entity.isWaivesRemoteArea(), entity.isWaivesInsurance(),
-                entity.isWaivesCodFee(), overrides);
+                entity.isWaivesCodFee(), overrides, entity.getEffectiveFrom(), entity.getEffectiveTo());
     }
 }

@@ -14,6 +14,9 @@ public interface RemoteAreaSurchargeRepository {
     /** Every surcharge ever configured, newest first, so an administrator can see the history. */
     java.util.List<RemoteAreaSurcharge> findAll();
 
+    /** Whether a period for this district already starts on or after a date. */
+    boolean hasPeriodStartingOnOrAfter(String district, LocalDate date);
+
     /**
      * Marks a district remote from a date.
      *

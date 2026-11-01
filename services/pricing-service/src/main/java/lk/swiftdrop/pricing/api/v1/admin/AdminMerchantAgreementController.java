@@ -6,7 +6,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lk.swiftdrop.pricing.api.dto.MerchantAgreementRequest;
 import lk.swiftdrop.pricing.api.dto.MerchantAgreementResponse;
-import lk.swiftdrop.pricing.application.port.out.MerchantAgreementRepository;
+import lk.swiftdrop.pricing.application.command.MerchantAgreementAdminService;
 import lk.swiftdrop.pricing.domain.model.LaneOverride;
 import lk.swiftdrop.pricing.domain.model.MerchantAgreement;
 import lk.swiftdrop.pricing.domain.model.ZoneCode;
@@ -28,27 +28,33 @@ import java.util.UUID;
  * has expired can still explain a quote issued while it applied.
  */
 @RestController
-@RequestMapping("/api/v1/admin/pricing/merchants/{merchantId}/agreements")
+@RequestMapping("/api/v1/admin/pricing/merchants")
 @PreAuthorize("hasRole('ADMIN')")
 @SecurityRequirement(name = "bearerAuth")
 @Tag(name = "admin-pricing", description = "Pricing configuration (ADMIN)")
 public class AdminMerchantAgreementController {
 
-    private final MerchantAgreementRepository agreements;
+    private final MerchantAgreementAdminService agreements;
 
-    public AdminMerchantAgreementController(MerchantAgreementRepository agreements) {
+    public AdminMerchantAgreementController(MerchantAgreementAdminService agreements) {
         this.agreements = agreements;
     }
 
     @GetMapping
+    @Operation(summary = "List the agreements in force today, one per merchant (ADMIN)")
+    public List<MerchantAgreementResponse> listInForce() {
+        return agreements.listInForce().stream().map(MerchantAgreementResponse::of).toList();
+    }
+
+    @GetMapping("/{merchantId}/agreements")
     @Operation(summary = "List a merchant's agreements, newest first (ADMIN)")
     public List<MerchantAgreementResponse> list(@PathVariable UUID merchantId) {
-        return agreements.findByMerchant(merchantId).stream()
+        return agreements.history(merchantId).stream()
                 .map(MerchantAgreementResponse::of)
                 .toList();
     }
 
-    @PutMapping
+    @PutMapping("/{merchantId}/agreements")
     @Operation(summary = "Publish a merchant's terms from a date (ADMIN)")
     public MerchantAgreementResponse publish(@PathVariable UUID merchantId,
                                              @Valid @RequestBody MerchantAgreementRequest request) {

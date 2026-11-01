@@ -22,4 +22,15 @@ interface MerchantAgreementJpaRepository extends JpaRepository<MerchantAgreement
                                               @Param("on") LocalDate on);
 
     List<MerchantAgreementEntity> findByMerchantIdOrderByEffectiveFromDesc(UUID merchantId);
+
+    /** Every merchant's terms on a date, so an administrator can start from a list. */
+    @Query("""
+            SELECT a FROM MerchantAgreementEntity a
+            WHERE a.effectiveFrom <= :on
+              AND (a.effectiveTo IS NULL OR a.effectiveTo > :on)
+            ORDER BY a.merchantId, a.effectiveFrom DESC
+            """)
+    List<MerchantAgreementEntity> findAllInForce(@Param("on") LocalDate on);
+
+    boolean existsByMerchantIdAndEffectiveFromGreaterThanEqual(UUID merchantId, LocalDate from);
 }

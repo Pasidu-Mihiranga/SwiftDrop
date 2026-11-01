@@ -34,7 +34,13 @@ class RemoteAreaSurchargeRepositoryAdapter implements RemoteAreaSurchargeReposit
 
     @Override
     public List<RemoteAreaSurcharge> findAll() {
-        return surcharges.findAll().stream().map(RemoteAreaSurchargeRepositoryAdapter::toDomain).toList();
+        return surcharges.findAllByOrderByDistrictAscEffectiveFromDesc().stream()
+                .map(RemoteAreaSurchargeRepositoryAdapter::toDomain).toList();
+    }
+
+    @Override
+    public boolean hasPeriodStartingOnOrAfter(String district, LocalDate date) {
+        return surcharges.existsByDistrictIgnoreCaseAndEffectiveFromGreaterThanEqual(district.strip(), date);
     }
 
     @Override
@@ -51,6 +57,7 @@ class RemoteAreaSurchargeRepositoryAdapter implements RemoteAreaSurchargeReposit
     }
 
     private static RemoteAreaSurcharge toDomain(RemoteAreaSurchargeEntity entity) {
-        return new RemoteAreaSurcharge(entity.getDistrict(), entity.getFlatFee());
+        return new RemoteAreaSurcharge(entity.getDistrict(), entity.getFlatFee(),
+                entity.getEffectiveFrom(), entity.getEffectiveTo());
     }
 }

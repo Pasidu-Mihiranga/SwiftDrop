@@ -3,6 +3,7 @@ package lk.swiftdrop.pricing.api.dto;
 import lk.swiftdrop.pricing.domain.model.MerchantAgreement;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -10,7 +11,8 @@ import java.util.UUID;
 public record MerchantAgreementResponse(UUID id, UUID merchantId, BigDecimal discountPct,
                                         BigDecimal discountFlat, boolean waivesRemoteArea,
                                         boolean waivesInsurance, boolean waivesCodFee,
-                                        List<LaneOverrideResponse> laneOverrides) {
+                                        List<LaneOverrideResponse> laneOverrides,
+                                        LocalDate effectiveFrom, LocalDate effectiveTo) {
 
     public record LaneOverrideResponse(String fromZone, String toZone, BigDecimal discountPct,
                                        BigDecimal flatBaseFee) {
@@ -23,6 +25,7 @@ public record MerchantAgreementResponse(UUID id, UUID merchantId, BigDecimal dis
                 agreement.laneOverrides().stream()
                         .map(o -> new LaneOverrideResponse(o.fromZone().value(), o.toZone().value(),
                                 o.discountPct(), o.flatBaseFee()))
-                        .toList());
+                        .toList(),
+                agreement.effectiveFrom(), agreement.effectiveTo());
     }
 }

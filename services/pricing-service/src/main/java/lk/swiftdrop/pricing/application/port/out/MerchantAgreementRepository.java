@@ -20,6 +20,12 @@ public interface MerchantAgreementRepository {
 
     List<MerchantAgreement> findByMerchant(UUID merchantId);
 
+    /** Every merchant's agreement in force on a date. */
+    List<MerchantAgreement> findAllInForce(LocalDate on);
+
+    /** Whether a period for this merchant already starts on or after a date. */
+    boolean hasPeriodStartingOnOrAfter(UUID merchantId, LocalDate date);
+
     /**
      * Publishes an agreement from a date, closing whatever it replaces.
      *

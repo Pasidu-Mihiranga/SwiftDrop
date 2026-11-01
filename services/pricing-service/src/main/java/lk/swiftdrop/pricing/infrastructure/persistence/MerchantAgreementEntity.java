@@ -106,6 +106,14 @@ class MerchantAgreementEntity {
         return waivesCodFee;
     }
 
+    LocalDate getEffectiveFrom() {
+        return effectiveFrom;
+    }
+
+    LocalDate getEffectiveTo() {
+        return effectiveTo;
+    }
+
     List<LaneOverrideEntity> getLaneOverrides() {
         return laneOverrides;
     }
