@@ -2,41 +2,22 @@
 %% GET /api/v1/pricing/quotes/{quoteId} - requires a bearer token.
 %% The reply is built from the stored snapshot only. An expired quote and an
 %% unknown id get the same 404.
+%% Simplified for the design report: one alt covers both failure cases.
 sequenceDiagram
     autonumber
     participant P as parcel-service
     participant GW as api-gateway
-    participant KC as Keycloak
-    participant QC as QuoteController
-    participant QLS as QuoteLookupService
-    participant CL as Clock
-    participant RD as RedisQuoteStore
+    participant PS as pricing-service
+    participant RD as Redis
 
-    Note over P: CreateParcelRequest carries the quoteId<br/>the customer was shown
+    Note over P: the booking request carries the<br/>quoteId the customer was shown
     P->>GW: GET /api/v1/pricing/quotes/{quoteId}<br/>Authorization: Bearer ...
-    GW->>KC: validate the JWT against the JWKS
-    alt token missing or invalid
-        GW-->>P: 401
-    else token valid
-        GW->>QC: forward
-        QC->>QLS: get(quoteId)
-        QLS->>RD: findById(quoteId)
-        alt no snapshot under that key
-            RD-->>QLS: empty
-            QLS-->>QC: ResourceNotFoundException
-            QC-->>P: 404 problem+json QUOTE_NOT_FOUND
-        else snapshot found
-            RD-->>QLS: QuoteSnapshot
-            QLS->>QLS: snapshot.quoteId equals the requested id?
-            QLS->>CL: instant()
-            alt now is not before expiresAt
-                QLS-->>QC: ResourceNotFoundException
-                QC-->>P: 404 problem+json QUOTE_NOT_FOUND
-                Note over QLS,P: the same answer as "unknown",<br/>so expiry cannot be probed
-            else still valid
-                QLS-->>QC: the stored snapshot, verbatim
-                QC-->>P: 200 fee, breakdown, zones, districts, weight,<br/>size class, service level, COD, issuedAt, expiresAt
-                Note over P: the booking is saved with the quoted fee
-            end
-        end
+    GW->>PS: validate the token,<br/>then forward
+    PS->>RD: findById(quoteId)
+    RD-->>PS: snapshot, or empty
+    alt found and still valid
+        PS-->>P: 200: the stored snapshot, verbatim<br/>(fee, breakdown, zones, expiresAt)
+    else unknown id, or expired
+        PS-->>P: 404 problem+json<br/>QUOTE_NOT_FOUND
     end
+    Note over GW,PS: expired and unknown give the same answer,<br/>so expiry cannot be probed
