@@ -145,7 +145,7 @@ components:
         recipient: { $ref: "#/components/schemas/Contact" }
         weightKg: { type: number, exclusiveMinimum: 0, maximum: 100 }
         sizeClass: { $ref: "common.v1.yaml#/components/schemas/SizeClass" }
-        serviceLevel: { type: string, enum: [STANDARD, EXPRESS], default: STANDARD }
+        serviceLevel: { type: string, enum: [STANDARD, EXPRESS, SAME_DAY], default: STANDARD }
         codAmount: { type: number, minimum: 0 }
     StatusUpdateRequest:
       type: object
