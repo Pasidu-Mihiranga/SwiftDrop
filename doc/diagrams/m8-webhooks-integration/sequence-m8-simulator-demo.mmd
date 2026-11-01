@@ -1,0 +1,30 @@
+%% M8 sequence: merchant simulator demo. Planned design: follows contracts/openapi/webhook-service.v1.yaml and issue #21.
+sequenceDiagram
+    autonumber
+    actor P0 as Presenter
+    participant P1 as merchant-simulator
+    participant P2 as Keycloak
+    participant P3 as api-gateway
+    participant P4 as parcel-service
+    participant P5 as webhook-service
+        P0->>P1: click Create order
+        P1->>P2: POST /token grant_type=client_credentials, client merchant-demo
+        P2-->>P1: access token with merchant_id claim
+        P1->>P3: POST /api/v1/merchant/orders, bearer + Idempotency-Key
+        P3->>P4: forward (JWT valid, rate limit per client)
+        P4-->>P1: 201 parcel, the same key returns the same parcel
+        Note over P4,P5: ParcelCreated reaches webhook-service over Kafka (see sequence-m8-signed-delivery)
+        P5->>P1: POST /webhooks, signed parcel.created
+        alt fail mode is on
+            P1-->>P5: 503: webhook-service retries, then dead-letters
+        else fail mode is off
+            P1->>P1: recompute HMAC over the raw body, constant-time compare, t within 5 minutes
+            alt signature wrong or t too old
+                P1-->>P5: 400, shown as rejected on the page
+            else valid
+                P1->>P1: keep the event in memory, de-duplicated by id
+                P1-->>P5: 200
+                P1-->>P0: page lists the event as verified
+            end
+        end
+        P0->>P1: toggle fail mode to show retries and DLQ
