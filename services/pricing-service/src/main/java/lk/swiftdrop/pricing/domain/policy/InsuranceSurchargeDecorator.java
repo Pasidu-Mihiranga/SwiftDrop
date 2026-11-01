@@ -25,6 +25,9 @@ public final class InsuranceSurchargeDecorator extends PricingDecorator {
 
     @Override
     protected BigDecimal surcharge(PricingContext context, BigDecimal chargedSoFar) {
+        if (context.rates().waivesInsurance()) {
+            return BigDecimal.ZERO;
+        }
         BigDecimal declaredValue = context.parcel().declaredValue();
         if (declaredValue == null || declaredValue.signum() <= 0) {
             return BigDecimal.ZERO;

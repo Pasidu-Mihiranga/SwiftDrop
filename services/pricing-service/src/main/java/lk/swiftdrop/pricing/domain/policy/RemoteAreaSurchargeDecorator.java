@@ -28,6 +28,12 @@ public final class RemoteAreaSurchargeDecorator extends PricingDecorator {
 
     @Override
     protected BigDecimal surcharge(PricingContext context, BigDecimal chargedSoFar) {
+        // A merchant may have negotiated this away. The waiver is read here rather than in a
+        // rule of its own because a decorator can only add to the breakdown, never suppress a
+        // line beneath it, and that restriction is what keeps the lines summing to the fee.
+        if (context.rates().waivesRemoteArea()) {
+            return BigDecimal.ZERO;
+        }
         return fee(context.rates().originRemoteArea()).add(fee(context.rates().destinationRemoteArea()));
     }
 

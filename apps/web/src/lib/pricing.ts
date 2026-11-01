@@ -12,7 +12,7 @@ export type SizeClass = (typeof SIZE_CLASSES)[number];
 export const SERVICE_LEVELS = ["STANDARD", "EXPRESS"] as const;
 export type ServiceLevel = (typeof SERVICE_LEVELS)[number];
 
-export const PRICING_RULES = ["BASE", "WEIGHT", "SIZE", "EXPRESS", "REMOTE_AREA", "INSURANCE", "COD"] as const;
+export const PRICING_RULES = ["BASE", "WEIGHT", "SIZE", "EXPRESS", "REMOTE_AREA", "MERCHANT_DISCOUNT", "INSURANCE", "COD"] as const;
 export type PricingRule = (typeof PRICING_RULES)[number];
 
 /** Upper bound published by the quote contract. */
@@ -70,6 +70,8 @@ export interface Quote {
   codAmount?: number;
   /** What the parcel was insured for. Absent when sent without cover. */
   declaredValue?: number;
+  /** The negotiated terms applied. Absent for a quote at the counter rate. */
+  agreementId?: string;
   issuedAt: string;
   expiresAt: string;
 }
@@ -274,6 +276,7 @@ const RULE_LABELS: Record<PricingRule, string> = {
   SIZE: "Parcel size",
   EXPRESS: "Express delivery",
   REMOTE_AREA: "Hard-to-reach area",
+  MERCHANT_DISCOUNT: "Your agreed discount",
   INSURANCE: "Cover",
   COD: "Cash on delivery",
 };

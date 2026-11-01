@@ -19,10 +19,17 @@ info:
         EXPRESS  = (subtotal + SIZE) * (express_multiplier - 1)
         REMOTE   = origin_remote_fee + destination_remote_fee
     INSURE   = max(band.flat_fee, declaredValue * band.pct)
+    DISCOUNT = -(charged_so_far * agreement.pct + agreement.flat)
     COD      = codAmount * cod_fee_pct
 
     REMOTE and INSURE are flat amounts rather than proportions, so neither compounds with
     the rules beneath it, and nor does COD.
+
+    DISCOUNT is the only negative line, and the only one that needs a token. Quote creation
+    stays anonymous; where the caller presents a token carrying a merchant_id, the terms in
+    force for that merchant are applied. It sits above the charges for carrying the parcel
+    and below cover and cash handling, so it discounts the delivery and not those two, and
+    it can never take the fee below zero.
 
     Amounts are LKR with two decimals, rounded HALF_UP per breakdown line, so the lines
     always sum exactly to `fee`. Rules that do not apply are omitted from the breakdown
@@ -445,7 +452,7 @@ components:
       description: |
         Identifies one line of the fee breakdown. Lines are returned in this order and rules
         that do not apply are omitted.
-      enum: [BASE, WEIGHT, SIZE, EXPRESS, REMOTE_AREA, INSURANCE, COD]
+      enum: [BASE, WEIGHT, SIZE, EXPRESS, REMOTE_AREA, MERCHANT_DISCOUNT, INSURANCE, COD]
     BreakdownLine:
       type: object
       required: [rule, amount]
@@ -663,6 +670,12 @@ components:
           type: number
           minimum: 0
           description: What the parcel was insured for. Absent when sent without cover.
+        agreementId:
+          type: string
+          format: uuid
+          description: >
+            The negotiated terms applied. Absent when the quote was priced at the counter
+            rate, which is every anonymous quote.
         declaredSizeClass:
           $ref: "common.v1.yaml#/components/schemas/SizeClass"
           description: >

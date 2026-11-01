@@ -1,6 +1,7 @@
 package lk.swiftdrop.pricing.domain.policy;
 
 import lk.swiftdrop.pricing.domain.model.InsuranceBand;
+import lk.swiftdrop.pricing.domain.model.MerchantAgreement;
 import lk.swiftdrop.pricing.domain.model.RateCard;
 import lk.swiftdrop.pricing.domain.model.RemoteAreaSurcharge;
 import lk.swiftdrop.pricing.domain.model.ServiceLevel;
@@ -60,7 +61,7 @@ public record PricingContext(Parcel parcel, Rates rates) {
      */
     public record Rates(RateCard card, List<WeightTier> weightTiers,
                         RemoteAreaSurcharge originRemoteArea, RemoteAreaSurcharge destinationRemoteArea,
-                        List<InsuranceBand> insuranceBands) {
+                        List<InsuranceBand> insuranceBands, MerchantAgreement merchantAgreement) {
 
         public Rates {
             Objects.requireNonNull(card, "card");
@@ -70,12 +71,31 @@ public record PricingContext(Parcel parcel, Rates rates) {
 
         /** A lane priced by a single per-kilogram rate, with no surcharges configured. */
         public Rates(RateCard card) {
-            this(card, List.of(), null, null, List.of());
+            this(card, List.of(), null, null, List.of(), null);
         }
 
         /** A lane with weight bands and nothing else configured. */
         public Rates(RateCard card, List<WeightTier> weightTiers) {
-            this(card, weightTiers, null, null, List.of());
+            this(card, weightTiers, null, null, List.of(), null);
+        }
+
+        /** A lane with surcharges but no merchant agreement, which is any anonymous quote. */
+        public Rates(RateCard card, List<WeightTier> weightTiers, RemoteAreaSurcharge originRemoteArea,
+                     RemoteAreaSurcharge destinationRemoteArea, List<InsuranceBand> insuranceBands) {
+            this(card, weightTiers, originRemoteArea, destinationRemoteArea, insuranceBands, null);
+        }
+
+        /** Whether this quote is priced under a negotiated agreement. */
+        public boolean waivesRemoteArea() {
+            return merchantAgreement != null && merchantAgreement.waivesRemoteArea();
+        }
+
+        public boolean waivesInsurance() {
+            return merchantAgreement != null && merchantAgreement.waivesInsurance();
+        }
+
+        public boolean waivesCodFee() {
+            return merchantAgreement != null && merchantAgreement.waivesCodFee();
         }
     }
 }

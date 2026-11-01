@@ -24,6 +24,8 @@ import java.util.UUID;
  * @param sizeClass          the class charged for
  * @param declaredSizeClass  the class the customer selected; differs when measurements moved it
  * @param declaredValue      what the parcel was insured for; null when sent without cover
+ * @param merchantId         the merchant the quote was issued to; null for an anonymous customer
+ * @param agreementId        the negotiated terms applied; null when none were
  */
 public record QuoteSnapshot(UUID quoteId, Money fee, List<FeeBreakdown.Line> breakdown,
                             String fromZone, String toZone, String fromDistrict, String toDistrict,
@@ -31,7 +33,8 @@ public record QuoteSnapshot(UUID quoteId, Money fee, List<FeeBreakdown.Line> bre
                             BigDecimal codAmount, Instant issuedAt, Instant expiresAt,
                             BigDecimal chargeableWeightKg, BigDecimal volumetricWeightKg,
                             WeightBasis weightBasis, Dimensions dimensionsCm,
-                            SizeClassCode declaredSizeClass, BigDecimal declaredValue) {
+                            SizeClassCode declaredSizeClass, BigDecimal declaredValue,
+                            UUID merchantId, UUID agreementId) {
 
     public QuoteSnapshot {
         breakdown = List.copyOf(breakdown);
@@ -49,7 +52,7 @@ public record QuoteSnapshot(UUID quoteId, Money fee, List<FeeBreakdown.Line> bre
                          BigDecimal codAmount, Instant issuedAt, Instant expiresAt) {
         this(quoteId, fee, breakdown, fromZone, toZone, fromDistrict, toDistrict, weightKg,
                 sizeClass, serviceLevel, codAmount, issuedAt, expiresAt,
-                weightKg, null, WeightBasis.ACTUAL, null, sizeClass, null);
+                weightKg, null, WeightBasis.ACTUAL, null, sizeClass, null, null, null);
     }
 
     /** Whether the parcel was measured into a class other than the one selected. */

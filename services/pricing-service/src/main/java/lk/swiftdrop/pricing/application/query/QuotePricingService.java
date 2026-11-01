@@ -3,11 +3,13 @@ package lk.swiftdrop.pricing.application.query;
 import lk.swiftdrop.common.web.error.BusinessRuleViolationException;
 import lk.swiftdrop.pricing.application.port.out.DistrictAssignmentRepository;
 import lk.swiftdrop.pricing.application.port.out.InsuranceBandRepository;
+import lk.swiftdrop.pricing.application.port.out.MerchantAgreementRepository;
 import lk.swiftdrop.pricing.application.port.out.RemoteAreaSurchargeRepository;
 import lk.swiftdrop.pricing.application.port.out.SizeClassRepository;
 import lk.swiftdrop.pricing.application.port.out.VolumetricDivisorRepository;
 import lk.swiftdrop.pricing.application.port.out.WeightTierRepository;
 import lk.swiftdrop.pricing.domain.model.ChargeableWeight;
+import lk.swiftdrop.pricing.domain.model.MerchantAgreement;
 import lk.swiftdrop.pricing.domain.model.RateCard;
 import lk.swiftdrop.pricing.domain.model.SizeClassRate;
 import lk.swiftdrop.pricing.domain.model.ZoneCode;
@@ -34,12 +36,14 @@ public class QuotePricingService {
     private final WeightTierRepository weightTiers;
     private final RemoteAreaSurchargeRepository remoteAreas;
     private final InsuranceBandRepository insuranceBands;
+    private final MerchantAgreementRepository merchantAgreements;
     private final FeeCalculator calculator;
 
     public QuotePricingService(DistrictAssignmentRepository districts, SizeClassRepository sizeClasses,
                                RateCardSelectionService rateCards, VolumetricDivisorRepository divisors,
                                WeightTierRepository weightTiers, RemoteAreaSurchargeRepository remoteAreas,
-                               InsuranceBandRepository insuranceBands, FeeCalculator calculator) {
+                               InsuranceBandRepository insuranceBands,
+                               MerchantAgreementRepository merchantAgreements, FeeCalculator calculator) {
         this.districts = districts;
         this.sizeClasses = sizeClasses;
         this.rateCards = rateCards;
@@ -47,6 +51,7 @@ public class QuotePricingService {
         this.weightTiers = weightTiers;
         this.remoteAreas = remoteAreas;
         this.insuranceBands = insuranceBands;
+        this.merchantAgreements = merchantAgreements;
         this.calculator = calculator;
     }
 
@@ -61,14 +66,17 @@ public class QuotePricingService {
         SizeClassRate charged = chargedSizeClass(input);
 
         RateCard card = rateCards.select(fromZone, toZone, quoteDate);
+        MerchantAgreement agreement =
+                merchantAgreements.findInForce(input.merchantId(), quoteDate).orElse(null);
         PricingContext context = new PricingContext(
                 new PricingContext.Parcel(weight.actualKg(), weight.chargeableKg(), charged,
                         input.serviceLevel(), input.codAmount(), input.declaredValue()),
                 new PricingContext.Rates(card, weightTiers.findByRateCard(card.id()),
                         remoteAreas.findInForce(input.fromDistrict(), quoteDate).orElse(null),
                         remoteAreas.findInForce(input.toDistrict(), quoteDate).orElse(null),
-                        insuranceBands.findInForce(quoteDate)));
-        return new PreparedQuote(input, fromZone, toZone, calculator.calculate(context), weight, charged);
+                        insuranceBands.findInForce(quoteDate), agreement));
+        return new PreparedQuote(input, fromZone, toZone, calculator.calculate(context), weight, charged,
+                agreement == null ? null : agreement.id());
     }
 
     /**

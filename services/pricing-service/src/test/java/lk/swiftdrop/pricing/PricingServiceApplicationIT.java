@@ -43,6 +43,8 @@ class PricingServiceApplicationIT {
     @Autowired
     private lk.swiftdrop.pricing.application.port.out.RemoteAreaSurchargeRepository remoteAreas;
     @Autowired
+    private lk.swiftdrop.pricing.application.port.out.MerchantAgreementRepository merchantAgreements;
+    @Autowired
     private ObjectMapper mapper;
 
     @Test
@@ -181,5 +183,49 @@ class PricingServiceApplicationIT {
                         .content("{\"fromDistrict\":\"Jaffna\",\"toDistrict\":\"Mannar\",\"weightKg\":2,\"sizeClass\":\"M\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.breakdown[?(@.rule=='REMOTE_AREA')].amount").value(650.00));
+    }
+
+    @Test
+    void appliesAMerchantsNegotiatedRateOnlyWhenItsTokenIsPresented() throws Exception {
+        java.util.UUID merchant = java.util.UUID.randomUUID();
+        merchantAgreements.publish(new lk.swiftdrop.pricing.domain.model.MerchantAgreement(
+                        null, merchant, new java.math.BigDecimal("0.2000"), java.math.BigDecimal.ZERO,
+                        false, false, false, java.util.List.of()),
+                java.time.LocalDate.of(2026, 1, 1));
+        String body = "{\"fromDistrict\":\"Colombo\",\"toDistrict\":\"Kandy\",\"weightKg\":2,\"sizeClass\":\"M\"}";
+
+        // The same request without a token is the counter price, and the path stays anonymous.
+        String anonymous = mvc.perform(post("/api/v1/pricing/quotes")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.agreementId").doesNotExist())
+                .andExpect(jsonPath("$.breakdown[?(@.rule=='MERCHANT_DISCOUNT')]").isEmpty())
+                .andReturn().getResponse().getContentAsString();
+
+        String negotiated = mvc.perform(post("/api/v1/pricing/quotes")
+                        .contentType(MediaType.APPLICATION_JSON).content(body)
+                        .with(jwt().jwt(token -> token.claim("merchant_id", merchant.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.agreementId").exists())
+                .andReturn().getResponse().getContentAsString();
+
+        var counter = new java.math.BigDecimal(mapper.readTree(anonymous).get("fee").get("amount").asString());
+        var discounted = new java.math.BigDecimal(mapper.readTree(negotiated).get("fee").get("amount").asString());
+        assertThat(discounted).isLessThan(counter);
+        // The discount is a line like any other, so the breakdown still reconciles.
+        var lines = mapper.readTree(negotiated).get("breakdown").valueStream()
+                .map(line -> new java.math.BigDecimal(line.get("amount").asString()))
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+        assertThat(lines).isEqualByComparingTo(discounted);
+    }
+
+    @Test
+    void ignoresAMalformedMerchantClaimRatherThanRefusingTheQuote() throws Exception {
+        mvc.perform(post("/api/v1/pricing/quotes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fromDistrict\":\"Colombo\",\"toDistrict\":\"Kandy\",\"weightKg\":2,\"sizeClass\":\"M\"}")
+                        .with(jwt().jwt(token -> token.claim("merchant_id", "not-a-uuid"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.agreementId").doesNotExist());
     }
 }
