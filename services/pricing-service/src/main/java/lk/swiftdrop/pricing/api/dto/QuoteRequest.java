@@ -51,10 +51,17 @@ public record QuoteRequest(
     }
 
     public QuotePricingInput toPricingInput() {
+        return toPricingInput(null);
+    }
+
+    /**
+     * @param merchantId the merchant the caller acts for, or null for an anonymous customer
+     */
+    public QuotePricingInput toPricingInput(java.util.UUID merchantId) {
         return new QuotePricingInput(fromDistrict.strip(), toDistrict.strip(), weightKg, sizeClass,
                 serviceLevel == null ? ServiceLevel.STANDARD : serviceLevel,
                 codAmount == null ? BigDecimal.ZERO : codAmount,
                 lengthCm == null ? null : new Dimensions(lengthCm, widthCm, heightCm),
-                declaredValue);
+                declaredValue, merchantId);
     }
 }

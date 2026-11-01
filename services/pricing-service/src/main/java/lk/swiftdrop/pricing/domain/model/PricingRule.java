@@ -8,5 +8,5 @@ package lk.swiftdrop.pricing.domain.model;
  * charge for carrying the parcel down to the charges layered on top of it.
  */
 public enum PricingRule {
-    BASE, WEIGHT, SIZE, EXPRESS, REMOTE_AREA, INSURANCE, COD
+    BASE, WEIGHT, SIZE, EXPRESS, REMOTE_AREA, MERCHANT_DISCOUNT, INSURANCE, COD
 }

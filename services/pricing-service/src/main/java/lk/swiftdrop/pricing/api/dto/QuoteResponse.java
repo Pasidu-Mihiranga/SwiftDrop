@@ -25,6 +25,7 @@ import java.util.UUID;
  * @param chargeableWeightKg what the parcel was billed as; equals weightKg unless it is bulky
  * @param volumetricWeightKg what its volume came to; absent when no measurements were given
  * @param declaredSizeClass  present only when measurements put the parcel in another class
+ * @param agreementId        the negotiated terms applied; absent for a counter-price quote
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record QuoteResponse(UUID quoteId, Money fee, List<BreakdownLineResponse> breakdown,
@@ -33,7 +34,7 @@ public record QuoteResponse(UUID quoteId, Money fee, List<BreakdownLineResponse>
                             BigDecimal codAmount, Instant issuedAt, Instant expiresAt,
                             BigDecimal chargeableWeightKg, BigDecimal volumetricWeightKg,
                             WeightBasis weightBasis, SizeClassCode declaredSizeClass,
-                            BigDecimal declaredValue) {
+                            BigDecimal declaredValue, UUID agreementId) {
 
     /** An amount and its currency. Mirrors the shared Money schema in common.v1.yaml. */
     public record Money(BigDecimal amount, String currency) { }
