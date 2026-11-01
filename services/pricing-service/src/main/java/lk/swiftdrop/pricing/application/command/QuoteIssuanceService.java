@@ -52,6 +52,9 @@ public class QuoteIssuanceService {
                 input.toDistrict(), input.origin(), input.destination(), quoteDate).orElse(null);
         DistanceRate distanceRate = distance == null ? null
                 : laneDistances.rateInForce(quoteDate).orElse(null);
+        if (distance != null) {
+            metrics.laneDistanceResolved(distance.source());
+        }
         PreparedQuote prepared = pricing.prepare(input, quoteDate, distance, distanceRate);
         QuoteSnapshot snapshot = new QuoteSnapshot(UUID.randomUUID(),
                 new QuoteSnapshot.Money(prepared.breakdown().fee(), "LKR"), prepared.breakdown().lines(),

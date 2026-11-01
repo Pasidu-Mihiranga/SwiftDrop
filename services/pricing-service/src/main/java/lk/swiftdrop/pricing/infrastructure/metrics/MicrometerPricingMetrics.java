@@ -1,8 +1,10 @@
 package lk.swiftdrop.pricing.infrastructure.metrics;
 
+import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
 import lk.swiftdrop.pricing.application.port.out.PricingMetrics;
+import lk.swiftdrop.pricing.domain.model.DistanceSource;
 import lk.swiftdrop.pricing.domain.model.ServiceLevel;
 import lk.swiftdrop.pricing.domain.model.SizeClassCode;
 import org.springframework.stereotype.Component;
@@ -24,6 +26,7 @@ public class MicrometerPricingMetrics implements PricingMetrics {
     private static final String QUOTES_ISSUED = "pricing.quotes.issued";
     private static final String QUOTE_FEE = "pricing.quote.fee";
     private static final String SELECTION_FAILURES = "pricing.rate_card.selection.failures";
+    private static final String LANE_DISTANCE = "pricing.lane_distance.resolved";
 
     private final MeterRegistry registry;
 
@@ -47,6 +50,15 @@ public class MicrometerPricingMetrics implements PricingMetrics {
                 .publishPercentiles(0.5, 0.95)
                 .register(registry)
                 .record(fee.doubleValue());
+    }
+
+    @Override
+    public void laneDistanceResolved(DistanceSource source) {
+        Counter.builder(LANE_DISTANCE)
+                .description("Same-day lanes measured, by how the distance was obtained")
+                .tag("source", source.name())
+                .register(registry)
+                .increment();
     }
 
     @Override

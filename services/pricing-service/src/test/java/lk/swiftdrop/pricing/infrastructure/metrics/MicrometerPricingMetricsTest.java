@@ -78,6 +78,9 @@ class MicrometerPricingMetricsTest {
         // Districts, zone pairs and quote ids must never become tags: 81 lanes times a series
         // each is how a Prometheus instance is brought down.
         //
+        // "source" is ROUTED or ESTIMATED: two values, and never a coordinate pair, which is
+        // the obvious wrong thing to tag a distance meter with.
+        //
         // "phi" is Micrometer's own tag on the percentile gauges that publishPercentiles
         // creates, and it is bounded by the two quantiles configured in the adapter.
         assertThat(registry.getMeters())
@@ -86,6 +89,7 @@ class MicrometerPricingMetricsTest {
                         .allMatch(key -> key.equals("service_level")
                                 || key.equals("size_class")
                                 || key.equals("reason")
+                                || key.equals("source")
                                 || key.equals("phi")));
     }
 }
