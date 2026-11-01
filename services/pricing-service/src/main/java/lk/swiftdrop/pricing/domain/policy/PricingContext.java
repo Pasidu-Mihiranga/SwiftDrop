@@ -1,6 +1,8 @@
 package lk.swiftdrop.pricing.domain.policy;
 
+import lk.swiftdrop.pricing.domain.model.InsuranceBand;
 import lk.swiftdrop.pricing.domain.model.RateCard;
+import lk.swiftdrop.pricing.domain.model.RemoteAreaSurcharge;
 import lk.swiftdrop.pricing.domain.model.ServiceLevel;
 import lk.swiftdrop.pricing.domain.model.SizeClassRate;
 import lk.swiftdrop.pricing.domain.model.WeightTier;
@@ -31,7 +33,14 @@ public record PricingContext(Parcel parcel, Rates rates) {
      *                           and equal to {@code actualWeightKg} when no dimensions were given
      */
     public record Parcel(BigDecimal actualWeightKg, BigDecimal chargeableWeightKg,
-                         SizeClassRate sizeClass, ServiceLevel serviceLevel, BigDecimal codAmount) {
+                         SizeClassRate sizeClass, ServiceLevel serviceLevel, BigDecimal codAmount,
+                         BigDecimal declaredValue) {
+
+        /** A parcel sent without cover. */
+        public Parcel(BigDecimal actualWeightKg, BigDecimal chargeableWeightKg, SizeClassRate sizeClass,
+                      ServiceLevel serviceLevel, BigDecimal codAmount) {
+            this(actualWeightKg, chargeableWeightKg, sizeClass, serviceLevel, codAmount, null);
+        }
 
         public Parcel {
             Objects.requireNonNull(actualWeightKg, "actualWeightKg");
@@ -49,16 +58,24 @@ public record PricingContext(Parcel parcel, Rates rates) {
      * No rule needs to branch on that beyond its own concern, because {@code FeeBreakdown.plus}
      * drops a zero line rather than reporting it.
      */
-    public record Rates(RateCard card, List<WeightTier> weightTiers) {
+    public record Rates(RateCard card, List<WeightTier> weightTiers,
+                        RemoteAreaSurcharge originRemoteArea, RemoteAreaSurcharge destinationRemoteArea,
+                        List<InsuranceBand> insuranceBands) {
 
         public Rates {
             Objects.requireNonNull(card, "card");
             weightTiers = weightTiers == null ? List.of() : List.copyOf(weightTiers);
+            insuranceBands = insuranceBands == null ? List.of() : List.copyOf(insuranceBands);
         }
 
-        /** A lane priced by a single per-kilogram rate rather than by bands. */
+        /** A lane priced by a single per-kilogram rate, with no surcharges configured. */
         public Rates(RateCard card) {
-            this(card, List.of());
+            this(card, List.of(), null, null, List.of());
+        }
+
+        /** A lane with weight bands and nothing else configured. */
+        public Rates(RateCard card, List<WeightTier> weightTiers) {
+            this(card, weightTiers, null, null, List.of());
         }
     }
 }

@@ -47,7 +47,7 @@ public class QuoteIssuanceService {
                 prepared.sizeClass().code(), input.serviceLevel(), input.codAmount(),
                 issuedAt, issuedAt.plus(ttl),
                 prepared.weight().chargeableKg(), prepared.weight().volumetricKg(),
-                prepared.weight().basis(), input.dimensions(), input.sizeClass());
+                prepared.weight().basis(), input.dimensions(), input.sizeClass(), input.declaredValue());
         Duration remaining = Duration.between(clock.instant(), snapshot.expiresAt());
         if (remaining.isZero() || remaining.isNegative()) {
             throw new IllegalStateException("Quote expired before it could be stored");

@@ -11,15 +11,16 @@ import java.math.BigDecimal;
  *
  * @param sizeClass  the class the customer selected; the charged class may differ once the
  *                   parcel is measured
- * @param dimensions null when the customer gave no measurements
+ * @param dimensions    null when the customer gave no measurements
+ * @param declaredValue what the customer says the parcel is worth; null buys no cover
  */
 public record QuotePricingInput(String fromDistrict, String toDistrict, BigDecimal weightKg,
                                 SizeClassCode sizeClass, ServiceLevel serviceLevel, BigDecimal codAmount,
-                                Dimensions dimensions) {
+                                Dimensions dimensions, BigDecimal declaredValue) {
 
-    /** A parcel the customer did not measure. */
+    /** A parcel the customer did not measure and did not insure. */
     public QuotePricingInput(String fromDistrict, String toDistrict, BigDecimal weightKg,
                              SizeClassCode sizeClass, ServiceLevel serviceLevel, BigDecimal codAmount) {
-        this(fromDistrict, toDistrict, weightKg, sizeClass, serviceLevel, codAmount, null);
+        this(fromDistrict, toDistrict, weightKg, sizeClass, serviceLevel, codAmount, null, null);
     }
 }

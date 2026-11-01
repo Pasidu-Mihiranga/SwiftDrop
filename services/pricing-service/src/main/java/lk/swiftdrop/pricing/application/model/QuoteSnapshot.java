@@ -23,6 +23,7 @@ import java.util.UUID;
  * @param volumetricWeightKg what its volume came to; null when no measurements were given
  * @param sizeClass          the class charged for
  * @param declaredSizeClass  the class the customer selected; differs when measurements moved it
+ * @param declaredValue      what the parcel was insured for; null when sent without cover
  */
 public record QuoteSnapshot(UUID quoteId, Money fee, List<FeeBreakdown.Line> breakdown,
                             String fromZone, String toZone, String fromDistrict, String toDistrict,
@@ -30,7 +31,7 @@ public record QuoteSnapshot(UUID quoteId, Money fee, List<FeeBreakdown.Line> bre
                             BigDecimal codAmount, Instant issuedAt, Instant expiresAt,
                             BigDecimal chargeableWeightKg, BigDecimal volumetricWeightKg,
                             WeightBasis weightBasis, Dimensions dimensionsCm,
-                            SizeClassCode declaredSizeClass) {
+                            SizeClassCode declaredSizeClass, BigDecimal declaredValue) {
 
     public QuoteSnapshot {
         breakdown = List.copyOf(breakdown);
@@ -48,7 +49,7 @@ public record QuoteSnapshot(UUID quoteId, Money fee, List<FeeBreakdown.Line> bre
                          BigDecimal codAmount, Instant issuedAt, Instant expiresAt) {
         this(quoteId, fee, breakdown, fromZone, toZone, fromDistrict, toDistrict, weightKg,
                 sizeClass, serviceLevel, codAmount, issuedAt, expiresAt,
-                weightKg, null, WeightBasis.ACTUAL, null, sizeClass);
+                weightKg, null, WeightBasis.ACTUAL, null, sizeClass, null);
     }
 
     /** Whether the parcel was measured into a class other than the one selected. */

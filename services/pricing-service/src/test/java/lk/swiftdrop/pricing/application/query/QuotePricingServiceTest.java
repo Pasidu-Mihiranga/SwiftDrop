@@ -2,6 +2,8 @@ package lk.swiftdrop.pricing.application.query;
 
 import lk.swiftdrop.pricing.domain.model.Dimensions;
 import lk.swiftdrop.common.web.error.BusinessRuleViolationException;
+import lk.swiftdrop.pricing.application.port.out.RemoteAreaSurchargeRepository;
+import lk.swiftdrop.pricing.application.port.out.InsuranceBandRepository;
 import lk.swiftdrop.pricing.application.port.out.VolumetricDivisorRepository;
 import lk.swiftdrop.pricing.application.port.out.WeightTierRepository;
 import lk.swiftdrop.pricing.application.port.out.DistrictAssignmentRepository;
@@ -42,6 +44,8 @@ class QuotePricingServiceTest {
     private RateCardSelectionService rateCards;
     private VolumetricDivisorRepository divisors;
     private WeightTierRepository weightTiers;
+    private RemoteAreaSurchargeRepository remoteAreas;
+    private InsuranceBandRepository insuranceBands;
     private QuotePricingService service;
 
     @BeforeEach
@@ -53,8 +57,12 @@ class QuotePricingServiceTest {
         when(divisors.findInForce(any())).thenReturn(Optional.empty());
         weightTiers = mock(WeightTierRepository.class);
         when(weightTiers.findByRateCard(any())).thenReturn(List.of());
+        remoteAreas = mock(RemoteAreaSurchargeRepository.class);
+        insuranceBands = mock(InsuranceBandRepository.class);
+        when(remoteAreas.findInForce(any(), any())).thenReturn(Optional.empty());
+        when(insuranceBands.findInForce(any())).thenReturn(List.of());
         service = new QuotePricingService(districts, sizeClasses, rateCards, divisors, weightTiers,
-                new FeeCalculator());
+                remoteAreas, insuranceBands, new FeeCalculator());
         when(districts.findActiveZoneCodeByDistrict("Colombo")).thenReturn(Optional.of(WP));
         when(districts.findActiveZoneCodeByDistrict("Kandy")).thenReturn(Optional.of(CP));
     }
