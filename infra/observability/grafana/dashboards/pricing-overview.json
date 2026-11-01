@@ -254,7 +254,23 @@
           "refId": "A",
           "expr": "sum by (status) (rate(http_server_requests_seconds_count{service=\"pricing-service\", uri=~\"/api/v1/.*pricing.*\"}[5m])) * 60",
           "legendFormat": "{{status}}"
+        },
+        {
+      "id": 15,
+      "type": "timeseries",
+      "title": "Same-day distances by source (per min)",
+      "description": "ROUTED distances came from OSRM. ESTIMATED ones are a straight line scaled by the road factor. A rise in ESTIMATED means the router is down or its breaker is open: quotes still work, but are less accurate.",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 40 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (source) (rate(pricing_lane_distance_resolved_total[5m])) * 60",
+          "legendFormat": "{{source}}"
         }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10 } } }
+    }
       ],
       "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10, "stacking": { "mode": "normal" } } } }
     }
