@@ -1,0 +1,33 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","fontFamily":"Arial"}}}%%
+%% M8 deployment on Kubernetes. Planned: infra/helm holds a README only so far.
+flowchart TB
+    BR["Browser<br/>merchant and admin pages"]
+    MS["Merchant system<br/>simulator in the demo"]
+    EP["Merchant endpoint<br/>external HTTPS receiver"]
+    subgraph NS["Kubernetes namespace swiftdrop"]
+        WEB["web + BFF<br/>Next.js, port 3000"]
+        GW["api-gateway<br/>port 8080"]
+        KC["Keycloak<br/>JWKS, token"]
+        PS["parcel-service<br/>outbox relay, merchant orders"]
+        subgraph DEP["Deployment webhook-service, Service ClusterIP 8092, 2+ replicas"]
+            W1["webhook-service-1<br/>API, consumers, BullMQ worker"]
+            W2["webhook-service-2<br/>same image"]
+        end
+        KAFKA[("Kafka Strimzi<br/>parcel, merchant, DLQ")]
+        REDIS[("Redis<br/>BullMQ jobs")]
+        MONGO[("MongoDB<br/>webhooks DB, PVC")]
+        OBS["Grafana Alloy, Prometheus, Loki, Tempo, Grafana"]
+    end
+    BR -- "HTTPS" --> WEB
+    WEB --> GW
+    MS -- "orders" --> GW
+    MS -. "client credentials" .-> KC
+    GW -. "JWKS" .-> KC
+    GW -- "/api/v1/webhooks" --> DEP
+    GW -- "/merchant/orders" --> PS
+    PS -- "publish outbox" --> KAFKA
+    DEP -- "consume, DLQ event" --> KAFKA
+    DEP -- "queue" --> REDIS
+    DEP -- "read and write" --> MONGO
+    DEP -- "signed POST, 10 s timeout" --> EP
+    DEP -. "metrics, logs and traces" .-> OBS

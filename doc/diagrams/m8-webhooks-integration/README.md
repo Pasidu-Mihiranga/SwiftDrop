@@ -17,6 +17,8 @@ webhook retry activity diagram. The other diagrams support them.
 | Webhook retry activity (required) | [activity-m8-webhook-retry.mmd](activity-m8-webhook-retry.mmd) | [SVG](activity-m8-webhook-retry.svg), [PNG](activity-m8-webhook-retry.png) |
 | Service architecture | [architecture-m8-webhooks.mmd](architecture-m8-webhooks.mmd) | [SVG](architecture-m8-webhooks.svg), [PNG](architecture-m8-webhooks.png) |
 | Integration design (required) | [integration-m8-patterns.mmd](integration-m8-patterns.mmd) | [SVG](integration-m8-patterns.svg), [PNG](integration-m8-patterns.png) |
+| Class diagram | [class-m8-webhooks.mmd](class-m8-webhooks.mmd) | [SVG](class-m8-webhooks.svg), [PNG](class-m8-webhooks.png) |
+| Deployment on Kubernetes | [deployment-m8-webhooks.mmd](deployment-m8-webhooks.mmd) | [SVG](deployment-m8-webhooks.svg), [PNG](deployment-m8-webhooks.png) |
 
 ## What is already built and what is design
 
@@ -72,4 +74,4 @@ The numbers match [integration-m8-patterns](integration-m8-patterns.svg).
 
 The exports use the same black-and-white UML style as the M1, M2, M6 and M10 diagrams, drawn with the primitives
 in `../m10/src`. The Mermaid files are the editable source; `src/build_m8.py` draws the SVG and PNG files and
-writes the sequence `.mmd` files. It needs Google Chrome and Pillow: `python3 src/build_m8.py`.
+writes the sequence, class and deployment `.mmd` files. It needs Google Chrome and Pillow: `python3 src/build_m8.py`.

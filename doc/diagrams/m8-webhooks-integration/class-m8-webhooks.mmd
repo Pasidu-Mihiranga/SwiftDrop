@@ -1,0 +1,111 @@
+%% M8 class diagram: webhook-service. Planned design, except IdempotencyStore and MongoIdempotencyStore.
+classDiagram
+    direction LR
+    class EndpointController {
+        <<controller>>
+        +register(dto)
+        +list()
+        +remove(id)
+        +test(id)
+    }
+    class DeliveryController {
+        <<controller>>
+        +list(status)
+    }
+    class AdminDeliveryController {
+        <<controller>>
+        +listAll(status)
+        +replay(id)
+    }
+    class ParcelEventConsumer {
+        <<consumer>>
+        +onParcelCreated(event)
+        +onStatusChanged(event)
+    }
+    class MerchantLifecycleConsumer {
+        <<consumer>>
+        +onLifecycleChanged(event)
+    }
+    class DeliveryProcessor {
+        <<worker>>
+        +process(job)
+    }
+    class EndpointService {
+        +register(merchantId, dto)
+        +remove(merchantId, id)
+        +sendTestPing(merchantId, id)
+    }
+    class DeliveryLogService {
+        +listForMerchant(merchantId, status)
+        +listAll(status)
+    }
+    class ReplayService {
+        +replay(deliveryId)
+    }
+    class FanOutService {
+        +onParcelEvent(event)
+        +releaseHeld(merchantId)
+    }
+    class EndpointRepository {
+        <<interface>>
+        +insert(endpoint)
+        +findOwned(id, merchantId)
+        +findSubscribed(merchantId, type)
+    }
+    class DeliveryRepository {
+        <<interface>>
+        +insertPending(delivery)
+        +appendAttempt(id, attempt)
+        +setStatus(id, status)
+    }
+    class DeliveryQueue {
+        <<interface>>
+        +enqueue(deliveryId)
+    }
+    class MerchantStateStore {
+        <<interface>>
+        +isActive(merchantId)
+        +save(merchantId, status)
+    }
+    class DeadLetterPublisher {
+        <<interface>>
+        +publish(delivery)
+    }
+    class IdempotencyStore {
+        <<interface>>
+        +markIfFirst(eventId, consumer)
+        +release(eventId, consumer)
+    }
+    class MongoIdempotencyStore
+    class SsrfGuard {
+        +assertPublicUrl(url)
+    }
+    class SecretCipher {
+        +encrypt(s)
+        +decrypt(s)
+    }
+    class PayloadMapper {
+        +toPayload(event)
+    }
+    class Signer {
+        +sign(secret, t, rawBody)
+    }
+    class BackoffPolicy {
+        +delayFor(attempt)
+    }
+    EndpointController ..> EndpointService
+    DeliveryController ..> DeliveryLogService
+    AdminDeliveryController ..> ReplayService
+    ParcelEventConsumer ..> FanOutService
+    MerchantLifecycleConsumer ..> FanOutService : releases held deliveries
+    EndpointService ..> EndpointRepository
+    DeliveryLogService ..> DeliveryRepository
+    ReplayService ..> DeliveryQueue
+    FanOutService ..> MerchantStateStore
+    IdempotencyStore <|.. MongoIdempotencyStore
+    DeliveryProcessor ..> SsrfGuard
+    DeliveryProcessor ..> SecretCipher
+    DeliveryProcessor ..> PayloadMapper
+    DeliveryProcessor ..> Signer
+    DeliveryProcessor ..> BackoffPolicy
+    DeliveryProcessor ..> DeadLetterPublisher

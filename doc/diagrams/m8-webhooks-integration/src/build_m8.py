@@ -1,7 +1,7 @@
 """Writes the M8 figures: <name>.svg and <name>.png next to this folder, and the .mmd for sequences.
 
 Uses the drawing primitives in ../../m10/src. PNGs need Google Chrome and Pillow.
-Usage: python3 build_m8.py [--no-png]
+Usage: python3 build_m8.py [--no-png] [figure names; default all]
 """
 
 import subprocess
@@ -484,10 +484,320 @@ def activity():
     return a.render(1160, "M8 activity: webhook retry")
 
 
+# ---------------------------------------------------------------- class and deployment
+
+
+def uml(x, y, w, name, stereotype, members):
+    """Class box with a larger font than the M10 helper, so it stays readable at page width."""
+    row, head = 25, 44
+    h = head + len(members) * row + 10
+    shape_rect(x, y, w, h, name)
+    out = [f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{FILL}" stroke="{BLACK}" stroke-width="1.4"/>',
+           text(x + w / 2, y + 15, stereotype, 12.5, GREY), text(x + w / 2, y + 32, name, 15, BLACK, 700),
+           f'<line x1="{x}" y1="{y + head}" x2="{x + w}" y2="{y + head}" stroke="{BLACK}" stroke-width="1.2"/>']
+    for i, m in enumerate(members):
+        out.append(text(x + 10, y + head + 17 + i * row, m, 13, BLACK, anchor="start"))
+    return "".join(out), h
+
+
+def class_diagram():
+    A, B, C, w = 50, 470, 890, 330
+    b = []
+
+    def box(x, y, name, st, members):
+        t, h = uml(x, y, w, name, st, members)
+        b.append(t)
+        return y, h
+
+    def uses(points, cap=None, at=None, anchor="middle"):
+        b.append(path(points, dashed=True, end="open"))
+        if cap:
+            b.append(label(at[0], at[1], cap, anchor=anchor, size=12.5))
+
+    rows = [
+        ("EndpointController", ["+ register(dto)", "+ list() · remove(id)", "+ test(id)"],
+         "EndpointService", ["+ register(merchantId, dto)", "+ remove(merchantId, id)", "+ sendTestPing(merchantId, id)"],
+         "EndpointRepository", ["+ insert(endpoint)", "+ findOwned(id, merchantId)", "+ findSubscribed(merchantId, type)"]),
+        ("DeliveryController", ["+ list(status)"],
+         "DeliveryLogService", ["+ listForMerchant(merchantId, status)", "+ listAll(status)"],
+         "DeliveryRepository", ["+ insertPending(delivery)", "+ appendAttempt(id, attempt)", "+ setStatus(id, status)"]),
+        ("AdminDeliveryController", ["+ listAll(status)", "+ replay(id)"],
+         "ReplayService", ["+ replay(deliveryId)", "409 unless status is DEAD"],
+         "DeliveryQueue", ["+ enqueue(deliveryId)"]),
+        ("ParcelEventConsumer", ["+ onParcelCreated(event)", "+ onStatusChanged(event)"],
+         "FanOutService", ["+ onParcelEvent(event)", "+ releaseHeld(merchantId)"],
+         "MerchantStateStore", ["+ isActive(merchantId)", "+ save(merchantId, status)"]),
+    ]
+    stereo = ["«controller»", "«controller»", "«controller»", "«consumer»"]
+    y, tops = 60, []
+    for (an, am, bn, bm, cn, cm), st in zip(rows, stereo):
+        _, h1 = box(A, y, an, st, am)
+        _, h2 = box(B, y, bn, "«application»", bm)
+        _, h3 = box(C, y, cn, "«port»", cm)
+        mid = y + 40
+        uses([(A + w, mid), (B, mid)])
+        uses([(B + w, mid), (C, mid)])
+        tops.append(y)
+        y += max(h1, h2, h3) + 40
+    # the merchant consumer sits under the parcel consumer and releases held deliveries
+    my = y + 40
+    _, mh = box(A, my, "MerchantLifecycleConsumer", "«consumer»", ["+ onLifecycleChanged(event)"])
+    uses([(A + w, my + 40), (430, my + 40), (430, tops[3] + 90), (B, tops[3] + 90)], "releases held|deliveries", (424, my - 34), "end")
+    # shared library: exists today
+    _, ih = box(B, my, "IdempotencyStore", "«shared library, exists today»", ["+ markIfFirst(eventId, consumer)", "+ release(eventId, consumer)"])
+    _, mih = box(C, my, "MongoIdempotencyStore", "«shared library, exists today»", ["unique _id, TTL 14 days"])
+    b.append(path([(C, my + 40), (B + w, my + 40)], dashed=True, end="hollow"))
+    uses([(A + w, my + 80), (B, my + 80)])
+    y = my + max(mh, ih, mih) + 50
+    # the worker and what it calls
+    py = y
+    helpers = [("SsrfGuard", ["+ assertPublicUrl(url)"]), ("SecretCipher", ["+ encrypt(s) · decrypt(s)"]),
+               ("PayloadMapper", ["+ toPayload(event): allow-list"]), ("Signer", ["+ sign(secret, t, rawBody)"])]
+    _, ph = box(A, py, "DeliveryProcessor", "«BullMQ worker»", ["+ process(job)", "10 s timeout, fresh t per attempt", "throws on failure so BullMQ retries", "uses both repositories"])
+    hy, mids = py, []
+    for n, m in helpers:
+        _, h = box(B, hy, n, "«domain»", m)
+        mids.append(hy + h / 2)
+        hy += h + 26
+    b.append(path([(A + w, py + 40), (430, py + 40)], dashed=True, head=False))
+    b.append(path([(430, py + 40), (430, mids[-1])], dashed=True, head=False))
+    for m in mids:
+        uses([(430, m), (B, m)])
+    rights = [("BackoffPolicy", "«domain»", ["30 s, 2 m, 10 m, 30 m, 2 h, 6 h", "+ delayFor(attempt)"]),
+              ("DeadLetterPublisher", "«port»", ["+ publish(delivery)", "swiftdrop.webhook.dead-letter.v1"])]
+    ry, rm = py, []
+    for n, st, m in rights:
+        _, h = box(C, ry, n, st, m)
+        rm.append(ry + h / 2)
+        ry += h + 26
+    bottom = hy + 4
+    b.append(path([(A + w - 60, py + ph), (A + w - 60, bottom), (850, bottom)], dashed=True, head=False))
+    b.append(path([(850, bottom), (850, rm[0])], dashed=True, head=False))
+    for m in rm:
+        uses([(850, m), (C, m)])
+    b.append(label(600, bottom + 18, "retry delay, and the dead-letter event after attempt 7", anchor="middle", size=12.5))
+    # notes
+    nb = ry + 10
+    b.append(text(C, nb + 8, "Planned design, except the two", 12.5, GREY, anchor="start"))
+    b.append(text(C, nb + 26, "shared library classes.", 12.5, GREY, anchor="start"))
+    b.append(text(C, nb + 48, "All consumers use IdempotencyStore.", 12.5, GREY, anchor="start"))
+    b.append(text(C, nb + 70, "Mongo and BullMQ adapters", 12.5, GREY, anchor="start"))
+    b.append(text(C, nb + 88, "implement the ports.", 12.5, GREY, anchor="start"))
+    return svg(1270, int(bottom + 50), "".join(b), "M8 class diagram: webhook-service (planned design)")
+
+
+def deployment():
+    b = [band(40, 50, 1270, 140, "Outside the cluster"), band(40, 220, 1270, 620),
+         band(40, 870, 1270, 120, "Observability")]
+    b.append(text(1125, 240, "KUBERNETES NAMESPACE", 11, GREY, 500, anchor="start", spacing="1.6"))
+    b.append(text(1125, 258, "SWIFTDROP · PLANNED", 11, GREY, 500, anchor="start", spacing="1.6"))
+    w = 250
+    b.append(node(100, 85, w, 85, "Browser", ["merchant and admin pages"]))
+    b.append(node(420, 85, w, 85, "Merchant system", ["simulator in the demo"], dashed=True))
+    b.append(node(980, 85, w, 85, "Merchant endpoint", ["external HTTPS receiver"], dashed=True))
+    b.append(node(100, 265, w, 85, "web + BFF", ["Next.js, :3000"]))
+    b.append(node(420, 265, w, 85, "api-gateway", [":8080, JWT, /webhooks/**"]))
+    b.append(node(740, 265, 190, 85, "Keycloak", ["JWKS, token"]))
+    b.append(path([(225, 170), (225, 265)]))
+    b.append(label(235, 205, "HTTPS", size=12))
+    b.append(path([(350, 307), (420, 307)]))
+    b.append(path([(545, 170), (545, 265)]))
+    b.append(label(535, 205, "orders", anchor="end", size=12))
+    b.append(path([(670, 307), (740, 307)], dashed=True, end="open"))
+    b.append(label(705, 292, "JWKS", anchor="middle", size=12))
+    b.append(path([(640, 170), (640, 205), (835, 205), (835, 265)], dashed=True, end="open"))
+    b.append(label(745, 235, "client credentials", anchor="middle", size=12))
+    # webhook-service deployment
+    dx, dy, dw, dh = 420, 410, 830, 230
+    b.append(f'<rect x="{dx}" y="{dy}" width="{dw}" height="{dh}" fill="{FILL}" stroke="{BLACK}" stroke-width="1.4"/>')
+    shape_rect(dx, dy, dw, dh, "deployment")
+    b.append(text(dx + dw / 2, dy + 22, "Deployment webhook-service  ·  Service ClusterIP :8092  ·  2+ replicas", 14, BLACK, 700))
+    b.append(node(450, 450, 360, 110, "webhook-service-1", ["API, Kafka consumers, BullMQ worker", "/health/live, /metrics"]))
+    b.append(node(860, 450, 360, 110, "webhook-service-2", ["same image; BullMQ and the consumer", "group share the work"]))
+    b.append(text(dx + dw / 2, dy + 180, "ConfigMap + Secret: MONGO_URI, REDIS_URL, KAFKA_BROKERS,", 12.5, GREY))
+    b.append(text(dx + dw / 2, dy + 200, "KEYCLOAK_*, key that encrypts signing secrets", 12.5, GREY))
+    b.append(path([(545, 350), (545, 410)]))
+    b.append(label(555, 380, "/api/v1/webhooks", size=12))
+    b.append(path([(1105, 410), (1105, 170)]))
+    b.append(label(1115, 300, "signed POST|10 s timeout", size=12))
+    # parcel-service and stores
+    b.append(node(100, 450, w, 95, "parcel-service", ["outbox relay,", "merchant orders"]))
+    b.append(path([(460, 350), (460, 385), (225, 385), (225, 450)]))
+    b.append(label(235, 415, "/merchant/orders", size=12))
+    b.append(cylinder(420, 690, 250, 120, "Kafka Strimzi", ["parcel, merchant, DLQ"]))
+    b.append(cylinder(740, 690, 220, 120, "Redis", ["BullMQ jobs"]))
+    b.append(cylinder(1030, 690, 220, 120, "MongoDB", ["webhooks DB, PVC"]))
+    b.append(path([(225, 545), (225, 750), (420, 750)]))
+    b.append(label(235, 650, "publish outbox", size=12))
+    b.append(path([(545, 640), (545, 690)]))
+    b.append(label(555, 665, "consume, DLQ event", size=12))
+    b.append(path([(850, 640), (850, 690)]))
+    b.append(label(860, 665, "queue", size=12))
+    b.append(path([(1140, 640), (1140, 690)]))
+    b.append(label(1150, 665, "read and write", size=12))
+    # observability
+    b.append(node(420, 905, 830, 65, "Grafana Alloy, Prometheus, Loki, Tempo, Grafana"))
+    b.append(path([(1250, 525), (1285, 525), (1285, 850), (1000, 850), (1000, 905)], dashed=True, end="open"))
+    b.append(label(990, 855, "metrics, logs and traces", anchor="end", size=12))
+    return svg(1350, 1010, "".join(b), "M8 deployment: webhook-service on Kubernetes (planned)")
+
+
+CLASS_MMD = """%% M8 class diagram: webhook-service. Planned design, except IdempotencyStore and MongoIdempotencyStore.
+classDiagram
+    direction LR
+    class EndpointController {
+        <<controller>>
+        +register(dto)
+        +list()
+        +remove(id)
+        +test(id)
+    }
+    class DeliveryController {
+        <<controller>>
+        +list(status)
+    }
+    class AdminDeliveryController {
+        <<controller>>
+        +listAll(status)
+        +replay(id)
+    }
+    class ParcelEventConsumer {
+        <<consumer>>
+        +onParcelCreated(event)
+        +onStatusChanged(event)
+    }
+    class MerchantLifecycleConsumer {
+        <<consumer>>
+        +onLifecycleChanged(event)
+    }
+    class DeliveryProcessor {
+        <<worker>>
+        +process(job)
+    }
+    class EndpointService {
+        +register(merchantId, dto)
+        +remove(merchantId, id)
+        +sendTestPing(merchantId, id)
+    }
+    class DeliveryLogService {
+        +listForMerchant(merchantId, status)
+        +listAll(status)
+    }
+    class ReplayService {
+        +replay(deliveryId)
+    }
+    class FanOutService {
+        +onParcelEvent(event)
+        +releaseHeld(merchantId)
+    }
+    class EndpointRepository {
+        <<interface>>
+        +insert(endpoint)
+        +findOwned(id, merchantId)
+        +findSubscribed(merchantId, type)
+    }
+    class DeliveryRepository {
+        <<interface>>
+        +insertPending(delivery)
+        +appendAttempt(id, attempt)
+        +setStatus(id, status)
+    }
+    class DeliveryQueue {
+        <<interface>>
+        +enqueue(deliveryId)
+    }
+    class MerchantStateStore {
+        <<interface>>
+        +isActive(merchantId)
+        +save(merchantId, status)
+    }
+    class DeadLetterPublisher {
+        <<interface>>
+        +publish(delivery)
+    }
+    class IdempotencyStore {
+        <<interface>>
+        +markIfFirst(eventId, consumer)
+        +release(eventId, consumer)
+    }
+    class MongoIdempotencyStore
+    class SsrfGuard {
+        +assertPublicUrl(url)
+    }
+    class SecretCipher {
+        +encrypt(s)
+        +decrypt(s)
+    }
+    class PayloadMapper {
+        +toPayload(event)
+    }
+    class Signer {
+        +sign(secret, t, rawBody)
+    }
+    class BackoffPolicy {
+        +delayFor(attempt)
+    }
+    EndpointController ..> EndpointService
+    DeliveryController ..> DeliveryLogService
+    AdminDeliveryController ..> ReplayService
+    ParcelEventConsumer ..> FanOutService
+    MerchantLifecycleConsumer ..> FanOutService : releases held deliveries
+    EndpointService ..> EndpointRepository
+    DeliveryLogService ..> DeliveryRepository
+    ReplayService ..> DeliveryQueue
+    FanOutService ..> MerchantStateStore
+    IdempotencyStore <|.. MongoIdempotencyStore
+    DeliveryProcessor ..> SsrfGuard
+    DeliveryProcessor ..> SecretCipher
+    DeliveryProcessor ..> PayloadMapper
+    DeliveryProcessor ..> Signer
+    DeliveryProcessor ..> BackoffPolicy
+    DeliveryProcessor ..> DeadLetterPublisher
+"""
+
+DEPLOYMENT_MMD = """%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","fontFamily":"Arial"}}}%%
+%% M8 deployment on Kubernetes. Planned: infra/helm holds a README only so far.
+flowchart TB
+    BR["Browser<br/>merchant and admin pages"]
+    MS["Merchant system<br/>simulator in the demo"]
+    EP["Merchant endpoint<br/>external HTTPS receiver"]
+    subgraph NS["Kubernetes namespace swiftdrop"]
+        WEB["web + BFF<br/>Next.js, port 3000"]
+        GW["api-gateway<br/>port 8080"]
+        KC["Keycloak<br/>JWKS, token"]
+        PS["parcel-service<br/>outbox relay, merchant orders"]
+        subgraph DEP["Deployment webhook-service, Service ClusterIP 8092, 2+ replicas"]
+            W1["webhook-service-1<br/>API, consumers, BullMQ worker"]
+            W2["webhook-service-2<br/>same image"]
+        end
+        KAFKA[("Kafka Strimzi<br/>parcel, merchant, DLQ")]
+        REDIS[("Redis<br/>BullMQ jobs")]
+        MONGO[("MongoDB<br/>webhooks DB, PVC")]
+        OBS["Grafana Alloy, Prometheus, Loki, Tempo, Grafana"]
+    end
+    BR -- "HTTPS" --> WEB
+    WEB --> GW
+    MS -- "orders" --> GW
+    MS -. "client credentials" .-> KC
+    GW -. "JWKS" .-> KC
+    GW -- "/api/v1/webhooks" --> DEP
+    GW -- "/merchant/orders" --> PS
+    PS -- "publish outbox" --> KAFKA
+    DEP -- "consume, DLQ event" --> KAFKA
+    DEP -- "queue" --> REDIS
+    DEP -- "read and write" --> MONGO
+    DEP -- "signed POST, 10 s timeout" --> EP
+    DEP -. "metrics, logs and traces" .-> OBS
+"""
+
+STATIC_MMD = {"class-m8-webhooks": CLASS_MMD, "deployment-m8-webhooks": DEPLOYMENT_MMD}
+
+
 def build_all():
     figs = {name: (lambda v=v: seq_svg(*v)) for name, v in SEQ.items()}
     figs.update({"usecase-m8-webhooks": uc_webhooks, "usecase-m8-merchant-simulator": uc_simulator, "er-m8-webhooks": er,
-                 "architecture-m8-webhooks": architecture, "integration-m8-patterns": integration, "activity-m8-webhook-retry": activity})
+                 "architecture-m8-webhooks": architecture, "integration-m8-patterns": integration, "activity-m8-webhook-retry": activity,
+                 "class-m8-webhooks": class_diagram, "deployment-m8-webhooks": deployment})
     return figs
 
 
@@ -511,10 +821,15 @@ def png(name):
 
 
 if __name__ == "__main__":
+    only = [a for a in sys.argv[1:] if not a.startswith("--")]
     for name, fn in FIGURES.items():
+        if only and name not in only:
+            continue
         (OUT / f"{name}.svg").write_text(fn(), encoding="utf-8")
         if name in SEQ:
             (OUT / f"{name}.mmd").write_text(seq_mmd(*SEQ[name]), encoding="utf-8")
+        if name in STATIC_MMD:
+            (OUT / f"{name}.mmd").write_text(STATIC_MMD[name], encoding="utf-8")
         if "--no-png" not in sys.argv:
             png(name)
         print(name)
