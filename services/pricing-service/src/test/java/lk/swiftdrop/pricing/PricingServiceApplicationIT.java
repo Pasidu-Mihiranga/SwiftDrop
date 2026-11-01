@@ -67,7 +67,11 @@ class PricingServiceApplicationIT {
                 .andReturn().getResponse().getContentAsString();
 
         String key = "pricing:quote:" + mapper.readTree(response).get("quoteId").asText();
-        assertThat(mapper.readTree(redis.opsForValue().get(key))).isEqualTo(mapper.readTree(response));
+        // Stored inside a versioned envelope, so a quote issued by the previous release can
+        // still be read after a deploy. The quote itself is what was sent to the customer.
+        var stored = mapper.readTree(redis.opsForValue().get(key));
+        assertThat(stored.get("schemaVersion").asInt()).isEqualTo(1);
+        assertThat(stored.get("quote")).isEqualTo(mapper.readTree(response));
         assertThat(redis.getExpire(key, TimeUnit.SECONDS)).isBetween(1L, 900L);
 
         String quoteId = mapper.readTree(response).get("quoteId").asText();

@@ -21,6 +21,12 @@ spring:
       ddl-auto: validate
   flyway:
     enabled: true
+  jackson:
+    deserialization:
+      # A quote outlives a deploy: one issued minutes before a release is looked up after it,
+      # by a replica running newer code, and during a rolling update by one running older code.
+      # Neither may reject a field the other added, so unknown fields are ignored.
+      fail-on-unknown-properties: false
   data:
     redis:
       host: ${REDIS_HOST:localhost}
