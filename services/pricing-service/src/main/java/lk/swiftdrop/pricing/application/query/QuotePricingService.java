@@ -9,6 +9,9 @@ import lk.swiftdrop.pricing.application.port.out.SizeClassRepository;
 import lk.swiftdrop.pricing.application.port.out.VolumetricDivisorRepository;
 import lk.swiftdrop.pricing.application.port.out.WeightTierRepository;
 import lk.swiftdrop.pricing.domain.model.ChargeableWeight;
+import lk.swiftdrop.pricing.domain.model.DistanceRate;
+import lk.swiftdrop.pricing.domain.model.LaneDistance;
+import lk.swiftdrop.pricing.domain.model.ServiceLevel;
 import lk.swiftdrop.pricing.domain.model.MerchantAgreement;
 import lk.swiftdrop.pricing.domain.model.RateCard;
 import lk.swiftdrop.pricing.domain.model.SizeClassRate;
@@ -56,10 +59,26 @@ public class QuotePricingService {
     }
 
     public PreparedQuote prepare(QuotePricingInput input, LocalDate quoteDate) {
+        return prepare(input, quoteDate, null, null);
+    }
+
+    /**
+     * @param distance measured before this call, outside any transaction, because measuring a
+     *                 lane may mean a network round trip and a read transaction must not be
+     *                 held open across one
+     */
+    public PreparedQuote prepare(QuotePricingInput input, LocalDate quoteDate, LaneDistance distance,
+                                 DistanceRate distanceRate) {
         Objects.requireNonNull(input, "input");
         Objects.requireNonNull(quoteDate, "quoteDate");
         ZoneCode fromZone = activeZone(input.fromDistrict());
         ZoneCode toZone = activeZone(input.toDistrict());
+        // A same-day job with nothing to measure is refused rather than quietly priced off the
+        // zone matrix, which would be wrong and would look exactly like a correct answer.
+        if (input.serviceLevel() == ServiceLevel.SAME_DAY && (distance == null || distanceRate == null)) {
+            throw new BusinessRuleViolationException("DISTANCE_UNAVAILABLE",
+                    "Same-day delivery cannot be priced without a measurable route");
+        }
 
         ChargeableWeight weight = ChargeableWeightPolicy.of(input.weightKg(), input.dimensions(),
                 divisors.findInForce(quoteDate).orElse(null));
@@ -74,9 +93,9 @@ public class QuotePricingService {
                 new PricingContext.Rates(card, weightTiers.findByRateCard(card.id()),
                         remoteAreas.findInForce(input.fromDistrict(), quoteDate).orElse(null),
                         remoteAreas.findInForce(input.toDistrict(), quoteDate).orElse(null),
-                        insuranceBands.findInForce(quoteDate), agreement));
+                        insuranceBands.findInForce(quoteDate), agreement, distanceRate, distance));
         return new PreparedQuote(input, fromZone, toZone, calculator.calculate(context), weight, charged,
-                agreement == null ? null : agreement.id());
+                agreement == null ? null : agreement.id(), distance);
     }
 
     /**

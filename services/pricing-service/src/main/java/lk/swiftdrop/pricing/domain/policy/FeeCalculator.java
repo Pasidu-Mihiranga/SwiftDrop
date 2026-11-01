@@ -16,7 +16,7 @@ import java.util.Objects;
  * so each one charges against the rounded total of everything beneath it:
  *
  * <pre>
- *   COD( INSURANCE( MERCHANT_DISCOUNT( REMOTE_AREA( EXPRESS( SIZE( ZoneMatrix + Weight ) ) ) ) ) )
+ *   COD( INSURANCE( MERCHANT_DISCOUNT( REMOTE_AREA( EXPRESS( SIZE( LaneCharge + Weight ) ) ) ) ) )
  * </pre>
  *
  * <p>Two of those do not compound, and their position in the chain affects only the order of
@@ -50,7 +50,7 @@ public final class FeeCalculator {
                                 new ExpressSurchargeDecorator(
                                         new SizeSurchargeDecorator(
                                                 new CompositePricingStrategy(
-                                                        new ZoneMatrixStrategy(),
+                                                        new LaneChargeStrategy(),
                                                         new TieredWeightStrategy())))))));
     }
 

@@ -9,10 +9,10 @@
 export const SIZE_CLASSES = ["S", "M", "L", "XL"] as const;
 export type SizeClass = (typeof SIZE_CLASSES)[number];
 
-export const SERVICE_LEVELS = ["STANDARD", "EXPRESS"] as const;
+export const SERVICE_LEVELS = ["STANDARD", "EXPRESS", "SAME_DAY"] as const;
 export type ServiceLevel = (typeof SERVICE_LEVELS)[number];
 
-export const PRICING_RULES = ["BASE", "WEIGHT", "SIZE", "EXPRESS", "REMOTE_AREA", "MERCHANT_DISCOUNT", "INSURANCE", "COD"] as const;
+export const PRICING_RULES = ["BASE", "DISTANCE", "WEIGHT", "SIZE", "EXPRESS", "REMOTE_AREA", "MERCHANT_DISCOUNT", "INSURANCE", "COD"] as const;
 export type PricingRule = (typeof PRICING_RULES)[number];
 
 /** Upper bound published by the quote contract. */
@@ -72,6 +72,10 @@ export interface Quote {
   declaredValue?: number;
   /** The negotiated terms applied. Absent for a quote at the counter rate. */
   agreementId?: string;
+  /** How far a same-day job travels. Absent for a zone-priced quote. */
+  distanceKm?: number;
+  /** ESTIMATED means no routing engine answered, so the figure is approximate. */
+  distanceSource?: "ROUTED" | "ESTIMATED";
   issuedAt: string;
   expiresAt: string;
 }
@@ -254,6 +258,19 @@ export function weightExplanation(quote: Quote): string | undefined {
   return `Billed as ${quote.volumetricWeightKg} kg. A parcel this size takes up more room in the van than its ${quote.weightKg} kg suggests, so it is charged on the space it occupies.`;
 }
 
+/**
+ * How a same-day fee was measured, when it is worth saying.
+ *
+ * Only shown for an estimate: a customer about to pay should know the distance is a straight
+ * line scaled by a road factor rather than a real route, because the real road may be longer.
+ */
+export function distanceNotice(quote: Quote): string | undefined {
+  if (quote.distanceSource !== "ESTIMATED" || quote.distanceKm === undefined) {
+    return undefined;
+  }
+  return `Priced over about ${quote.distanceKm} km. We could not measure the road route, so this is an estimate from the straight-line distance and the final fee may differ.`;
+}
+
 /** The notice shown when measurements put the parcel in a class the customer did not pick. */
 export function sizeClassNotice(quote: Quote): string | undefined {
   if (!quote.declaredSizeClass || quote.declaredSizeClass === quote.sizeClass) {
@@ -272,6 +289,7 @@ export function isServiceLevel(value: string): value is ServiceLevel {
 
 const RULE_LABELS: Record<PricingRule, string> = {
   BASE: "Base rate",
+  DISTANCE: "Distance travelled",
   WEIGHT: "Weight",
   SIZE: "Parcel size",
   EXPRESS: "Express delivery",
@@ -283,6 +301,16 @@ const RULE_LABELS: Record<PricingRule, string> = {
 
 export function breakdownLabel(rule: PricingRule | string): string {
   return RULE_LABELS[rule as PricingRule] ?? rule;
+}
+
+const SERVICE_LEVEL_LABELS: Record<ServiceLevel, string> = {
+  STANDARD: "Standard",
+  EXPRESS: "Express",
+  SAME_DAY: "Same day",
+};
+
+export function serviceLevelLabel(level: ServiceLevel): string {
+  return SERVICE_LEVEL_LABELS[level] ?? level;
 }
 
 const SIZE_CLASS_LABELS: Record<SizeClass, string> = {

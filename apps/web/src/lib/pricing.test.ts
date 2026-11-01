@@ -13,6 +13,8 @@ import {
   isoDate,
   laneLabel,
   quoteLifetime,
+  distanceNotice,
+  serviceLevelLabel,
   sizeClassLabel,
   sizeClassNotice,
   validateQuoteForm,
@@ -339,6 +341,23 @@ describe("quoteLifetime", () => {
     it("says when the measurements moved the parcel out of the class chosen", () => {
       expect(sizeClassNotice({ ...priced, declaredSizeClass: "S" }))
         .toMatch(/priced as Large \(L\).*do not fit Small \(S\)/i);
+    });
+
+    it("warns that a same-day fee was estimated rather than measured", () => {
+      expect(distanceNotice({ ...priced, distanceSource: "ESTIMATED", distanceKm: 24.8 }))
+        .toMatch(/about 24.8 km.*estimate/is);
+    });
+
+    it("says nothing when the route was actually measured", () => {
+      expect(distanceNotice({ ...priced, distanceSource: "ROUTED", distanceKm: 24.8 }))
+        .toBeUndefined();
+      expect(distanceNotice(priced)).toBeUndefined();
+    });
+
+    it("names every service level a customer can pick", () => {
+      expect(serviceLevelLabel("SAME_DAY")).toBe("Same day");
+      expect(serviceLevelLabel("EXPRESS")).toBe("Express");
+      expect(serviceLevelLabel("STANDARD")).toBe("Standard");
     });
 
     it("says nothing when the class charged is the class chosen", () => {

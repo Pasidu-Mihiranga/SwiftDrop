@@ -11,8 +11,10 @@ import {
   breakdownLabel,
   districtOptions,
   formatMoney,
+  distanceNotice,
   quoteLifetime,
   sizeClassLabel,
+  serviceLevelLabel,
   sizeClassNotice,
   validateQuoteForm,
   weightExplanation,
@@ -179,7 +181,7 @@ export function FeeEstimateWidget({ zones, coverageError, onQuote }: FeeEstimate
             >
               {SERVICE_LEVELS.map((level) => (
                 <option key={level} value={level}>
-                  {level === "EXPRESS" ? "Express" : "Standard"}
+                  {serviceLevelLabel(level)}
                 </option>
               ))}
             </select>
@@ -287,6 +289,7 @@ export function FeeEstimateWidget({ zones, coverageError, onQuote }: FeeEstimate
 function QuoteSummary({ quote, expired, remaining }: { quote: Quote; expired: boolean; remaining: string }) {
   const billedWeight = weightExplanation(quote);
   const reclassified = sizeClassNotice(quote);
+  const estimatedRoute = distanceNotice(quote);
   return (
     <div className="min-w-0 space-y-4 border-t border-slate-200 pt-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -311,6 +314,7 @@ function QuoteSummary({ quote, expired, remaining }: { quote: Quote; expired: bo
 
       {billedWeight ? <p className="notice-info text-sm">{billedWeight}</p> : null}
       {reclassified ? <p className="notice-info text-sm">{reclassified}</p> : null}
+      {estimatedRoute ? <p className="notice-warning text-sm">{estimatedRoute}</p> : null}
 
       <ul className="divide-y divide-slate-100 text-sm">
         {quote.breakdown.map((line) => (

@@ -1,6 +1,7 @@
 package lk.swiftdrop.pricing.application.model;
 
 import lk.swiftdrop.pricing.domain.model.Dimensions;
+import lk.swiftdrop.pricing.domain.model.DistanceSource;
 import lk.swiftdrop.pricing.domain.model.FeeBreakdown;
 import lk.swiftdrop.pricing.domain.model.ServiceLevel;
 import lk.swiftdrop.pricing.domain.model.SizeClassCode;
@@ -26,6 +27,8 @@ import java.util.UUID;
  * @param declaredValue      what the parcel was insured for; null when sent without cover
  * @param merchantId         the merchant the quote was issued to; null for an anonymous customer
  * @param agreementId        the negotiated terms applied; null when none were
+ * @param distanceKm         how far a same-day job travels; null for a zone-priced quote
+ * @param distanceSource     whether that distance was routed or estimated
  */
 public record QuoteSnapshot(UUID quoteId, Money fee, List<FeeBreakdown.Line> breakdown,
                             String fromZone, String toZone, String fromDistrict, String toDistrict,
@@ -34,7 +37,8 @@ public record QuoteSnapshot(UUID quoteId, Money fee, List<FeeBreakdown.Line> bre
                             BigDecimal chargeableWeightKg, BigDecimal volumetricWeightKg,
                             WeightBasis weightBasis, Dimensions dimensionsCm,
                             SizeClassCode declaredSizeClass, BigDecimal declaredValue,
-                            UUID merchantId, UUID agreementId) {
+                            UUID merchantId, UUID agreementId,
+                            BigDecimal distanceKm, DistanceSource distanceSource) {
 
     public QuoteSnapshot {
         breakdown = List.copyOf(breakdown);
@@ -52,7 +56,7 @@ public record QuoteSnapshot(UUID quoteId, Money fee, List<FeeBreakdown.Line> bre
                          BigDecimal codAmount, Instant issuedAt, Instant expiresAt) {
         this(quoteId, fee, breakdown, fromZone, toZone, fromDistrict, toDistrict, weightKg,
                 sizeClass, serviceLevel, codAmount, issuedAt, expiresAt,
-                weightKg, null, WeightBasis.ACTUAL, null, sizeClass, null, null, null);
+                weightKg, null, WeightBasis.ACTUAL, null, sizeClass, null, null, null, null, null);
     }
 
     /** Whether the parcel was measured into a class other than the one selected. */

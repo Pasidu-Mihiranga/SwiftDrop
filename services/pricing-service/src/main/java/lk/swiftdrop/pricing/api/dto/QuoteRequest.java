@@ -38,7 +38,29 @@ public record QuoteRequest(
         BigDecimal heightCm,
 
         /** What the parcel is worth. Omit it to send without cover and be charged nothing. */
-        @DecimalMin("0") @Digits(integer = 10, fraction = 2) BigDecimal declaredValue) {
+        @DecimalMin("0") @Digits(integer = 10, fraction = 2) BigDecimal declaredValue,
+
+        /**
+         * Exact pickup and drop-off points. Only read for a same-day job, which is priced on
+         * the road travelled; without them the district's centre is used, which is a poor
+         * stand-in for a real address over a short distance.
+         */
+        @DecimalMin("-90") @DecimalMax("90") @Digits(integer = 3, fraction = 6) BigDecimal fromLatitude,
+        @DecimalMin("-180") @DecimalMax("180") @Digits(integer = 3, fraction = 6) BigDecimal fromLongitude,
+        @DecimalMin("-90") @DecimalMax("90") @Digits(integer = 3, fraction = 6) BigDecimal toLatitude,
+        @DecimalMin("-180") @DecimalMax("180") @Digits(integer = 3, fraction = 6) BigDecimal toLongitude) {
+
+    @AssertTrue(message = "give both a latitude and a longitude for a point, or neither")
+    public boolean isCoordinatesPaired() {
+        return (fromLatitude == null) == (fromLongitude == null)
+                && (toLatitude == null) == (toLongitude == null);
+    }
+
+    private static lk.swiftdrop.pricing.domain.model.GeoPoint point(BigDecimal latitude,
+                                                                    BigDecimal longitude) {
+        return latitude == null ? null
+                : new lk.swiftdrop.pricing.domain.model.GeoPoint(latitude, longitude);
+    }
 
     /**
      * Two sides and no third is not a parcel. Taking a partial set would mean guessing the
@@ -62,6 +84,7 @@ public record QuoteRequest(
                 serviceLevel == null ? ServiceLevel.STANDARD : serviceLevel,
                 codAmount == null ? BigDecimal.ZERO : codAmount,
                 lengthCm == null ? null : new Dimensions(lengthCm, widthCm, heightCm),
-                declaredValue, merchantId);
+                declaredValue, merchantId, point(fromLatitude, fromLongitude),
+                point(toLatitude, toLongitude));
     }
 }
