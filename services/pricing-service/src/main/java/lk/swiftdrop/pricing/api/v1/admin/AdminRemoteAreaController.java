@@ -6,7 +6,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lk.swiftdrop.pricing.api.dto.RemoteAreaRequest;
 import lk.swiftdrop.pricing.api.dto.RemoteAreaResponse;
-import lk.swiftdrop.pricing.application.port.out.RemoteAreaSurchargeRepository;
+import lk.swiftdrop.pricing.application.command.RemoteAreaAdminService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,16 +30,16 @@ import java.util.List;
 @Tag(name = "admin-pricing", description = "Pricing configuration (ADMIN)")
 public class AdminRemoteAreaController {
 
-    private final RemoteAreaSurchargeRepository remoteAreas;
+    private final RemoteAreaAdminService remoteAreas;
 
-    public AdminRemoteAreaController(RemoteAreaSurchargeRepository remoteAreas) {
+    public AdminRemoteAreaController(RemoteAreaAdminService remoteAreas) {
         this.remoteAreas = remoteAreas;
     }
 
     @GetMapping
     @Operation(summary = "List remote-area surcharges (ADMIN)")
     public List<RemoteAreaResponse> list() {
-        return remoteAreas.findAll().stream().map(RemoteAreaResponse::of).toList();
+        return remoteAreas.list().stream().map(RemoteAreaResponse::of).toList();
     }
 
     @PutMapping("/{district}")

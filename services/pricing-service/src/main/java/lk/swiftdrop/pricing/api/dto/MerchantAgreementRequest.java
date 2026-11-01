@@ -1,6 +1,7 @@
 package lk.swiftdrop.pricing.api.dto;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
@@ -43,5 +44,11 @@ public record MerchantAgreementRequest(
             @NotNull @Pattern(regexp = "^[A-Z][A-Z0-9-]{1,15}$") String toZone,
             @DecimalMin("0") @DecimalMax("1") @Digits(integer = 1, fraction = 4) BigDecimal discountPct,
             @DecimalMin("0") @Digits(integer = 10, fraction = 2) BigDecimal flatBaseFee) {
+
+        /** A row that changes nothing is one somebody forgot to finish. */
+        @AssertTrue(message = "a lane override must set a discount or a base fee")
+        public boolean isChangingSomething() {
+            return discountPct != null || flatBaseFee != null;
+        }
     }
 }

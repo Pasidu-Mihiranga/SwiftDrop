@@ -25,4 +25,8 @@ interface RemoteAreaSurchargeJpaRepository extends JpaRepository<RemoteAreaSurch
             """)
     List<RemoteAreaSurchargeEntity> findInForce(@Param("district") String district,
                                                 @Param("on") LocalDate on);
+
+    List<RemoteAreaSurchargeEntity> findAllByOrderByDistrictAscEffectiveFromDesc();
+
+    boolean existsByDistrictIgnoreCaseAndEffectiveFromGreaterThanEqual(String district, LocalDate from);
 }
