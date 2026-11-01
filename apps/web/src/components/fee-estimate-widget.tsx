@@ -205,6 +205,26 @@ export function FeeEstimateWidget({ zones, coverageError, onQuote }: FeeEstimate
               aria-describedby={errors.codAmount ? "codAmount-error" : "codAmount-hint"}
             />
           </Field>
+          <Field
+            id="declaredValue"
+            label="Declared value (optional)"
+            error={errors.declaredValue}
+            hint="Insure the parcel for what it is worth. Leave blank to send it without cover."
+          >
+            <input
+              id="declaredValue"
+              name="declaredValue"
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              className="input"
+              value={values.declaredValue}
+              onChange={(event) => update("declaredValue", event.target.value)}
+              aria-invalid={Boolean(errors.declaredValue)}
+              aria-describedby={errors.declaredValue ? "declaredValue-error" : "declaredValue-hint"}
+            />
+          </Field>
         </div>
 
         <fieldset className="space-y-2">

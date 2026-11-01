@@ -2,6 +2,8 @@ package lk.swiftdrop.pricing.application.query;
 
 import lk.swiftdrop.common.web.error.BusinessRuleViolationException;
 import lk.swiftdrop.pricing.application.port.out.DistrictAssignmentRepository;
+import lk.swiftdrop.pricing.application.port.out.InsuranceBandRepository;
+import lk.swiftdrop.pricing.application.port.out.RemoteAreaSurchargeRepository;
 import lk.swiftdrop.pricing.application.port.out.SizeClassRepository;
 import lk.swiftdrop.pricing.application.port.out.VolumetricDivisorRepository;
 import lk.swiftdrop.pricing.application.port.out.WeightTierRepository;
@@ -30,16 +32,21 @@ public class QuotePricingService {
     private final RateCardSelectionService rateCards;
     private final VolumetricDivisorRepository divisors;
     private final WeightTierRepository weightTiers;
+    private final RemoteAreaSurchargeRepository remoteAreas;
+    private final InsuranceBandRepository insuranceBands;
     private final FeeCalculator calculator;
 
     public QuotePricingService(DistrictAssignmentRepository districts, SizeClassRepository sizeClasses,
                                RateCardSelectionService rateCards, VolumetricDivisorRepository divisors,
-                               WeightTierRepository weightTiers, FeeCalculator calculator) {
+                               WeightTierRepository weightTiers, RemoteAreaSurchargeRepository remoteAreas,
+                               InsuranceBandRepository insuranceBands, FeeCalculator calculator) {
         this.districts = districts;
         this.sizeClasses = sizeClasses;
         this.rateCards = rateCards;
         this.divisors = divisors;
         this.weightTiers = weightTiers;
+        this.remoteAreas = remoteAreas;
+        this.insuranceBands = insuranceBands;
         this.calculator = calculator;
     }
 
@@ -56,8 +63,11 @@ public class QuotePricingService {
         RateCard card = rateCards.select(fromZone, toZone, quoteDate);
         PricingContext context = new PricingContext(
                 new PricingContext.Parcel(weight.actualKg(), weight.chargeableKg(), charged,
-                        input.serviceLevel(), input.codAmount()),
-                new PricingContext.Rates(card, weightTiers.findByRateCard(card.id())));
+                        input.serviceLevel(), input.codAmount(), input.declaredValue()),
+                new PricingContext.Rates(card, weightTiers.findByRateCard(card.id()),
+                        remoteAreas.findInForce(input.fromDistrict(), quoteDate).orElse(null),
+                        remoteAreas.findInForce(input.toDistrict(), quoteDate).orElse(null),
+                        insuranceBands.findInForce(quoteDate)));
         return new PreparedQuote(input, fromZone, toZone, calculator.calculate(context), weight, charged);
     }
 

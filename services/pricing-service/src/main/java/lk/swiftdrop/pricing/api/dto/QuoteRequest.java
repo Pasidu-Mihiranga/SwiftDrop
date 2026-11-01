@@ -35,7 +35,10 @@ public record QuoteRequest(
         @DecimalMin(value = "0", inclusive = false) @DecimalMax("500") @Digits(integer = 3, fraction = 1)
         BigDecimal widthCm,
         @DecimalMin(value = "0", inclusive = false) @DecimalMax("500") @Digits(integer = 3, fraction = 1)
-        BigDecimal heightCm) {
+        BigDecimal heightCm,
+
+        /** What the parcel is worth. Omit it to send without cover and be charged nothing. */
+        @DecimalMin("0") @Digits(integer = 10, fraction = 2) BigDecimal declaredValue) {
 
     /**
      * Two sides and no third is not a parcel. Taking a partial set would mean guessing the
@@ -51,6 +54,7 @@ public record QuoteRequest(
         return new QuotePricingInput(fromDistrict.strip(), toDistrict.strip(), weightKg, sizeClass,
                 serviceLevel == null ? ServiceLevel.STANDARD : serviceLevel,
                 codAmount == null ? BigDecimal.ZERO : codAmount,
-                lengthCm == null ? null : new Dimensions(lengthCm, widthCm, heightCm));
+                lengthCm == null ? null : new Dimensions(lengthCm, widthCm, heightCm),
+                declaredValue);
     }
 }

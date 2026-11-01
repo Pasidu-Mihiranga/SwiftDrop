@@ -256,6 +256,27 @@ describe("quoteLifetime", () => {
     };
     const districts = ["Colombo", "Kandy"];
 
+    it("insures the parcel when a value is declared", () => {
+      const result = validateQuoteForm({ ...base, declaredValue: "30000" }, districts);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.body).toMatchObject({ declaredValue: 30000 });
+    });
+
+    it("sends no declared value when the customer wants no cover", () => {
+      const result = validateQuoteForm(base, districts);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.body).not.toHaveProperty("declaredValue");
+    });
+
+    it("refuses a negative declared value", () => {
+      const result = validateQuoteForm({ ...base, declaredValue: "-1" }, districts);
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.errors.declaredValue).toMatch(/cannot be negative/i);
+    });
+
     it("sends the three sides when all are given", () => {
       const result = validateQuoteForm(
         { ...base, lengthCm: "60", widthCm: "40", heightCm: "30" }, districts);

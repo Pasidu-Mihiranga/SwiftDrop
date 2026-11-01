@@ -17,7 +17,12 @@ info:
     falling inside it, so the price rises smoothly rather than jumping at a boundary.
         SIZE     = subtotal * (size_class.multiplier - 1)
         EXPRESS  = (subtotal + SIZE) * (express_multiplier - 1)
-        COD      = codAmount * cod_fee_pct
+        REMOTE   = origin_remote_fee + destination_remote_fee
+    INSURE   = max(band.flat_fee, declaredValue * band.pct)
+    COD      = codAmount * cod_fee_pct
+
+    REMOTE and INSURE are flat amounts rather than proportions, so neither compounds with
+    the rules beneath it, and nor does COD.
 
     Amounts are LKR with two decimals, rounded HALF_UP per breakdown line, so the lines
     always sum exactly to `fee`. Rules that do not apply are omitted from the breakdown
@@ -440,7 +445,7 @@ components:
       description: |
         Identifies one line of the fee breakdown. Lines are returned in this order and rules
         that do not apply are omitted.
-      enum: [BASE, WEIGHT, SIZE, EXPRESS, COD]
+      enum: [BASE, WEIGHT, SIZE, EXPRESS, REMOTE_AREA, INSURANCE, COD]
     BreakdownLine:
       type: object
       required: [rule, amount]
@@ -605,6 +610,14 @@ components:
           example: 60
         widthCm: { type: number, exclusiveMinimum: 0, maximum: 500, example: 40 }
         heightCm: { type: number, exclusiveMinimum: 0, maximum: 500, example: 30 }
+        declaredValue:
+          type: number
+          minimum: 0
+          description: >
+            What the parcel is worth. Omit it to send without cover and be charged no
+            premium. The premium is taken from the band the value falls in, as the greater
+            of that band's flat fee and its percentage.
+          example: 30000
     Quote:
       type: object
       description: |
@@ -616,7 +629,10 @@ components:
         fee: { $ref: "common.v1.yaml#/components/schemas/Money" }
         breakdown:
           type: array
-          description: One line per pricing rule applied (BASE, WEIGHT, SIZE, EXPRESS, COD).
+          description: >
+            One line per pricing rule applied, in that enum's order. A rule that does not
+            apply is omitted rather than reported as zero, and the lines always add up
+            exactly to the fee.
           items: { $ref: "#/components/schemas/BreakdownLine" }
         fromZone: { $ref: "#/components/schemas/ZoneCode" }
         toZone: { $ref: "#/components/schemas/ZoneCode" }
@@ -643,6 +659,10 @@ components:
           description: Which measure the parcel was billed on.
         sizeClass:
           $ref: "common.v1.yaml#/components/schemas/SizeClass"
+        declaredValue:
+          type: number
+          minimum: 0
+          description: What the parcel was insured for. Absent when sent without cover.
         declaredSizeClass:
           $ref: "common.v1.yaml#/components/schemas/SizeClass"
           description: >

@@ -32,7 +32,8 @@ public record QuoteResponse(UUID quoteId, Money fee, List<BreakdownLineResponse>
                             BigDecimal weightKg, SizeClassCode sizeClass, ServiceLevel serviceLevel,
                             BigDecimal codAmount, Instant issuedAt, Instant expiresAt,
                             BigDecimal chargeableWeightKg, BigDecimal volumetricWeightKg,
-                            WeightBasis weightBasis, SizeClassCode declaredSizeClass) {
+                            WeightBasis weightBasis, SizeClassCode declaredSizeClass,
+                            BigDecimal declaredValue) {
 
     /** An amount and its currency. Mirrors the shared Money schema in common.v1.yaml. */
     public record Money(BigDecimal amount, String currency) { }

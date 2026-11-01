@@ -24,6 +24,7 @@ public final class QuoteApiMapper {
                 snapshot.weightBasis(),
                 // Sent only when it differs, so the customer is told their selection was
                 // changed and is not left to compare two identical fields.
-                snapshot.sizeClassWasDerived() ? snapshot.declaredSizeClass() : null);
+                snapshot.sizeClassWasDerived() ? snapshot.declaredSizeClass() : null,
+                snapshot.declaredValue());
     }
 }

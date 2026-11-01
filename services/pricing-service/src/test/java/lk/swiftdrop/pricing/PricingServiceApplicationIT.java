@@ -41,6 +41,8 @@ class PricingServiceApplicationIT {
     @Autowired
     private StringRedisTemplate redis;
     @Autowired
+    private lk.swiftdrop.pricing.application.port.out.RemoteAreaSurchargeRepository remoteAreas;
+    @Autowired
     private ObjectMapper mapper;
 
     @Test
@@ -144,5 +146,40 @@ class PricingServiceApplicationIT {
                                  "sizeClass":"M","lengthCm":60,"widthCm":40}"""))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    void chargesCoverFromTheBandTheDeclaredValueFallsIn() throws Exception {
+        // 30000 is in the second seeded band: one per cent is 300, which beats its flat 100.
+        mvc.perform(post("/api/v1/pricing/quotes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"fromDistrict":"Colombo","toDistrict":"Kandy","weightKg":2,
+                                 "sizeClass":"M","declaredValue":30000}"""))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.declaredValue").value(30000))
+                .andExpect(jsonPath("$.breakdown[?(@.rule=='INSURANCE')].amount").value(300.00));
+    }
+
+    @Test
+    void chargesNoCoverForAParcelSentWithoutADeclaredValue() throws Exception {
+        mvc.perform(post("/api/v1/pricing/quotes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fromDistrict\":\"Colombo\",\"toDistrict\":\"Kandy\",\"weightKg\":2,\"sizeClass\":\"M\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.declaredValue").doesNotExist())
+                .andExpect(jsonPath("$.breakdown[?(@.rule=='INSURANCE')]").isEmpty());
+    }
+
+    @Test
+    void chargesBothEndsOfAJourneyBetweenTwoHardToReachDistricts() throws Exception {
+        remoteAreas.publish("Jaffna", new java.math.BigDecimal("250.00"), java.time.LocalDate.of(2026, 1, 1));
+        remoteAreas.publish("Mannar", new java.math.BigDecimal("400.00"), java.time.LocalDate.of(2026, 1, 1));
+
+        mvc.perform(post("/api/v1/pricing/quotes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fromDistrict\":\"Jaffna\",\"toDistrict\":\"Mannar\",\"weightKg\":2,\"sizeClass\":\"M\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.breakdown[?(@.rule=='REMOTE_AREA')].amount").value(650.00));
     }
 }

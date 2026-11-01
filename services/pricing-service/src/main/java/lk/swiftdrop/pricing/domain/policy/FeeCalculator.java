@@ -16,8 +16,13 @@ import java.util.Objects;
  * so each one charges against the rounded total of everything beneath it:
  *
  * <pre>
- *   COD( EXPRESS( SIZE( ZoneMatrix + Weight ) ) )
+ *   COD( INSURANCE( REMOTE_AREA( EXPRESS( SIZE( ZoneMatrix + Weight ) ) ) ) )
  * </pre>
+ *
+ * <p>Two of those do not compound, and their position in the chain affects only the order of
+ * the lines: the cash-on-delivery commission is a fraction of the cash being collected, and the
+ * insurance premium comes from the declared value. Both are stated here because a reviewer
+ * reading the nesting would reasonably assume otherwise.
  *
  * <p>Adding a rule means adding a decorator, not editing a calculation. The chain is stateless
  * and holds no parcel data, so one calculator can serve every request. It is a plain object so
@@ -39,9 +44,13 @@ public final class FeeCalculator {
     /** The rule chain as the contract documents it. Kept in one place so the order is reviewable. */
     public static PricingStrategy defaultPipeline() {
         return new CodFeeDecorator(
-                new ExpressSurchargeDecorator(
-                        new SizeSurchargeDecorator(
-                                new CompositePricingStrategy(new ZoneMatrixStrategy(), new TieredWeightStrategy()))));
+                new InsuranceSurchargeDecorator(
+                        new RemoteAreaSurchargeDecorator(
+                                new ExpressSurchargeDecorator(
+                                        new SizeSurchargeDecorator(
+                                                new CompositePricingStrategy(
+                                                        new ZoneMatrixStrategy(),
+                                                        new TieredWeightStrategy()))))));
     }
 
     /**

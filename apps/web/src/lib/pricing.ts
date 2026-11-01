@@ -12,7 +12,7 @@ export type SizeClass = (typeof SIZE_CLASSES)[number];
 export const SERVICE_LEVELS = ["STANDARD", "EXPRESS"] as const;
 export type ServiceLevel = (typeof SERVICE_LEVELS)[number];
 
-export const PRICING_RULES = ["BASE", "WEIGHT", "SIZE", "EXPRESS", "COD"] as const;
+export const PRICING_RULES = ["BASE", "WEIGHT", "SIZE", "EXPRESS", "REMOTE_AREA", "INSURANCE", "COD"] as const;
 export type PricingRule = (typeof PRICING_RULES)[number];
 
 /** Upper bound published by the quote contract. */
@@ -68,6 +68,8 @@ export interface Quote {
   declaredSizeClass?: SizeClass;
   serviceLevel: ServiceLevel;
   codAmount?: number;
+  /** What the parcel was insured for. Absent when sent without cover. */
+  declaredValue?: number;
   issuedAt: string;
   expiresAt: string;
 }
@@ -103,6 +105,7 @@ export interface QuoteFormValues {
   sizeClass: string;
   serviceLevel: string;
   codAmount: string;
+  declaredValue: string;
   /** Optional, and all three or none. Kept as strings so a half-typed value is not lost. */
   lengthCm: string;
   widthCm: string;
@@ -116,6 +119,7 @@ export const EMPTY_QUOTE_FORM: QuoteFormValues = {
   sizeClass: "M",
   serviceLevel: "STANDARD",
   codAmount: "",
+  declaredValue: "",
   lengthCm: "",
   widthCm: "",
   heightCm: "",
@@ -128,6 +132,8 @@ export interface QuoteRequestBody {
   sizeClass: SizeClass;
   serviceLevel: ServiceLevel;
   codAmount?: number;
+  /** What the parcel is worth. Omit to send without cover. */
+  declaredValue?: number;
   /** All three together or none. The API rejects a partial set. */
   lengthCm?: number;
   widthCm?: number;
@@ -184,6 +190,12 @@ export function validateQuoteForm(values: QuoteFormValues, districts: readonly s
     errors.codAmount = "Cash to collect cannot be negative.";
   }
 
+  const hasValue = values.declaredValue.trim() !== "";
+  const declaredValue = Number(values.declaredValue);
+  if (hasValue && (!Number.isFinite(declaredValue) || declaredValue < 0)) {
+    errors.declaredValue = "Declared value cannot be negative.";
+  }
+
   // All three sides or none, the same rule the API applies. Two sides would mean guessing
   // the third, and a guess that lowers a price is not one worth making.
   const sides = [
@@ -215,6 +227,7 @@ export function validateQuoteForm(values: QuoteFormValues, districts: readonly s
       sizeClass: values.sizeClass as SizeClass,
       serviceLevel: values.serviceLevel as ServiceLevel,
       ...(hasCod ? { codAmount } : {}),
+      ...(hasValue ? { declaredValue } : {}),
       ...(hasDimensions
         ? {
             lengthCm: Number(values.lengthCm),
@@ -260,6 +273,8 @@ const RULE_LABELS: Record<PricingRule, string> = {
   WEIGHT: "Weight",
   SIZE: "Parcel size",
   EXPRESS: "Express delivery",
+  REMOTE_AREA: "Hard-to-reach area",
+  INSURANCE: "Cover",
   COD: "Cash on delivery",
 };
 
