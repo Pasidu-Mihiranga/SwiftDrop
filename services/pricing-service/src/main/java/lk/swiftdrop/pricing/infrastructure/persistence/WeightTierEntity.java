@@ -37,6 +37,10 @@ class WeightTierEntity {
         this.perKgFee = perKgFee;
     }
 
+    UUID getRateCardId() {
+        return rateCardId;
+    }
+
     BigDecimal getUpToKg() {
         return upToKg;
     }

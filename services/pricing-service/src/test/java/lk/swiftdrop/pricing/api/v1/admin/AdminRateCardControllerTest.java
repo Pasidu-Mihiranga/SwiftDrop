@@ -11,6 +11,7 @@ import lk.swiftdrop.pricing.application.model.Paged;
 import lk.swiftdrop.pricing.application.model.RateCardFilter;
 import lk.swiftdrop.pricing.application.query.RateCardQueryService;
 import lk.swiftdrop.pricing.domain.model.RateCard;
+import lk.swiftdrop.pricing.domain.model.WeightTier;
 import lk.swiftdrop.pricing.domain.model.ZoneCode;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -76,6 +77,20 @@ class AdminRateCardControllerTest {
             {"fromZone":"WP","toZone":"CP","baseFee":475.00,"perKgFee":78.00,
              "expressMultiplier":1.500,"codFeePct":0.0150,"effectiveFrom":"2026-01-01"}
             """;
+
+    @Test
+    void getReturnsTheCardsWeightBands() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(queries.find(id)).thenReturn(card(id, null));
+        when(queries.tiersOf(id)).thenReturn(List.of(
+                new WeightTier(new BigDecimal("5.00"), new BigDecimal("80.00")),
+                new WeightTier(null, new BigDecimal("60.00"))));
+
+        mvc.perform(get("/api/v1/admin/pricing/rate-cards/" + id).with(callerWithRoles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tiers[0].upToKg").value(5.00))
+                .andExpect(jsonPath("$.tiers[1].perKgFee").value(60.00));
+    }
 
     @Test
     void listsRateCardsWithTheSharedPaginationEnvelope() throws Exception {

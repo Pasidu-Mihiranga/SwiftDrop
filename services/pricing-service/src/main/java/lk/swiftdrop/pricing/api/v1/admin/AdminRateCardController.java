@@ -12,6 +12,7 @@ import lk.swiftdrop.pricing.api.dto.RateCardPageResponse;
 import lk.swiftdrop.pricing.api.dto.RateCardResponse;
 import lk.swiftdrop.pricing.api.mapper.RateCardApiMapper;
 import lk.swiftdrop.pricing.application.command.RateCardAdminService;
+import lk.swiftdrop.pricing.application.model.Paged;
 import lk.swiftdrop.pricing.application.model.RateCardFilter;
 import lk.swiftdrop.pricing.application.query.RateCardQueryService;
 import lk.swiftdrop.pricing.domain.model.RateCard;
@@ -32,6 +33,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 /** Rate-card maintenance. Pricing configuration is administrator-only. */
@@ -59,33 +61,36 @@ public class AdminRateCardController {
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
         RateCardFilter filter = new RateCardFilter(zoneCode(fromZone), zoneCode(toZone), activeOn);
-        return RateCardApiMapper.toResponse(queries.list(filter, page, size));
+        Paged<RateCard> cards = queries.list(filter, page, size);
+        return RateCardApiMapper.toResponse(cards,
+                queries.tiersOf(cards.content().stream().map(RateCard::id).toList()));
     }
 
     @GetMapping("/{rateCardId}")
     @Operation(summary = "Get one rate card (ADMIN)")
     public RateCardResponse get(@PathVariable UUID rateCardId) {
-        return RateCardApiMapper.toResponse(queries.find(rateCardId));
+        return RateCardApiMapper.toResponse(queries.find(rateCardId), queries.tiersOf(rateCardId));
     }
 
     @PostMapping
     @Operation(summary = "Create rate card (ADMIN). Overlapping periods for a lane are rejected.")
     public ResponseEntity<RateCardResponse> create(@Valid @RequestBody RateCardCreateRequest request) {
+        List<WeightTier> tiers = request.tiersOrEmpty().stream()
+                .map(tier -> new WeightTier(tier.upToKg(), tier.perKgFee())).toList();
         RateCard created = commands.create(ZoneCode.of(request.fromZone()), ZoneCode.of(request.toZone()),
                 request.baseFee(), request.perKgFee(), request.expressMultiplier(), request.codFeePct(),
-                request.effectiveFrom(), request.effectiveTo(),
-                request.tiersOrEmpty().stream()
-                        .map(tier -> new WeightTier(tier.upToKg(), tier.perKgFee())).toList());
+                request.effectiveFrom(), request.effectiveTo(), tiers);
         return ResponseEntity
                 .created(URI.create("/api/v1/admin/pricing/rate-cards/" + created.id()))
-                .body(RateCardApiMapper.toResponse(created));
+                .body(RateCardApiMapper.toResponse(created, tiers));
     }
 
     @PutMapping("/{rateCardId}/closure")
     @Operation(summary = "Close a rate card by setting its end date (ADMIN). Cards are never deleted.")
     public RateCardResponse close(@PathVariable UUID rateCardId,
                                   @Valid @RequestBody RateCardClosureRequest request) {
-        return RateCardApiMapper.toResponse(commands.close(rateCardId, request.effectiveTo()));
+        return RateCardApiMapper.toResponse(commands.close(rateCardId, request.effectiveTo()),
+                queries.tiersOf(rateCardId));
     }
 
     /**
