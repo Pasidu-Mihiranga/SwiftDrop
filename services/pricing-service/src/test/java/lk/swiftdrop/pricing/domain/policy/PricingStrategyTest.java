@@ -1,5 +1,6 @@
 package lk.swiftdrop.pricing.domain.policy;
 
+import lk.swiftdrop.pricing.domain.model.Dimensions;
 import lk.swiftdrop.pricing.domain.model.FeeBreakdown;
 import lk.swiftdrop.pricing.domain.model.PricingRule;
 import lk.swiftdrop.pricing.domain.model.RateCard;
@@ -154,7 +155,7 @@ class PricingStrategyTest {
     }
 
     private static SizeClassRate size(String multiplier, String maxWeight) {
-        return new SizeClassRate(SizeClassCode.M, money(maxWeight), "40x30x20", money(multiplier));
+        return new SizeClassRate(SizeClassCode.M, money(maxWeight), Dimensions.of("40", "30", "20"), money(multiplier));
     }
 
     private static RateCard card(String base, String perKg, String express, String codPct) {

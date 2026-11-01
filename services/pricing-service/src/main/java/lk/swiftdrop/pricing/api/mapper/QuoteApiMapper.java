@@ -20,6 +20,10 @@ public final class QuoteApiMapper {
                 lines, snapshot.fromZone(), snapshot.toZone(), snapshot.fromDistrict(),
                 snapshot.toDistrict(), snapshot.weightKg(), snapshot.sizeClass(),
                 snapshot.serviceLevel(), snapshot.codAmount(), snapshot.issuedAt(),
-                snapshot.expiresAt());
+                snapshot.expiresAt(), snapshot.chargeableWeightKg(), snapshot.volumetricWeightKg(),
+                snapshot.weightBasis(),
+                // Sent only when it differs, so the customer is told their selection was
+                // changed and is not left to compare two identical fields.
+                snapshot.sizeClassWasDerived() ? snapshot.declaredSizeClass() : null);
     }
 }

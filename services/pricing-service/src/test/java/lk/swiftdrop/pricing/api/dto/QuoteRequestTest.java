@@ -47,6 +47,6 @@ class QuoteRequestTest {
 
     private static QuoteRequest request(String from, String to, BigDecimal weight, SizeClassCode size,
                                         ServiceLevel level, BigDecimal cod) {
-        return new QuoteRequest(null, from, null, to, weight, size, level, cod);
+        return new QuoteRequest(null, from, null, to, weight, size, level, cod, null, null, null);
     }
 }

@@ -3,12 +3,18 @@ package lk.swiftdrop.pricing.application.query;
 import lk.swiftdrop.common.web.error.BusinessRuleViolationException;
 import lk.swiftdrop.pricing.application.port.out.DistrictAssignmentRepository;
 import lk.swiftdrop.pricing.application.port.out.SizeClassRepository;
+import lk.swiftdrop.pricing.application.port.out.VolumetricDivisorRepository;
+import lk.swiftdrop.pricing.domain.model.ChargeableWeight;
 import lk.swiftdrop.pricing.domain.model.SizeClassRate;
 import lk.swiftdrop.pricing.domain.model.ZoneCode;
+import lk.swiftdrop.pricing.domain.policy.ChargeableWeightPolicy;
 import lk.swiftdrop.pricing.domain.policy.FeeCalculator;
+import lk.swiftdrop.pricing.domain.policy.PricingContext;
+import lk.swiftdrop.pricing.domain.policy.SizeClassSelector;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Objects;
 
@@ -20,13 +26,16 @@ public class QuotePricingService {
     private final DistrictAssignmentRepository districts;
     private final SizeClassRepository sizeClasses;
     private final RateCardSelectionService rateCards;
+    private final VolumetricDivisorRepository divisors;
     private final FeeCalculator calculator;
 
     public QuotePricingService(DistrictAssignmentRepository districts, SizeClassRepository sizeClasses,
-                               RateCardSelectionService rateCards, FeeCalculator calculator) {
+                               RateCardSelectionService rateCards, VolumetricDivisorRepository divisors,
+                               FeeCalculator calculator) {
         this.districts = districts;
         this.sizeClasses = sizeClasses;
         this.rateCards = rateCards;
+        this.divisors = divisors;
         this.calculator = calculator;
     }
 
@@ -35,15 +44,43 @@ public class QuotePricingService {
         Objects.requireNonNull(quoteDate, "quoteDate");
         ZoneCode fromZone = activeZone(input.fromDistrict());
         ZoneCode toZone = activeZone(input.toDistrict());
-        SizeClassRate sizeClass = sizeClasses.findByCode(input.sizeClass())
-                .orElseThrow(() -> new IllegalStateException("Size class " + input.sizeClass() + " is not configured"));
-        if (!sizeClass.accepts(input.weightKg())) {
-            throw new BusinessRuleViolationException("SIZE_CLASS_WEIGHT_EXCEEDED",
-                    "Weight exceeds the configured limit for size class " + input.sizeClass());
+
+        ChargeableWeight weight = ChargeableWeightPolicy.of(input.weightKg(), input.dimensions(),
+                divisors.findInForce(quoteDate).orElse(null));
+        SizeClassRate charged = chargedSizeClass(input);
+
+        PricingContext context = new PricingContext(
+                new PricingContext.Parcel(weight.actualKg(), weight.chargeableKg(), charged,
+                        input.serviceLevel(), input.codAmount()),
+                new PricingContext.Rates(rateCards.select(fromZone, toZone, quoteDate)));
+        return new PreparedQuote(input, fromZone, toZone, calculator.calculate(context), weight, charged);
+    }
+
+    /**
+     * The class the parcel is charged at, and the only class its weight is checked against.
+     *
+     * <p>Measurements decide it where they were given: the cheapest class the parcel genuinely
+     * fits by both weight and shape. Checking the weight against the declared class as well
+     * would mean a customer who measures their parcel honestly is refused a quote that the
+     * same parcel would have got had they said nothing, which is precisely backwards.
+     *
+     * <p>With no measurements there is nothing to derive from, so the declared class stands and
+     * its weight limit is the one that applies.
+     */
+    private SizeClassRate chargedSizeClass(QuotePricingInput input) {
+        if (input.dimensions() == null) {
+            SizeClassRate declared = sizeClasses.findByCode(input.sizeClass())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Size class " + input.sizeClass() + " is not configured"));
+            if (!declared.accepts(input.weightKg())) {
+                throw new BusinessRuleViolationException("SIZE_CLASS_WEIGHT_EXCEEDED",
+                        "Weight exceeds the configured limit for size class " + input.sizeClass());
+            }
+            return declared;
         }
-        return new PreparedQuote(input, fromZone, toZone,
-                calculator.calculate(rateCards.select(fromZone, toZone, quoteDate), sizeClass,
-                        input.weightKg(), input.serviceLevel(), input.codAmount()));
+        return SizeClassSelector.select(sizeClasses.findAll(), input.weightKg(), input.dimensions())
+                .orElseThrow(() -> new BusinessRuleViolationException("PARCEL_TOO_LARGE",
+                        "No size class accepts a parcel of these dimensions and weight"));
     }
 
     private ZoneCode activeZone(String district) {

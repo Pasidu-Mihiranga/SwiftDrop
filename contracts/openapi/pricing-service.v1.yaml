@@ -9,7 +9,8 @@ info:
     in force for that ordered zone pair on the quote date, and applies the rules in a fixed
     order: BASE and WEIGHT from the rate card, then SIZE, then EXPRESS, then COD.
 
-        subtotal = base_fee + per_kg_fee * ceil(weightKg)
+        chargeable_kg = max(weightKg, length * width * height / volumetric_divisor)
+    subtotal = base_fee + per_kg_fee * ceil(chargeable_kg)
         SIZE     = subtotal * (size_class.multiplier - 1)
         EXPRESS  = (subtotal + SIZE) * (express_multiplier - 1)
         COD      = codAmount * cod_fee_pct
@@ -570,6 +571,18 @@ components:
           minimum: 0
           description: Cash to collect on delivery. Omit or 0 for no COD.
           example: 0
+        lengthCm:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 500
+          description: |
+            Parcel measurements. Optional, but all three together or none: two sides without
+            the third would mean guessing, and a guess that lowers a price is not worth making.
+            Given them, the parcel is charged on the greater of its weight and its volume, and
+            the size class is derived from the measurements rather than taken as declared.
+          example: 60
+        widthCm: { type: number, exclusiveMinimum: 0, maximum: 500, example: 40 }
+        heightCm: { type: number, exclusiveMinimum: 0, maximum: 500, example: 30 }
     Quote:
       type: object
       description: |
@@ -588,8 +601,29 @@ components:
         fromDistrict: { type: string, example: Colombo }
         toDistrict: { type: string, example: Kandy }
         weightKg: { type: number, example: 2 }
-        sizeClass: { $ref: "common.v1.yaml#/components/schemas/SizeClass" }
         serviceLevel: { $ref: "#/components/schemas/ServiceLevel" }
         codAmount: { type: number, minimum: 0, example: 0 }
         issuedAt: { type: string, format: date-time }
         expiresAt: { type: string, format: date-time }
+        chargeableWeightKg:
+          type: number
+          description: What the parcel was billed as. Equals weightKg unless it is bulky.
+          example: 14.40
+        volumetricWeightKg:
+          type: number
+          description: >
+            What the parcel's volume came to, in kilograms. Absent when no measurements were
+            given, and present but lower than weightKg when the parcel is dense.
+          example: 14.40
+        weightBasis:
+          type: string
+          enum: [ACTUAL, VOLUMETRIC]
+          description: Which measure the parcel was billed on.
+        sizeClass:
+          $ref: "common.v1.yaml#/components/schemas/SizeClass"
+        declaredSizeClass:
+          $ref: "common.v1.yaml#/components/schemas/SizeClass"
+          description: >
+            The class the customer selected. Sent only when measurements put the parcel in a
+            different class from the one they chose, so sizeClass is what they are charged for
+            and this is what they asked for.
