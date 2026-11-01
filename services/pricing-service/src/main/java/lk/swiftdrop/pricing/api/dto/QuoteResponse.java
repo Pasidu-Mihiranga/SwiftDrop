@@ -1,6 +1,7 @@
 package lk.swiftdrop.pricing.api.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import lk.swiftdrop.pricing.domain.model.DistanceSource;
 import lk.swiftdrop.pricing.domain.model.PricingRule;
 import lk.swiftdrop.pricing.domain.model.ServiceLevel;
 import lk.swiftdrop.pricing.domain.model.SizeClassCode;
@@ -26,6 +27,7 @@ import java.util.UUID;
  * @param volumetricWeightKg what its volume came to; absent when no measurements were given
  * @param declaredSizeClass  present only when measurements put the parcel in another class
  * @param agreementId        the negotiated terms applied; absent for a counter-price quote
+ * @param distanceSource     ESTIMATED means no router answered and the figure is approximate
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record QuoteResponse(UUID quoteId, Money fee, List<BreakdownLineResponse> breakdown,
@@ -34,7 +36,8 @@ public record QuoteResponse(UUID quoteId, Money fee, List<BreakdownLineResponse>
                             BigDecimal codAmount, Instant issuedAt, Instant expiresAt,
                             BigDecimal chargeableWeightKg, BigDecimal volumetricWeightKg,
                             WeightBasis weightBasis, SizeClassCode declaredSizeClass,
-                            BigDecimal declaredValue, UUID agreementId) {
+                            BigDecimal declaredValue, UUID agreementId,
+                            BigDecimal distanceKm, DistanceSource distanceSource) {
 
     /** An amount and its currency. Mirrors the shared Money schema in common.v1.yaml. */
     public record Money(BigDecimal amount, String currency) { }

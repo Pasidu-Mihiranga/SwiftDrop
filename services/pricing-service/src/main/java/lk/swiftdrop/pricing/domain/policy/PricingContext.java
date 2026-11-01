@@ -1,6 +1,8 @@
 package lk.swiftdrop.pricing.domain.policy;
 
+import lk.swiftdrop.pricing.domain.model.DistanceRate;
 import lk.swiftdrop.pricing.domain.model.InsuranceBand;
+import lk.swiftdrop.pricing.domain.model.LaneDistance;
 import lk.swiftdrop.pricing.domain.model.MerchantAgreement;
 import lk.swiftdrop.pricing.domain.model.RateCard;
 import lk.swiftdrop.pricing.domain.model.RemoteAreaSurcharge;
@@ -61,7 +63,8 @@ public record PricingContext(Parcel parcel, Rates rates) {
      */
     public record Rates(RateCard card, List<WeightTier> weightTiers,
                         RemoteAreaSurcharge originRemoteArea, RemoteAreaSurcharge destinationRemoteArea,
-                        List<InsuranceBand> insuranceBands, MerchantAgreement merchantAgreement) {
+                        List<InsuranceBand> insuranceBands, MerchantAgreement merchantAgreement,
+                        DistanceRate distanceRate, LaneDistance laneDistance) {
 
         public Rates {
             Objects.requireNonNull(card, "card");
@@ -71,18 +74,26 @@ public record PricingContext(Parcel parcel, Rates rates) {
 
         /** A lane priced by a single per-kilogram rate, with no surcharges configured. */
         public Rates(RateCard card) {
-            this(card, List.of(), null, null, List.of(), null);
+            this(card, List.of(), null, null, List.of(), null, null, null);
         }
 
         /** A lane with weight bands and nothing else configured. */
         public Rates(RateCard card, List<WeightTier> weightTiers) {
-            this(card, weightTiers, null, null, List.of(), null);
+            this(card, weightTiers, null, null, List.of(), null, null, null);
         }
 
         /** A lane with surcharges but no merchant agreement, which is any anonymous quote. */
         public Rates(RateCard card, List<WeightTier> weightTiers, RemoteAreaSurcharge originRemoteArea,
                      RemoteAreaSurcharge destinationRemoteArea, List<InsuranceBand> insuranceBands) {
-            this(card, weightTiers, originRemoteArea, destinationRemoteArea, insuranceBands, null);
+            this(card, weightTiers, originRemoteArea, destinationRemoteArea, insuranceBands, null, null, null);
+        }
+
+        /** A zone-priced lane with surcharges and an agreement, but nothing measured. */
+        public Rates(RateCard card, List<WeightTier> weightTiers, RemoteAreaSurcharge originRemoteArea,
+                     RemoteAreaSurcharge destinationRemoteArea, List<InsuranceBand> insuranceBands,
+                     MerchantAgreement merchantAgreement) {
+            this(card, weightTiers, originRemoteArea, destinationRemoteArea, insuranceBands,
+                    merchantAgreement, null, null);
         }
 
         /** Whether this quote is priced under a negotiated agreement. */

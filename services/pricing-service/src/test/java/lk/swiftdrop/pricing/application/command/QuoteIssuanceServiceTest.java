@@ -5,6 +5,7 @@ import lk.swiftdrop.pricing.domain.model.Dimensions;
 import lk.swiftdrop.pricing.application.model.QuoteSnapshot;
 import lk.swiftdrop.pricing.application.port.out.PricingMetrics;
 import lk.swiftdrop.pricing.application.port.out.QuoteStore;
+import lk.swiftdrop.pricing.application.query.LaneDistanceService;
 import lk.swiftdrop.pricing.application.query.PreparedQuote;
 import lk.swiftdrop.pricing.application.query.QuotePricingInput;
 import lk.swiftdrop.pricing.application.query.QuotePricingService;
@@ -13,6 +14,7 @@ import lk.swiftdrop.pricing.domain.model.PricingRule;
 import lk.swiftdrop.pricing.domain.model.ServiceLevel;
 import lk.swiftdrop.pricing.domain.model.SizeClassCode;
 import lk.swiftdrop.pricing.domain.model.ZoneCode;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -22,10 +24,12 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Optional;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -34,6 +38,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class QuoteIssuanceServiceTest {
+
+    private final LaneDistanceService laneDistances = mock(LaneDistanceService.class);
+
+    @BeforeEach
+    void nothingToMeasure() {
+        // None of these quotes is a same-day job, so no lane is ever measured.
+        when(laneDistances.measure(any(), any(), any(), any(), any(), any())).thenReturn(Optional.empty());
+    }
 
     private static final SizeClassRate MEDIUM = new SizeClassRate(SizeClassCode.M,
             new BigDecimal("5.00"), Dimensions.of("40", "30", "20"), new BigDecimal("1.150"));
@@ -53,9 +65,9 @@ class QuoteIssuanceServiceTest {
         FeeBreakdown breakdown = new FeeBreakdown(
                 List.of(new FeeBreakdown.Line(PricingRule.BASE, new BigDecimal("475.00"))),
                 new BigDecimal("475.00"));
-        when(pricing.prepare(INPUT, LocalDate.of(2026, 10, 25)))
+        when(pricing.prepare(eq(INPUT), eq(LocalDate.of(2026, 10, 25)), any(), any()))
                 .thenReturn(new PreparedQuote(INPUT, ZoneCode.of("WP"), ZoneCode.of("CP"), breakdown, MEDIUM));
-        QuoteIssuanceService service = new QuoteIssuanceService(pricing, store, metrics, TTL, CLOCK);
+        QuoteIssuanceService service = new QuoteIssuanceService(pricing, laneDistances, store, metrics, TTL, CLOCK);
 
         QuoteSnapshot returned = service.issue(INPUT);
 
@@ -72,9 +84,9 @@ class QuoteIssuanceServiceTest {
 
     @Test
     void rejectsNonPositiveQuoteLifetime() {
-        assertThatThrownBy(() -> new QuoteIssuanceService(pricing, store, metrics, Duration.ZERO, CLOCK))
+        assertThatThrownBy(() -> new QuoteIssuanceService(pricing, laneDistances, store, metrics, Duration.ZERO, CLOCK))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new QuoteIssuanceService(pricing, store, metrics, Duration.ofSeconds(-1), CLOCK))
+        assertThatThrownBy(() -> new QuoteIssuanceService(pricing, laneDistances, store, metrics, Duration.ofSeconds(-1), CLOCK))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -84,10 +96,10 @@ class QuoteIssuanceServiceTest {
         when(movingClock.instant()).thenReturn(NOW, NOW.plusSeconds(2));
         when(movingClock.getZone()).thenReturn(ZoneId.of("Asia/Colombo"));
         FeeBreakdown breakdown = new FeeBreakdown(List.of(), new BigDecimal("0.00"));
-        when(pricing.prepare(INPUT, LocalDate.of(2026, 10, 25)))
+        when(pricing.prepare(eq(INPUT), eq(LocalDate.of(2026, 10, 25)), any(), any()))
                 .thenReturn(new PreparedQuote(INPUT, ZoneCode.of("WP"), ZoneCode.of("CP"), breakdown, MEDIUM));
 
-        QuoteSnapshot returned = new QuoteIssuanceService(pricing, store, metrics, TTL, movingClock).issue(INPUT);
+        QuoteSnapshot returned = new QuoteIssuanceService(pricing, laneDistances, store, metrics, TTL, movingClock).issue(INPUT);
 
         verify(store).save(returned, TTL.minusSeconds(2));
         assertThat(returned.expiresAt()).isEqualTo(NOW.plus(TTL));
@@ -98,10 +110,10 @@ class QuoteIssuanceServiceTest {
         FeeBreakdown breakdown = new FeeBreakdown(
                 List.of(new FeeBreakdown.Line(PricingRule.BASE, new BigDecimal("475.00"))),
                 new BigDecimal("475.00"));
-        when(pricing.prepare(INPUT, LocalDate.of(2026, 10, 25)))
+        when(pricing.prepare(eq(INPUT), eq(LocalDate.of(2026, 10, 25)), any(), any()))
                 .thenReturn(new PreparedQuote(INPUT, ZoneCode.of("WP"), ZoneCode.of("CP"), breakdown, MEDIUM));
 
-        new QuoteIssuanceService(pricing, store, metrics, TTL, CLOCK).issue(INPUT);
+        new QuoteIssuanceService(pricing, laneDistances, store, metrics, TTL, CLOCK).issue(INPUT);
 
         verify(metrics).quoteIssued(ServiceLevel.STANDARD, SizeClassCode.M, new BigDecimal("475.00"));
     }
@@ -111,11 +123,11 @@ class QuoteIssuanceServiceTest {
         FeeBreakdown breakdown = new FeeBreakdown(
                 List.of(new FeeBreakdown.Line(PricingRule.BASE, new BigDecimal("475.00"))),
                 new BigDecimal("475.00"));
-        when(pricing.prepare(INPUT, LocalDate.of(2026, 10, 25)))
+        when(pricing.prepare(eq(INPUT), eq(LocalDate.of(2026, 10, 25)), any(), any()))
                 .thenReturn(new PreparedQuote(INPUT, ZoneCode.of("WP"), ZoneCode.of("CP"), breakdown, MEDIUM));
         doThrow(new IllegalStateException("redis is down")).when(store).save(any(), any());
 
-        assertThatThrownBy(() -> new QuoteIssuanceService(pricing, store, metrics, TTL, CLOCK).issue(INPUT))
+        assertThatThrownBy(() -> new QuoteIssuanceService(pricing, laneDistances, store, metrics, TTL, CLOCK).issue(INPUT))
                 .isInstanceOf(IllegalStateException.class);
 
         // A quote nobody can use must not inflate the business meter.

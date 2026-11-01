@@ -228,4 +228,64 @@ class PricingServiceApplicationIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.agreementId").doesNotExist());
     }
+
+    @Test
+    void pricesASameDayJobOnTheRoadTravelledRatherThanTheZone() throws Exception {
+        String response = mvc.perform(post("/api/v1/pricing/quotes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"fromDistrict":"Colombo","toDistrict":"Gampaha","weightKg":2,
+                                 "sizeClass":"M","serviceLevel":"SAME_DAY"}"""))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.serviceLevel").value("SAME_DAY"))
+                // Priced on distance, so there is no zone base charge at all.
+                .andExpect(jsonPath("$.breakdown[?(@.rule=='DISTANCE')]").isNotEmpty())
+                .andExpect(jsonPath("$.breakdown[?(@.rule=='BASE')]").isEmpty())
+                .andExpect(jsonPath("$.distanceKm").isNumber())
+                // No routing engine is deployed, so the figure is openly an estimate.
+                .andExpect(jsonPath("$.distanceSource").value("ESTIMATED"))
+                .andReturn().getResponse().getContentAsString();
+
+        var quote = mapper.readTree(response);
+        var lines = quote.get("breakdown").valueStream()
+                .map(line -> new java.math.BigDecimal(line.get("amount").asString()))
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+        assertThat(lines).isEqualByComparingTo(
+                new java.math.BigDecimal(quote.get("fee").get("amount").asString()));
+    }
+
+    @Test
+    void usesTheExactPointsForASameDayJobWhenTheCallerGivesThem() throws Exception {
+        // Two points a few hundred metres apart in Colombo, which the district centroid alone
+        // could never tell apart.
+        String nearby = mvc.perform(post("/api/v1/pricing/quotes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"fromDistrict":"Colombo","toDistrict":"Colombo","weightKg":2,
+                                 "sizeClass":"M","serviceLevel":"SAME_DAY",
+                                 "fromLatitude":6.927079,"fromLongitude":79.861244,
+                                 "toLatitude":6.934000,"toLongitude":79.857000}"""))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        // Under the three kilometre minimum, so it is billed at the minimum rather than free.
+        assertThat(new java.math.BigDecimal(mapper.readTree(nearby).get("distanceKm").asString()))
+                .isLessThan(new java.math.BigDecimal("3"));
+        assertThat(new java.math.BigDecimal(
+                mapper.readTree(nearby).get("breakdown").valueStream()
+                        .filter(line -> "DISTANCE".equals(line.get("rule").asString()))
+                        .findFirst().orElseThrow().get("amount").asString()))
+                .isEqualByComparingTo("465.00");
+    }
+
+    @Test
+    void refusesHalfACoordinateRatherThanGuessingTheRest() throws Exception {
+        mvc.perform(post("/api/v1/pricing/quotes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"fromDistrict":"Colombo","toDistrict":"Gampaha","weightKg":2,
+                                 "sizeClass":"M","serviceLevel":"SAME_DAY","fromLatitude":6.9}"""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
 }
