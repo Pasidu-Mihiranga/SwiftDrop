@@ -51,6 +51,14 @@ swiftdrop:
   pricing:
     quote-ttl: ${PRICING_QUOTE_TTL:PT15M}
     quote-zone-id: ${PRICING_QUOTE_ZONE_ID:Asia/Colombo}
+    # OSRM, for same-day distances. Leave the URL blank to run without a router: distances are
+    # then estimated and labelled as such. A quote waits on this call, so the timeouts are short.
+    routing:
+      url: ${OSRM_URL:}
+      connect-timeout: ${OSRM_CONNECT_TIMEOUT:PT0.3S}
+      read-timeout: ${OSRM_READ_TIMEOUT:PT1S}
+      cache-ttl: ${OSRM_CACHE_TTL:PT24H}
+      breaker-open-for: ${OSRM_BREAKER_OPEN_FOR:PT30S}
 
 server:
   port: ${PORT:8083}
