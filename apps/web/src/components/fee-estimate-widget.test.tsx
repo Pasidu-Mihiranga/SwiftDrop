@@ -301,4 +301,91 @@ describe("FeeEstimateWidget", () => {
       serviceLevel: "EXPRESS",
     });
   });
+
+  it("lets a customer measure the parcel and sends the three sides", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(quote()), { status: 200, headers: { "content-type": "application/json" } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<FeeEstimateWidget zones={ZONES} />);
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    await fillForm(user);
+    await user.type(screen.getByLabelText("Length (cm)"), "60");
+    await user.type(screen.getByLabelText("Width (cm)"), "40");
+    await user.type(screen.getByLabelText("Height (cm)"), "30");
+    await user.click(screen.getByRole("button", { name: "Get estimate" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1].body));
+    expect(body).toMatchObject({ lengthCm: 60, widthCm: 40, heightCm: 30 });
+  });
+
+  it("does not send measurement fields when the customer gives none", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(quote()), { status: 200, headers: { "content-type": "application/json" } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<FeeEstimateWidget zones={ZONES} />);
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    await fillForm(user);
+    await user.click(screen.getByRole("button", { name: "Get estimate" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1].body));
+    expect(body).not.toHaveProperty("lengthCm");
+  });
+
+  it("asks for the third side rather than sending two", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<FeeEstimateWidget zones={ZONES} />);
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    await fillForm(user);
+    await user.type(screen.getByLabelText("Length (cm)"), "60");
+    await user.type(screen.getByLabelText("Width (cm)"), "40");
+    await user.click(screen.getByRole("button", { name: "Get estimate" }));
+
+    expect(await screen.findByText(/give all three measurements/i)).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("explains a fee that was charged on volume rather than weight", async () => {
+    const bulky = quote({
+      weightKg: 3,
+      chargeableWeightKg: 14.4,
+      volumetricWeightKg: 14.4,
+      weightBasis: "VOLUMETRIC",
+      sizeClass: "L",
+      declaredSizeClass: "S",
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(bulky), { status: 200, headers: { "content-type": "application/json" } }),
+    ));
+    render(<FeeEstimateWidget zones={ZONES} />);
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    await fillForm(user);
+    await user.click(screen.getByRole("button", { name: "Get estimate" }));
+
+    expect(await screen.findByText(/billed as 14.4 kg/i)).toBeInTheDocument();
+    expect(screen.getByText(/priced as Large/i)).toBeInTheDocument();
+  });
+
+  it("says nothing about weight or size when there is nothing to explain", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(quote()), { status: 200, headers: { "content-type": "application/json" } }),
+    ));
+    render(<FeeEstimateWidget zones={ZONES} />);
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    await fillForm(user);
+    await user.click(screen.getByRole("button", { name: "Get estimate" }));
+
+    await screen.findByText(/estimated fee/i);
+    expect(screen.queryByText(/billed as/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/priced as/i)).not.toBeInTheDocument();
+  });
 });

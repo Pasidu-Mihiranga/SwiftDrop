@@ -14,7 +14,9 @@ import {
   laneLabel,
   quoteLifetime,
   sizeClassLabel,
+  sizeClassNotice,
   validateQuoteForm,
+  weightExplanation,
   zoneForDistrict,
   type RateCard,
   type Zone,
@@ -243,5 +245,84 @@ describe("quoteLifetime", () => {
 
   it("treats an unreadable expiry as expired rather than valid forever", () => {
     expect(quoteLifetime("not a date", now)).toEqual({ expired: true, secondsRemaining: 0, label: "expired" });
+  });
+
+  describe("parcel measurements", () => {
+    const base = {
+      ...EMPTY_QUOTE_FORM,
+      fromDistrict: "Colombo",
+      toDistrict: "Kandy",
+      weightKg: "3",
+    };
+    const districts = ["Colombo", "Kandy"];
+
+    it("sends the three sides when all are given", () => {
+      const result = validateQuoteForm(
+        { ...base, lengthCm: "60", widthCm: "40", heightCm: "30" }, districts);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.body).toMatchObject({ lengthCm: 60, widthCm: 40, heightCm: 30 });
+      }
+    });
+
+    it("sends no measurement fields at all when none are given", () => {
+      const result = validateQuoteForm(base, districts);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.body).not.toHaveProperty("lengthCm");
+        expect(result.body).not.toHaveProperty("heightCm");
+      }
+    });
+
+    it("refuses two sides rather than guessing the third", () => {
+      const result = validateQuoteForm({ ...base, lengthCm: "60", widthCm: "40" }, districts);
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.errors.heightCm).toMatch(/all three/i);
+        expect(result.errors.lengthCm).toBeUndefined();
+      }
+    });
+
+    it("rejects a side that is not a usable length", () => {
+      const zero = validateQuoteForm({ ...base, lengthCm: "0", widthCm: "40", heightCm: "30" }, districts);
+      expect(zero.ok).toBe(false);
+      if (!zero.ok) expect(zero.errors.lengthCm).toMatch(/more than 0/i);
+
+      const huge = validateQuoteForm({ ...base, lengthCm: "600", widthCm: "40", heightCm: "30" }, districts);
+      expect(huge.ok).toBe(false);
+      if (!huge.ok) expect(huge.errors.lengthCm).toMatch(/500 cm or less/i);
+    });
+  });
+
+  describe("explaining a quote", () => {
+    const priced = {
+      quoteId: "id", fee: { amount: 1, currency: "LKR" }, breakdown: [],
+      fromZone: "WP", toZone: "SP", weightKg: 3, sizeClass: "L" as const,
+      serviceLevel: "STANDARD" as const, issuedAt: "", expiresAt: "",
+    };
+
+    it("explains a parcel billed on its volume", () => {
+      expect(weightExplanation({ ...priced, weightBasis: "VOLUMETRIC", volumetricWeightKg: 14.4 }))
+        .toMatch(/billed as 14.4 kg/i);
+    });
+
+    it("says nothing when the parcel was billed on its weight", () => {
+      expect(weightExplanation({ ...priced, weightBasis: "ACTUAL", volumetricWeightKg: 1.8 }))
+        .toBeUndefined();
+      expect(weightExplanation(priced)).toBeUndefined();
+    });
+
+    it("says when the measurements moved the parcel out of the class chosen", () => {
+      expect(sizeClassNotice({ ...priced, declaredSizeClass: "S" }))
+        .toMatch(/priced as Large \(L\).*do not fit Small \(S\)/i);
+    });
+
+    it("says nothing when the class charged is the class chosen", () => {
+      expect(sizeClassNotice({ ...priced, declaredSizeClass: "L" })).toBeUndefined();
+      expect(sizeClassNotice(priced)).toBeUndefined();
+    });
   });
 });

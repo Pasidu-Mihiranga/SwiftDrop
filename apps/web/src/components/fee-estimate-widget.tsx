@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { bffFetch, fieldErrors, problemMessage } from "@/lib/bff";
 import {
   EMPTY_QUOTE_FORM,
+  MAX_SIDE_CM,
   MAX_WEIGHT_KG,
   SERVICE_LEVELS,
   SIZE_CLASSES,
@@ -12,7 +13,9 @@ import {
   formatMoney,
   quoteLifetime,
   sizeClassLabel,
+  sizeClassNotice,
   validateQuoteForm,
+  weightExplanation,
   type Quote,
   type QuoteFieldErrors,
   type QuoteFormValues,
@@ -204,6 +207,37 @@ export function FeeEstimateWidget({ zones, coverageError, onQuote }: FeeEstimate
           </Field>
         </div>
 
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium text-slate-700">Parcel measurements (optional)</legend>
+          <p id="dimensions-hint" className="text-xs text-slate-600">
+            A large, light parcel takes up room a heavy one does not, so measuring it gives a
+            truer price. Give all three or leave them blank.
+          </p>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <SideField
+              id="lengthCm"
+              label="Length (cm)"
+              value={values.lengthCm}
+              error={errors.lengthCm}
+              onChange={(value) => update("lengthCm", value)}
+            />
+            <SideField
+              id="widthCm"
+              label="Width (cm)"
+              value={values.widthCm}
+              error={errors.widthCm}
+              onChange={(value) => update("widthCm", value)}
+            />
+            <SideField
+              id="heightCm"
+              label="Height (cm)"
+              value={values.heightCm}
+              error={errors.heightCm}
+              onChange={(value) => update("heightCm", value)}
+            />
+          </div>
+        </fieldset>
+
         <button className="btn-primary w-full sm:w-auto" type="submit" disabled={loading || districts.length === 0}>
           {loading ? "Calculating..." : quote ? "Recalculate" : "Get estimate"}
         </button>
@@ -231,6 +265,8 @@ export function FeeEstimateWidget({ zones, coverageError, onQuote }: FeeEstimate
 }
 
 function QuoteSummary({ quote, expired, remaining }: { quote: Quote; expired: boolean; remaining: string }) {
+  const billedWeight = weightExplanation(quote);
+  const reclassified = sizeClassNotice(quote);
   return (
     <div className="min-w-0 space-y-4 border-t border-slate-200 pt-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -253,6 +289,9 @@ function QuoteSummary({ quote, expired, remaining }: { quote: Quote; expired: bo
         Zone {quote.fromZone} to zone {quote.toZone}
       </p>
 
+      {billedWeight ? <p className="notice-info text-sm">{billedWeight}</p> : null}
+      {reclassified ? <p className="notice-info text-sm">{reclassified}</p> : null}
+
       <ul className="divide-y divide-slate-100 text-sm">
         {quote.breakdown.map((line) => (
           <li key={line.rule} className="flex items-center justify-between py-2">
@@ -274,6 +313,39 @@ function QuoteSummary({ quote, expired, remaining }: { quote: Quote; expired: bo
         <p className="break-all text-xs text-slate-500">Reference {quote.quoteId}</p>
       )}
     </div>
+  );
+}
+
+function SideField({
+  id,
+  label,
+  value,
+  error,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  error?: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <Field id={id} label={label} error={error}>
+      <input
+        id={id}
+        name={id}
+        type="number"
+        inputMode="decimal"
+        min="0.1"
+        max={MAX_SIDE_CM}
+        step="0.1"
+        className="input"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? `${id}-error` : "dimensions-hint"}
+      />
+    </Field>
   );
 }
 

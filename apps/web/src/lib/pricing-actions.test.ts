@@ -79,6 +79,42 @@ describe("admin pricing actions", () => {
     expect(gatewayFetchMock).not.toHaveBeenCalled();
   });
 
+  it("refuses two measurements rather than saving a class with no enforceable shape", async () => {
+    authMock.mockResolvedValue({ user: { roles: ["ADMIN"] } });
+    const partial = sizeForm();
+    partial.set("maxLengthCm", "40");
+    partial.set("maxWidthCm", "30");
+
+    const result = await updateSizeClass({ status: "idle" }, partial);
+
+    expect(result).toEqual({ status: "error", message: "Give all three measurements, or leave all blank." });
+    expect(gatewayFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("sends the three measurements together when an admin gives them", async () => {
+    authMock.mockResolvedValue({ user: { roles: ["ADMIN"] } });
+    gatewayFetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    const measured = sizeForm();
+    measured.set("maxLengthCm", "40");
+    measured.set("maxWidthCm", "30");
+    measured.set("maxHeightCm", "20");
+
+    await updateSizeClass({ status: "idle" }, measured);
+
+    const body = JSON.parse(String(gatewayFetchMock.mock.calls[0][1].body));
+    expect(body).toMatchObject({ multiplier: 1.25, maxLengthCm: 40, maxWidthCm: 30, maxHeightCm: 20 });
+  });
+
+  it("leaves the measurements out entirely when an admin changes only the multiplier", async () => {
+    authMock.mockResolvedValue({ user: { roles: ["ADMIN"] } });
+    gatewayFetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+
+    await updateSizeClass({ status: "idle" }, sizeForm());
+
+    const body = JSON.parse(String(gatewayFetchMock.mock.calls[0][1].body));
+    expect(body).not.toHaveProperty("maxLengthCm");
+  });
+
   it("sends an admin's update and refreshes pricing views", async () => {
     authMock.mockResolvedValue({ user: { roles: ["ADMIN"] } });
     gatewayFetchMock.mockResolvedValue(new Response(null, { status: 204 }));
