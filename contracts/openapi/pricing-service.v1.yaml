@@ -7,34 +7,38 @@ info:
 
     Pricing model. A quote resolves both districts to active zones, selects the rate card
     in force for that ordered zone pair on the quote date, and applies the rules in a fixed
-    order: BASE and WEIGHT from the rate card, then SIZE, then EXPRESS, then COD.
+    order, each adding one breakdown line: BASE or DISTANCE, WEIGHT, SIZE, EXPRESS,
+    REMOTE_AREA, MERCHANT_DISCOUNT, INSURANCE, COD.
 
-        STANDARD and EXPRESS are priced by zone; SAME_DAY is priced on the road travelled and
-    emits DISTANCE in place of BASE:
+    STANDARD and EXPRESS are priced by zone. SAME_DAY is priced on the road travelled and
+    emits DISTANCE in place of BASE.
 
-    DISTANCE = flag_fall + per_km_fee * max(road_km, min_chargeable_km)
-
-    chargeable_kg = max(weightKg, length * width * height / volumetric_divisor)
-    subtotal = base_fee + weight_charge(ceil(chargeable_kg))
+        chargeable_kg = max(weightKg, length * width * height / volumetric_divisor)
+        BASE     = base_fee, or a merchant's negotiated flat_base_fee for the lane
+        DISTANCE = flag_fall + per_km_fee * max(road_km, min_chargeable_km)
+        WEIGHT   = weight_charge(ceil(chargeable_kg))
+        SIZE     = charged_so_far * (size_class.multiplier - 1)
+        EXPRESS  = charged_so_far * (express_multiplier - 1), EXPRESS quotes only
+        REMOTE   = origin_remote_fee + destination_remote_fee
+        DISCOUNT = -min(charged_so_far * agreement.pct + agreement.flat, charged_so_far)
+        INSURE   = max(band.flat_fee, declaredValue * band.pct)
+        COD      = codAmount * cod_fee_pct
 
     weight_charge is per_kg_fee for every kilogram when the card has no weight bands.
     Where it has bands they are marginal: each band's rate applies only to the kilograms
     falling inside it, so the price rises smoothly rather than jumping at a boundary.
-        SIZE     = subtotal * (size_class.multiplier - 1)
-        EXPRESS  = (subtotal + SIZE) * (express_multiplier - 1)
-        REMOTE   = origin_remote_fee + destination_remote_fee
-    INSURE   = max(band.flat_fee, declaredValue * band.pct)
-    DISCOUNT = -(charged_so_far * agreement.pct + agreement.flat)
-    COD      = codAmount * cod_fee_pct
 
-    REMOTE and INSURE are flat amounts rather than proportions, so neither compounds with
-    the rules beneath it, and nor does COD.
+    REMOTE, INSURE and COD do not compound: none is worked out from the lines above it.
 
     DISCOUNT is the only negative line, and the only one that needs a token. Quote creation
     stays anonymous; where the caller presents a token carrying a merchant_id, the terms in
-    force for that merchant are applied. It sits above the charges for carrying the parcel
-    and below cover and cash handling, so it discounts the delivery and not those two, and
-    it can never take the fee below zero.
+    force for that merchant are applied. It sits below cover and cash handling, so it
+    discounts the delivery and not those two, and it can never take the fee below zero. An
+    agreement may also waive REMOTE, INSURE or COD.
+
+    Road distance. `road_km` comes from a routing engine when one is configured. Without one,
+    or when it is failing, the distance is the straight line scaled by a configured road
+    factor and `distanceSource` says ESTIMATED. Quoting does not depend on the router.
 
     Amounts are LKR with two decimals, rounded HALF_UP per breakdown line, so the lines
     always sum exactly to `fee`. Rules that do not apply are omitted from the breakdown
@@ -62,6 +66,8 @@ tags:
     description: Rate-card administration (ADMIN).
   - name: admin-size-classes
     description: Size-class administration (ADMIN).
+  - name: admin-pricing
+    description: Remote-area charges and merchant agreements (ADMIN).
 paths:
   /api/v1/pricing/quotes:
     post:
@@ -428,6 +434,116 @@ paths:
         "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
         "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
         "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
+  /api/v1/admin/pricing/remote-areas:
+    get:
+      tags: [admin-pricing]
+      operationId: listRemoteAreas
+      summary: Every remote-area charge ever published, by district, newest first (ADMIN)
+      responses:
+        "200":
+          description: Charges, including superseded ones
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/RemoteAreaCharge" } }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+  /api/v1/admin/pricing/remote-areas/{district}:
+    parameters:
+      - name: district
+        in: path
+        required: true
+        schema: { type: string, example: Mannar }
+    put:
+      tags: [admin-pricing]
+      operationId: publishRemoteArea
+      summary: Publish a district's charge from a date (ADMIN)
+      description: |
+        Closes the charge it replaces. The date must follow every period the district already
+        has, so a mistake is corrected from a later date rather than rewritten. A charge of 0
+        stops charging. Quotes already issued are unaffected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RemoteAreaRequest" }
+      responses:
+        "200":
+          description: Published
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RemoteAreaCharge" }
+        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
+        "409":
+          description: A period already starts on or after that date (REMOTE_AREA_PERIOD_CONFLICT)
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
+  /api/v1/admin/pricing/merchants:
+    get:
+      tags: [admin-pricing]
+      operationId: listAgreementsInForce
+      summary: The agreements in force today, one per merchant (ADMIN)
+      responses:
+        "200":
+          description: Agreements in force
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/MerchantAgreement" } }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+  /api/v1/admin/pricing/merchants/{merchantId}/agreements:
+    parameters:
+      - name: merchantId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [admin-pricing]
+      operationId: listMerchantAgreements
+      summary: One merchant's agreements, newest first (ADMIN)
+      responses:
+        "200":
+          description: Agreements, including superseded ones
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/MerchantAgreement" } }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+    put:
+      tags: [admin-pricing]
+      operationId: publishMerchantAgreement
+      summary: Publish a merchant's terms from a date (ADMIN)
+      description: |
+        Closes the agreement it replaces, along with its lanes. The date must follow every
+        period the merchant already has. Quotes already issued are unaffected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MerchantAgreementRequest" }
+      responses:
+        "200":
+          description: Published
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantAgreement" }
+        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
+        "409":
+          description: A period already starts on or after that date (AGREEMENT_PERIOD_CONFLICT)
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
+        "422":
+          description: The same lane is listed twice (DUPLICATE_LANE_OVERRIDE)
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
 components:
   securitySchemes:
     bearerAuth: { $ref: "common.v1.yaml#/components/securitySchemes/bearerAuth" }
@@ -567,6 +683,67 @@ components:
           example: 5
         perKgFee: { type: number, minimum: 0, example: 100 }
 
+    RemoteAreaRequest:
+      type: object
+      required: [flatFee, effectiveFrom]
+      properties:
+        flatFee: { type: number, minimum: 0, example: 150 }
+        effectiveFrom: { type: string, format: date, example: "2026-06-01" }
+    RemoteAreaCharge:
+      type: object
+      required: [district, flatFee, effectiveFrom]
+      properties:
+        district: { type: string, example: Mannar }
+        flatFee: { type: number, minimum: 0, example: 150 }
+        effectiveFrom: { type: string, format: date, example: "2026-06-01" }
+        effectiveTo:
+          type: [string, "null"]
+          format: date
+          description: Exclusive end date. Null while the charge is still open.
+    LaneOverride:
+      type: object
+      required: [fromZone, toZone]
+      description: A negotiated lane. Must set discountPct, flatBaseFee or both.
+      properties:
+        fromZone: { $ref: "#/components/schemas/ZoneCode" }
+        toZone: { $ref: "#/components/schemas/ZoneCode" }
+        discountPct:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 1
+          description: Replaces the agreement's discount on this lane. A fraction.
+        flatBaseFee:
+          type: [number, "null"]
+          minimum: 0
+          description: Replaces the rate card's base fee on this lane.
+    MerchantAgreementRequest:
+      type: object
+      required: [effectiveFrom]
+      properties:
+        discountPct: { type: number, minimum: 0, maximum: 1, description: A fraction. 0.1 is 10 percent. }
+        discountFlat: { type: number, minimum: 0 }
+        waivesRemoteArea: { type: boolean, default: false }
+        waivesInsurance: { type: boolean, default: false }
+        waivesCodFee: { type: boolean, default: false }
+        effectiveFrom: { type: string, format: date }
+        laneOverrides: { type: array, items: { $ref: "#/components/schemas/LaneOverride" } }
+    MerchantAgreement:
+      type: object
+      required: [id, merchantId, discountPct, discountFlat, waivesRemoteArea, waivesInsurance, waivesCodFee, laneOverrides, effectiveFrom]
+      properties:
+        id: { type: string, format: uuid }
+        merchantId: { type: string, format: uuid }
+        discountPct: { type: number, minimum: 0, maximum: 1 }
+        discountFlat: { type: number, minimum: 0 }
+        waivesRemoteArea: { type: boolean }
+        waivesInsurance: { type: boolean }
+        waivesCodFee: { type: boolean }
+        laneOverrides: { type: array, items: { $ref: "#/components/schemas/LaneOverride" } }
+        effectiveFrom: { type: string, format: date }
+        effectiveTo:
+          type: [string, "null"]
+          format: date
+          description: Exclusive end date. Null while the terms are still open.
     RateCardCreateRequest:
       type: object
       required: [fromZone, toZone, baseFee, perKgFee, expressMultiplier, codFeePct, effectiveFrom]
