@@ -1,0 +1,3 @@
+# Build output of the diagram generator (see README.md)
+build/
+__pycache__/
