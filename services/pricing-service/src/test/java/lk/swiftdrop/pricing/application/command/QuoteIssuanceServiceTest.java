@@ -1,5 +1,7 @@
 package lk.swiftdrop.pricing.application.command;
 
+import lk.swiftdrop.pricing.domain.model.SizeClassRate;
+import lk.swiftdrop.pricing.domain.model.Dimensions;
 import lk.swiftdrop.pricing.application.model.QuoteSnapshot;
 import lk.swiftdrop.pricing.application.port.out.PricingMetrics;
 import lk.swiftdrop.pricing.application.port.out.QuoteStore;
@@ -33,6 +35,9 @@ import static org.mockito.Mockito.when;
 
 class QuoteIssuanceServiceTest {
 
+    private static final SizeClassRate MEDIUM = new SizeClassRate(SizeClassCode.M,
+            new BigDecimal("5.00"), Dimensions.of("40", "30", "20"), new BigDecimal("1.150"));
+
     private static final Instant NOW = Instant.parse("2026-10-24T20:00:00Z");
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneId.of("Asia/Colombo"));
     private static final Duration TTL = Duration.ofMinutes(15);
@@ -49,7 +54,7 @@ class QuoteIssuanceServiceTest {
                 List.of(new FeeBreakdown.Line(PricingRule.BASE, new BigDecimal("475.00"))),
                 new BigDecimal("475.00"));
         when(pricing.prepare(INPUT, LocalDate.of(2026, 10, 25)))
-                .thenReturn(new PreparedQuote(INPUT, ZoneCode.of("WP"), ZoneCode.of("CP"), breakdown));
+                .thenReturn(new PreparedQuote(INPUT, ZoneCode.of("WP"), ZoneCode.of("CP"), breakdown, MEDIUM));
         QuoteIssuanceService service = new QuoteIssuanceService(pricing, store, metrics, TTL, CLOCK);
 
         QuoteSnapshot returned = service.issue(INPUT);
@@ -80,7 +85,7 @@ class QuoteIssuanceServiceTest {
         when(movingClock.getZone()).thenReturn(ZoneId.of("Asia/Colombo"));
         FeeBreakdown breakdown = new FeeBreakdown(List.of(), new BigDecimal("0.00"));
         when(pricing.prepare(INPUT, LocalDate.of(2026, 10, 25)))
-                .thenReturn(new PreparedQuote(INPUT, ZoneCode.of("WP"), ZoneCode.of("CP"), breakdown));
+                .thenReturn(new PreparedQuote(INPUT, ZoneCode.of("WP"), ZoneCode.of("CP"), breakdown, MEDIUM));
 
         QuoteSnapshot returned = new QuoteIssuanceService(pricing, store, metrics, TTL, movingClock).issue(INPUT);
 
@@ -94,7 +99,7 @@ class QuoteIssuanceServiceTest {
                 List.of(new FeeBreakdown.Line(PricingRule.BASE, new BigDecimal("475.00"))),
                 new BigDecimal("475.00"));
         when(pricing.prepare(INPUT, LocalDate.of(2026, 10, 25)))
-                .thenReturn(new PreparedQuote(INPUT, ZoneCode.of("WP"), ZoneCode.of("CP"), breakdown));
+                .thenReturn(new PreparedQuote(INPUT, ZoneCode.of("WP"), ZoneCode.of("CP"), breakdown, MEDIUM));
 
         new QuoteIssuanceService(pricing, store, metrics, TTL, CLOCK).issue(INPUT);
 
@@ -107,7 +112,7 @@ class QuoteIssuanceServiceTest {
                 List.of(new FeeBreakdown.Line(PricingRule.BASE, new BigDecimal("475.00"))),
                 new BigDecimal("475.00"));
         when(pricing.prepare(INPUT, LocalDate.of(2026, 10, 25)))
-                .thenReturn(new PreparedQuote(INPUT, ZoneCode.of("WP"), ZoneCode.of("CP"), breakdown));
+                .thenReturn(new PreparedQuote(INPUT, ZoneCode.of("WP"), ZoneCode.of("CP"), breakdown, MEDIUM));
         doThrow(new IllegalStateException("redis is down")).when(store).save(any(), any());
 
         assertThatThrownBy(() -> new QuoteIssuanceService(pricing, store, metrics, TTL, CLOCK).issue(INPUT))

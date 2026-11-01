@@ -1,6 +1,8 @@
 package lk.swiftdrop.pricing.application.query;
 
+import lk.swiftdrop.pricing.domain.model.Dimensions;
 import lk.swiftdrop.common.web.error.BusinessRuleViolationException;
+import lk.swiftdrop.pricing.application.port.out.VolumetricDivisorRepository;
 import lk.swiftdrop.pricing.application.port.out.DistrictAssignmentRepository;
 import lk.swiftdrop.pricing.application.port.out.SizeClassRepository;
 import lk.swiftdrop.pricing.domain.model.RateCard;
@@ -19,6 +21,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -35,6 +38,7 @@ class QuotePricingServiceTest {
     private DistrictAssignmentRepository districts;
     private SizeClassRepository sizeClasses;
     private RateCardSelectionService rateCards;
+    private VolumetricDivisorRepository divisors;
     private QuotePricingService service;
 
     @BeforeEach
@@ -42,7 +46,9 @@ class QuotePricingServiceTest {
         districts = mock(DistrictAssignmentRepository.class);
         sizeClasses = mock(SizeClassRepository.class);
         rateCards = mock(RateCardSelectionService.class);
-        service = new QuotePricingService(districts, sizeClasses, rateCards, new FeeCalculator());
+        divisors = mock(VolumetricDivisorRepository.class);
+        when(divisors.findInForce(any())).thenReturn(Optional.empty());
+        service = new QuotePricingService(districts, sizeClasses, rateCards, divisors, new FeeCalculator());
         when(districts.findActiveZoneCodeByDistrict("Colombo")).thenReturn(Optional.of(WP));
         when(districts.findActiveZoneCodeByDistrict("Kandy")).thenReturn(Optional.of(CP));
     }
@@ -90,7 +96,8 @@ class QuotePricingServiceTest {
     }
 
     private static SizeClassRate size(String maxWeight) {
-        return new SizeClassRate(SizeClassCode.M, new BigDecimal(maxWeight), null, new BigDecimal("1.25"));
+        return new SizeClassRate(SizeClassCode.M, new BigDecimal(maxWeight), Dimensions.of("40", "30", "20"),
+                new BigDecimal("1.25"));
     }
 
     private static RateCard card() {

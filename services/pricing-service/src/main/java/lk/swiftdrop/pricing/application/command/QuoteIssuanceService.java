@@ -43,8 +43,11 @@ public class QuoteIssuanceService {
         QuoteSnapshot snapshot = new QuoteSnapshot(UUID.randomUUID(),
                 new QuoteSnapshot.Money(prepared.breakdown().fee(), "LKR"), prepared.breakdown().lines(),
                 prepared.fromZone().value(), prepared.toZone().value(),
-                input.fromDistrict(), input.toDistrict(), input.weightKg(), input.sizeClass(),
-                input.serviceLevel(), input.codAmount(), issuedAt, issuedAt.plus(ttl));
+                input.fromDistrict(), input.toDistrict(), input.weightKg(),
+                prepared.sizeClass().code(), input.serviceLevel(), input.codAmount(),
+                issuedAt, issuedAt.plus(ttl),
+                prepared.weight().chargeableKg(), prepared.weight().volumetricKg(),
+                prepared.weight().basis(), input.dimensions(), input.sizeClass());
         Duration remaining = Duration.between(clock.instant(), snapshot.expiresAt());
         if (remaining.isZero() || remaining.isNegative()) {
             throw new IllegalStateException("Quote expired before it could be stored");

@@ -42,6 +42,9 @@ export interface BreakdownLine {
   amount: number;
 }
 
+export const WEIGHT_BASES = ["ACTUAL", "VOLUMETRIC"] as const;
+export type WeightBasis = (typeof WEIGHT_BASES)[number];
+
 export interface Quote {
   quoteId: string;
   fee: Money;
@@ -51,7 +54,15 @@ export interface Quote {
   fromDistrict?: string;
   toDistrict?: string;
   weightKg: number;
+  /** What the parcel was billed as. Equals weightKg unless it is bulky. */
+  chargeableWeightKg?: number;
+  /** What the parcel's volume came to. Absent when no measurements were given. */
+  volumetricWeightKg?: number;
+  weightBasis?: WeightBasis;
+  /** The class charged for, which may not be the one selected. */
   sizeClass: SizeClass;
+  /** Present only when measurements moved the parcel out of the class selected. */
+  declaredSizeClass?: SizeClass;
   serviceLevel: ServiceLevel;
   codAmount?: number;
   issuedAt: string;
@@ -74,7 +85,11 @@ export interface RateCard {
 export interface SizeClassRate {
   code: SizeClass;
   maxWeightKg: number;
+  /** Display label, rendered from the three measurements below. */
   maxDimensionsCm: string;
+  maxLengthCm: number;
+  maxWidthCm: number;
+  maxHeightCm: number;
   multiplier: number;
 }
 
@@ -103,6 +118,10 @@ export interface QuoteRequestBody {
   sizeClass: SizeClass;
   serviceLevel: ServiceLevel;
   codAmount?: number;
+  /** All three together or none. The API rejects a partial set. */
+  lengthCm?: number;
+  widthCm?: number;
+  heightCm?: number;
 }
 
 export type QuoteFieldErrors = Partial<Record<keyof QuoteFormValues, string>>;

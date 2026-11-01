@@ -197,7 +197,7 @@ class PricingReferenceDataIT {
         var medium = sizeClasses.findByCode(SizeClassCode.M).orElseThrow();
 
         var updated = sizeClasses.save(new lk.swiftdrop.pricing.domain.model.SizeClassRate(
-                SizeClassCode.M, medium.maxWeightKg(), medium.maxDimensionsCm(), new BigDecimal("1.200")));
+                SizeClassCode.M, medium.maxWeightKg(), medium.maxDimensions(), new BigDecimal("1.200")));
 
         assertThat(updated.multiplier()).isEqualByComparingTo("1.200");
         assertThat(sizeClasses.findAll()).hasSize(4);
