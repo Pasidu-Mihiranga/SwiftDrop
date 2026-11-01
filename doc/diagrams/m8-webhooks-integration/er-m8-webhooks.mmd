@@ -1,0 +1,59 @@
+%% M8 data model. MongoDB database webhooks plus the BullMQ job in Redis. Planned design, issue #21.
+erDiagram
+    WEBHOOK_ENDPOINT ||--o{ WEBHOOK_DELIVERY : receives
+    WEBHOOK_DELIVERY ||--o{ DELIVERY_ATTEMPT : logs
+    WEBHOOK_DELIVERY ||--o| DELIVERY_JOB : "runs as"
+    WEBHOOK_ENDPOINT {
+        string _id PK
+        uuid merchant_id
+        string url
+        array event_types
+        string secret_enc
+        boolean active
+        date created_at
+        date updated_at
+    }
+    WEBHOOK_DELIVERY {
+        string _id PK
+        uuid merchant_id
+        string endpoint_id FK
+        uuid event_id
+        string event_type
+        object payload
+        string url
+        string status
+        int attempt_count
+        date next_retry_at
+        date created_at
+        date delivered_at
+    }
+    DELIVERY_ATTEMPT {
+        date at
+        int http_status
+        int latency_ms
+        string error
+    }
+    DELIVERY_JOB {
+        string job_id PK
+        string delivery_id
+        int attempts_made
+        int delay
+    }
+    MERCHANT_STATE {
+        uuid _id PK
+        string status
+        date changed_at
+    }
+    PARCEL_REF {
+        uuid _id PK
+        uuid merchant_id
+        string tracking_number
+        string merchant_order_ref
+        date created_at
+    }
+    PROCESSED_EVENT {
+        string _id PK
+        uuid event_id
+        string consumer
+        date processed_at
+    }

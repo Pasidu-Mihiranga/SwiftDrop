@@ -1,0 +1,42 @@
+%% M8 sequence: retries, dead letter and admin replay. Planned design: follows contracts/openapi/webhook-service.v1.yaml and issue #21.
+sequenceDiagram
+    autonumber
+    participant P0 as Redis<br/>BullMQ
+    participant P1 as webhook-service
+    participant P2 as Merchant<br/>endpoint
+    participant P3 as MongoDB<br/>webhooks
+    participant P4 as Kafka
+    participant P5 as Admin page<br/>+ BFF
+    actor P6 as Admin
+        P0->>P1: worker takes the job (attempt 1)
+        P1->>P2: signed POST
+        P2-->>P1: 503 or timeout after 10 s
+        P1->>P3: append attempt (status, latency, error), status RETRYING, nextRetryAt
+        P1->>P0: throw: BullMQ schedules the next delay
+        Note over P0,P1: delays 30 s, 2 m, 10 m, 30 m, 2 h, 6 h: 7 attempts in total, shorter delays by config for the demo
+        P0->>P1: attempts 2 to 7: a fresh t and signature each time
+        alt an attempt returns 2xx
+            P1->>P3: status DELIVERED
+        else attempt 7 fails
+            P1->>P3: append attempt, status DEAD
+            P1->>P4: publish WebhookDeliveryDeadLettered (key deliveryId, no payload data)
+            P4-->>P1: acknowledged
+        end
+        P6->>P5: open Admin, Webhooks (later, after the merchant recovers)
+        P5->>P1: GET /api/v1/admin/webhooks/deliveries?status=DEAD via gateway
+        P1-->>P5: dead-lettered deliveries
+        P6->>P5: click Replay
+        P5->>P1: POST /api/v1/admin/webhooks/deliveries/{id}/replay
+        alt caller is not ADMIN
+            P1-->>P5: 403 problem+json
+        else delivery is not DEAD
+            P1-->>P5: 409 problem+json
+        else ADMIN and DEAD
+            P1->>P3: status PENDING, earlier attempts are kept in the log
+            P1->>P0: enqueue a new job with a fresh attempt budget
+            P1-->>P5: 202 Queued
+            P0->>P1: worker takes the job
+            P1->>P2: signed POST (same id, new t and signature)
+            P2-->>P1: 200
+            P1->>P3: status DELIVERED
+        end

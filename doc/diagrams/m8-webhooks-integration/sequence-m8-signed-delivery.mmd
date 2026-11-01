@@ -1,0 +1,33 @@
+%% M8 sequence: parcel event to signed webhook. Planned design: follows contracts/openapi/webhook-service.v1.yaml and issue #21.
+sequenceDiagram
+    autonumber
+    participant P0 as parcel-service
+    participant P1 as Kafka
+    participant P2 as webhook-service
+    participant P3 as MongoDB<br/>webhooks
+    participant P4 as Redis<br/>BullMQ
+    participant P5 as Merchant<br/>endpoint
+        P0->>P1: outbox relay publishes ParcelStatusChanged (key parcelId)
+        P1->>P2: deliver to group webhook-service
+        P2->>P3: markIfFirst(eventId, consumer): atomic insert
+        P3-->>P2: first time, or duplicate key
+        alt duplicate event, or merchantId is null (customer parcel)
+            P2->>P1: commit offset, no delivery is created
+        else first delivery of a merchant parcel event
+            P2->>P3: find active endpoints subscribed to the event type
+            P3-->>P2: matching endpoints
+            P2->>P3: per endpoint: insert delivery PENDING (unique endpointId + eventId)
+            alt merchant is SUSPENDED
+                P2->>P2: hold: the delivery stays PENDING, no job is queued
+            else merchant is active
+                P2->>P4: enqueue job (jobId = deliveryId)
+            end
+            P2->>P1: commit offset
+            P4->>P2: worker takes the job
+            P2->>P3: load the delivery and endpoint, decrypt the secret
+            P2->>P2: build {id, type, createdAt, data} from an allow-list: no contacts, names or notes
+            P2->>P2: t = now, v1 = hex HMAC-SHA256(secret, t.rawBody)
+            P2->>P5: POST + X-SwiftDrop-Signature: t=..,v1=.. (10 s timeout)
+            P5-->>P2: 2xx
+            P2->>P3: append attempt (status code, latency), status DELIVERED
+        end
