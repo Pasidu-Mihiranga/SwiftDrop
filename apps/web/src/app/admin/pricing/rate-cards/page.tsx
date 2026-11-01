@@ -1,8 +1,11 @@
 import Link from "next/link";
+import { CloseRateForm } from "@/components/close-rate-form";
 import { PricingForm } from "@/components/pricing-form";
-import { closeRateCard, createRateCard } from "@/lib/pricing-actions";
-import { fetchAdminZones, fetchRateCards } from "@/lib/pricing-api";
+import { RateMatrixGrid } from "@/components/rate-matrix-grid";
+import { createRateCard } from "@/lib/pricing-actions";
+import { fetchAdminZones, fetchRateCards, fetchRateCardsInForce } from "@/lib/pricing-api";
 import {
+  buildRateMatrix,
   describeWeightBands,
   formatEffectivePeriod,
   formatMoney,
@@ -41,8 +44,13 @@ export default async function RateCardsAdminPage({
   query.set("page", filters.page ?? "0");
   query.set("size", "20");
 
-  const [zones, cards] = await Promise.all([fetchAdminZones(), fetchRateCards(`?${query}`)]);
+  const [zones, cards, inForce] = await Promise.all([
+    fetchAdminZones(),
+    fetchRateCards(`?${query}`),
+    fetchRateCardsInForce(today),
+  ]);
   const { page } = cards;
+  const matrix = buildRateMatrix(zones, inForce, today);
   const zoneOptions = zones.filter((zone) => zone.active);
 
   return (
@@ -54,6 +62,20 @@ export default async function RateCardsAdminPage({
           which is exclusive.
         </p>
       </div>
+
+      <section className="card space-y-3">
+        <h2 className="font-semibold">Rates in force today</h2>
+        <p className="text-sm text-slate-600">
+          Origin zones run down the side and destination zones across the top. Choose a lane to see its history and
+          change its price.
+        </p>
+        {matrix.unpriced > 0 ? (
+          <p className="notice-error">
+            {matrix.unpriced} {matrix.unpriced === 1 ? "lane has" : "lanes have"} no rate in force and cannot be quoted.
+          </p>
+        ) : null}
+        <RateMatrixGrid matrix={matrix} />
+      </section>
 
       <section className="card space-y-3">
         <h2 className="font-semibold">Filter</h2>
@@ -142,32 +164,7 @@ export default async function RateCardsAdminPage({
                   <p className="text-xs text-slate-500">
                     {formatEffectivePeriod(card.effectiveFrom, card.effectiveTo)}
                   </p>
-                  {card.effectiveTo ? null : (
-                    <details className="text-sm">
-                      <summary className="cursor-pointer text-brand-700">Close this rate</summary>
-                      <div className="mt-2">
-                        <PricingForm action={closeRateCard} submitLabel="Close rate" className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                          <input type="hidden" name="rateCardId" value={card.id} />
-                          <span className="flex-1">
-                            <label className="block text-xs font-medium text-slate-700" htmlFor={`to-${card.id}`}>
-                              Stops applying on
-                            </label>
-                            <input
-                              id={`to-${card.id}`}
-                              name="effectiveTo"
-                              type="date"
-                              className="input"
-                              min={card.effectiveFrom}
-                              required
-                            />
-                          </span>
-                        </PricingForm>
-                        <p className="mt-1 text-xs text-slate-500">
-                          Closing a rate without adding a replacement leaves the lane unquotable from that date.
-                        </p>
-                      </div>
-                    </details>
-                  )}
+                  <CloseRateForm rateCardId={card.id} effectiveFrom={card.effectiveFrom} closed={Boolean(card.effectiveTo)} />
                 </li>
               );
             })}
@@ -190,15 +187,17 @@ export default async function RateCardsAdminPage({
         ) : null}
       </section>
 
-      <section className="card space-y-3">
+      <section id="publish" className="card space-y-3">
         <h2 className="font-semibold">Publish a new rate</h2>
-        <PricingForm action={createRateCard} submitLabel="Publish rate">
+        {/* Keyed by lane: choosing a matrix cell updates this page in place, and a form's default
+            values are only read when it first mounts. */}
+        <PricingForm key={`${filters.fromZone ?? ""}-${filters.toZone ?? ""}`} action={createRateCard} submitLabel="Publish rate">
           <div className="grid gap-3 sm:grid-cols-2">
             <span>
               <label className="block text-sm font-medium text-slate-700" htmlFor="newFromZone">
                 From zone
               </label>
-              <select id="newFromZone" name="fromZone" className="input" required>
+              <select id="newFromZone" name="fromZone" className="input" defaultValue={filters.fromZone ?? ""} required>
                 <option value="">Select</option>
                 {zoneOptions.map((zone) => (
                   <option key={zone.code} value={zone.code}>
@@ -211,7 +210,7 @@ export default async function RateCardsAdminPage({
               <label className="block text-sm font-medium text-slate-700" htmlFor="newToZone">
                 To zone
               </label>
-              <select id="newToZone" name="toZone" className="input" required>
+              <select id="newToZone" name="toZone" className="input" defaultValue={filters.toZone ?? ""} required>
                 <option value="">Select</option>
                 {zoneOptions.map((zone) => (
                   <option key={zone.code} value={zone.code}>

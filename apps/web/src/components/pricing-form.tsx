@@ -32,7 +32,7 @@ export function PricingForm({
   );
 }
 
-function SubmitButton({ label }: { label: string }) {
+export function SubmitButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
   return (
     <button className="btn-primary w-full sm:w-auto" type="submit" disabled={pending}>
@@ -41,7 +41,7 @@ function SubmitButton({ label }: { label: string }) {
   );
 }
 
-function ActionMessage({ state }: { state: ActionState }) {
+export function ActionMessage({ state }: { state: ActionState }) {
   if (state.status === "idle") return null;
 
   const fieldMessages = Object.entries(state.errors ?? {});
