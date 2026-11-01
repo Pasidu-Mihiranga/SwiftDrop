@@ -22,7 +22,7 @@ import static org.mockito.Mockito.when;
 class RateCardQueryServiceTest {
 
     private final RateCardRepository rateCards = mock(RateCardRepository.class);
-    private final RateCardQueryService service = new RateCardQueryService(rateCards);
+    private final RateCardQueryService service = new RateCardQueryService(rateCards, org.mockito.Mockito.mock(lk.swiftdrop.pricing.application.port.out.WeightTierRepository.class));
 
     @Test
     void passesTheFilterAndPageStraightThrough() {

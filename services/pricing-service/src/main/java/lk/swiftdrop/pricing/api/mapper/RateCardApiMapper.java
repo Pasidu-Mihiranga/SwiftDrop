@@ -9,15 +9,13 @@ import lk.swiftdrop.pricing.domain.model.RateCard;
 import lk.swiftdrop.pricing.domain.model.WeightTier;
 
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 /** Turns domain rate cards into the wire shapes published in the OpenAPI contract. */
 public final class RateCardApiMapper {
 
     private RateCardApiMapper() {
-    }
-
-    public static RateCardResponse toResponse(RateCard card) {
-        return toResponse(card, List.of());
     }
 
     public static RateCardResponse toResponse(RateCard card, List<WeightTier> tiers) {
@@ -27,9 +25,11 @@ public final class RateCardApiMapper {
                 tiers.stream().map(t -> new WeightTierRequest(t.upToKg(), t.perKgFee())).toList());
     }
 
-    public static RateCardPageResponse toResponse(Paged<RateCard> page) {
+    public static RateCardPageResponse toResponse(Paged<RateCard> page, Map<UUID, List<WeightTier>> tiers) {
         return new RateCardPageResponse(
-                page.content().stream().map(RateCardApiMapper::toResponse).toList(),
+                page.content().stream()
+                        .map(card -> toResponse(card, tiers.getOrDefault(card.id(), List.of())))
+                        .toList(),
                 new PageMetaResponse(page.page(), page.size(), page.totalElements(), page.totalPages()));
     }
 }
