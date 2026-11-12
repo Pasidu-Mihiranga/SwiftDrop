@@ -1,0 +1,146 @@
+name: Release · container images
+
+# Builds one image per service (and the web app), scans it, and publishes it to GHCR:
+#   ghcr.io/<owner>/swiftdrop-<service>:sha-<short sha>   immutable, what deployments should pin
+#                                       :main / :latest   moving, the newest build of main
+#                                       :1.2.3 / :1.2     on a v1.2.3 tag
+# Pull requests that touch a Dockerfile run the same build and scan without publishing.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+    # Documentation-only changes do not need new images (path filters are not applied to tags).
+    paths-ignore: ["doc/**", "**/*.md", "tests/load/**"]
+  pull_request:
+    paths: ["**/Dockerfile", ".dockerignore", ".trivyignore", ".github/workflows/release.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Never cancel a publish half-way; superseded pull request runs can go.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    name: ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { image: api-gateway, dockerfile: services/api-gateway/Dockerfile }
+          - { image: user-service, dockerfile: services/user-service/Dockerfile }
+          - { image: merchant-service, dockerfile: services/merchant-service/Dockerfile }
+          - { image: pricing-service, dockerfile: services/pricing-service/Dockerfile }
+          - { image: parcel-service, dockerfile: services/parcel-service/Dockerfile }
+          - { image: dispatch-service, dockerfile: services/dispatch-service/Dockerfile }
+          - { image: reporting-service, dockerfile: services/reporting-service/Dockerfile }
+          - { image: tracking-service, dockerfile: services/tracking-service/Dockerfile }
+          - { image: notification-service, dockerfile: services/notification-service/Dockerfile }
+          - { image: webhook-service, dockerfile: services/webhook-service/Dockerfile }
+          - { image: ai-assistant-service, dockerfile: services/ai-assistant-service/Dockerfile }
+          - { image: web, dockerfile: apps/web/Dockerfile }
+    env:
+      PUBLISH: ${{ github.event_name != 'pull_request' }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Image name
+        id: name
+        # GHCR only accepts lower-case repository names.
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/swiftdrop-${{ matrix.image }}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Tags and labels
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ steps.name.outputs.image }}
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.title=swiftdrop-${{ matrix.image }}
+            org.opencontainers.image.description=SwiftDrop ${{ matrix.image }}
+
+      # Build once into the local Docker engine so the image can be scanned before anything is published.
+      - name: Build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          load: true
+          tags: swiftdrop-scan/${{ matrix.image }}:${{ github.sha }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: false
+          sbom: false
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,scope=${{ matrix.image }},mode=max
+
+      # Gate: critical vulnerabilities that already have a fix block the release. Unfixed ones cannot
+      # be acted on and would block every build, so they are left out. Accepted risks go in .trivyignore.
+      - name: Scan for fixable critical vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: swiftdrop-scan/${{ matrix.image }}:${{ github.sha }}
+          version: v0.76.1
+          scanners: vuln
+          severity: CRITICAL
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          exit-code: "1"
+          format: table
+
+      - name: Log in to GHCR
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Same inputs as the scanned build, so every layer comes from cache; adds provenance and an SBOM.
+      - name: Publish
+        id: publish
+        if: env.PUBLISH == 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=${{ matrix.image }}
+
+      - name: Summary
+        if: always()
+        env:
+          IMAGE: ${{ steps.name.outputs.image }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+          DIGEST: ${{ steps.publish.outputs.digest }}
+          OUTCOME: ${{ job.status }}
+        run: |
+          {
+            echo "### swiftdrop-${{ matrix.image }}"
+            echo ""
+            if [ "$PUBLISH" = "true" ] && [ -n "$DIGEST" ]; then
+              echo "Published \`${IMAGE}@${DIGEST}\`"
+              echo ""
+              echo "$TAGS" | sed 's/^/- `/; s/$/`/'
+            else
+              echo "Built and scanned only (${OUTCOME}); nothing published for this event."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
