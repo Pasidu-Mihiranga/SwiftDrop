@@ -4,6 +4,8 @@ so one client implementation serves both (Gemini through its OpenAI-compatible e
 from dataclasses import dataclass
 
 from app.core.config import Settings
+from app.llm.base import LLMProvider
+from app.llm.openai_compatible import OpenAICompatibleProvider
 
 _BASE_URLS = {
     "openai": "https://api.openai.com/v1",
@@ -31,3 +33,10 @@ def provider_config(settings: Settings) -> ProviderConfig:
         model=settings.llm_model,
         api_key=key.get_secret_value() if key else None,
     )
+
+
+def create_provider(config: ProviderConfig) -> LLMProvider | None:
+    """The configured provider, or None when no API key is set (the chat endpoint then answers 503)."""
+    if not config.configured:
+        return None
+    return OpenAICompatibleProvider(config.base_url, config.model, config.api_key or "")

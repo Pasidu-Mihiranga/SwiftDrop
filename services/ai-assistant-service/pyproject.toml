@@ -9,13 +9,19 @@ dependencies = [
     "uvicorn[standard]>=0.32",
     "pydantic-settings>=2.6",
     "httpx>=0.28",
+    "openai>=2",
+    "redis>=6",
+    "mcp>=2",
+    "cryptography>=44",
 ]
 
 [dependency-groups]
 dev = [
+    "fakeredis>=2.30",
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
     "pytest-cov>=6.0",
+    "respx>=0.22",
 ]
 
 [tool.uv.sources]

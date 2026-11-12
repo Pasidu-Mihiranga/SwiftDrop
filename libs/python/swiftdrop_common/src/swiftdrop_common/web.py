@@ -55,6 +55,8 @@ def install_swiftdrop(app: FastAPI, verifier: JwtVerifier) -> None:
         "http_server_requests_seconds", "HTTP server request duration", ["method", "uri", "status"], registry=registry
     )
     app.state.verifier = verifier
+    # Services register their own meters here so they appear on the same /metrics endpoint.
+    app.state.metrics_registry = registry
 
     @app.middleware("http")
     async def request_context(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
