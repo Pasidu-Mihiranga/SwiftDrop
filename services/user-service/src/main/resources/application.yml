@@ -31,6 +31,13 @@ spring:
           audiences: swiftdrop-api
 
 swiftdrop:
+  keycloak:
+    admin:
+      # Server-to-server Keycloak URL (http://keycloak:8080 inside Docker) for the Admin REST API
+      base-url: ${KEYCLOAK_INTERNAL_URL:http://localhost:${KEYCLOAK_HOST_PORT:8180}}
+      realm: ${KEYCLOAK_REALM:swiftdrop}
+      client-id: user-service-admin
+      client-secret: ${KC_USER_SERVICE_CLIENT_SECRET:}
   pii:
     # base64-encoded 32-byte AES key for phone numbers and address lines; start-up fails without it
     encryption-key: ${PII_ENCRYPTION_KEY:}
