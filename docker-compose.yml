@@ -303,7 +303,7 @@ services:
   user-service:
     <<: *app
     build: { context: ., dockerfile: services/user-service/Dockerfile }
-    environment: { <<: *java-env, DB_NAME: users_db, DB_USER: user_svc }
+    environment: { <<: *java-env, DB_NAME: users_db, DB_USER: user_svc, PII_ENCRYPTION_KEY: "${PII_ENCRYPTION_KEY}" }
 
   merchant-service:
     <<: *app

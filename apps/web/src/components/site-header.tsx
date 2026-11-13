@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
+import { idToken } from "@/lib/gateway";
+import { appUrl, keycloakConfig, keycloakLogoutUrl } from "@/lib/keycloak";
 import { navigationFor } from "@/lib/roles";
 
 export async function SiteHeader() {
@@ -26,11 +29,16 @@ export async function SiteHeader() {
           <form
             action={async () => {
               "use server";
-              await signOut({ redirectTo: "/" });
+              // End both sessions: the app cookie here, then Keycloak's SSO session, which would
+              // otherwise sign the same user straight back in on the next "Sign in".
+              const hint = await idToken();
+              await signOut({ redirect: false });
+              redirect(keycloakLogoutUrl(keycloakConfig(), `${appUrl()}/`, hint));
             }}
             className="flex items-center gap-3"
           >
             <span className="hidden text-sm text-slate-600 sm:inline">{user.name ?? user.email}</span>
+            <Link href="/account" className="rounded-md px-3 py-2 text-sm text-slate-600 hover:bg-slate-100">My profile</Link>
             <button className="btn-secondary" type="submit">Sign out</button>
           </form>
         ) : (
