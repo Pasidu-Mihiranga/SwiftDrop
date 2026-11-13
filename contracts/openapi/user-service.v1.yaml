@@ -61,7 +61,38 @@ paths:
   /api/v1/admin/users/{userId}:
     patch: { summary: Enable/disable user or change roles (ADMIN), parameters: [{ name: userId, in: path, required: true, schema: { type: string } }], responses: { "200": { description: OK } } }
   /api/v1/admin/couriers:
-    get: { summary: "Couriers with vehicle, home zone and capacity", responses: { "200": { description: OK } } }
+    get:
+      summary: "Couriers with vehicle, home zone and capacity (DISPATCHER, ADMIN)"
+      description: |
+        Keycloak (realm role COURIER) decides who is a courier, so couriers are listed even before their first sign-in.
+        Dispatch details are null until an admin sets them (profileComplete = false). Sorted by full name.
+      parameters:
+        - { name: zoneId, in: query, required: false, schema: { type: string, format: uuid }, description: "Only couriers whose home zone is this pricing-service zone" }
+        - { name: assignable, in: query, required: false, schema: { type: boolean }, description: "true = enabled, details complete and active" }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Courier" } } } } }
+        "403": { description: Not DISPATCHER or ADMIN }
+        "503": { description: "IDENTITY_PROVIDER_UNAVAILABLE: Keycloak could not be reached" }
+  /api/v1/admin/couriers/{courierId}:
+    put:
+      summary: "Set a courier's vehicle, home zone, daily capacity and availability (ADMIN)"
+      parameters: [{ name: courierId, in: path, required: true, schema: { type: string }, description: Keycloak subject of the courier }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [vehicleType, homeZoneId, maxDailyCapacity]
+              properties:
+                vehicleType: { type: string, enum: [BIKE, THREE_WHEELER, VAN] }
+                homeZoneId: { type: string, format: uuid, description: pricing-service ZONE.id }
+                maxDailyCapacity: { type: integer, minimum: 1, maximum: 200 }
+                active: { type: boolean, default: true, description: "false takes the courier off dispatch" }
+      responses:
+        "200": { description: Saved, content: { application/json: { schema: { $ref: "#/components/schemas/Courier" } } } }
+        "400": { description: VALIDATION_FAILED }
+        "403": { description: Not ADMIN }
+        "404": { description: "COURIER_NOT_FOUND: no Keycloak user with role COURIER has this id" }
 components:
   schemas:
     Profile:
@@ -76,5 +107,20 @@ components:
         roles: { type: array, items: { type: string, enum: [CUSTOMER, MERCHANT, COURIER, DISPATCHER, ADMIN] } }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+    Courier:
+      type: object
+      required: [id, fullName, enabled, profileComplete, assignable]
+      properties:
+        id: { type: string, description: Keycloak subject; use it as courierId in dispatch }
+        fullName: { type: string }
+        email: { type: [string, "null"], format: email }
+        enabled: { type: boolean, description: Keycloak account may sign in }
+        profileComplete: { type: boolean }
+        vehicleType: { type: [string, "null"], enum: [BIKE, THREE_WHEELER, VAN, null] }
+        homeZoneId: { type: [string, "null"], format: uuid }
+        maxDailyCapacity: { type: [integer, "null"], minimum: 1, maximum: 200 }
+        active: { type: [boolean, "null"] }
+        assignable: { type: boolean, description: "enabled AND profileComplete AND active" }
+        profileUpdatedAt: { type: [string, "null"], format: date-time }
   securitySchemes:
     bearerAuth: { $ref: "common.v1.yaml#/components/securitySchemes/bearerAuth" }

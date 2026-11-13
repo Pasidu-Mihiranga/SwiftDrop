@@ -223,7 +223,7 @@
     {
       "username": "service-account-user-service-admin", "enabled": true,
       "serviceAccountClientId": "user-service-admin",
-      "clientRoles": { "realm-management": ["manage-users", "view-users", "query-users", "query-groups"] }
+      "clientRoles": { "realm-management": ["manage-users", "view-users", "query-users", "query-groups", "view-realm"] }
     },
     {
       "username": "service-account-merchant-service-admin", "enabled": true,
