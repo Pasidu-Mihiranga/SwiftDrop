@@ -34,14 +34,31 @@ paths:
         "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/Profile" } } } }
         "400": { description: VALIDATION_FAILED (field names only; submitted values are never echoed) }
   /api/v1/users/me/addresses:
-    get: { summary: Saved addresses, responses: { "200": { description: OK } } }
+    get:
+      summary: The caller's saved addresses, default first then oldest first
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/SavedAddress" } } } } }
     post:
-      summary: Save an address
-      requestBody: { content: { application/json: { schema: { $ref: "common.v1.yaml#/components/schemas/Address" } } } }
-      responses: { "201": { description: Created } }
+      summary: Save an address (the first one becomes the default; at most 10)
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/AddressRequest" } } } }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/SavedAddress" } } } }
+        "400": { description: "VALIDATION_FAILED or INVALID_ADDRESS (lat and lng must be given together); values are never echoed" }
+        "422": { description: "ADDRESS_LIMIT_REACHED: the book already holds 10 addresses" }
   /api/v1/users/me/addresses/{addressId}:
-    put: { summary: Update address, parameters: [{ name: addressId, in: path, required: true, schema: { type: string } }], responses: { "200": { description: OK } } }
-    delete: { summary: Delete address, parameters: [{ name: addressId, in: path, required: true, schema: { type: string } }], responses: { "204": { description: Deleted } } }
+    parameters: [{ name: addressId, in: path, required: true, schema: { type: string, format: uuid } }]
+    put:
+      summary: "Replace an address; isDefault: true moves the default here (false never removes it)"
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/AddressRequest" } } } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/SavedAddress" } } } }
+        "404": { description: "ADDRESS_NOT_FOUND: unknown id or another person's address (indistinguishable)" }
+        "409": { description: "ADDRESS_BOOK_CHANGED: two changes to the default at the same time" }
+    delete:
+      summary: Delete an address; deleting the default promotes the oldest remaining one
+      responses:
+        "204": { description: Deleted }
+        "404": { description: "ADDRESS_NOT_FOUND: unknown id or another person's address (indistinguishable)" }
   /api/v1/admin/users:
     get: { summary: Search users (ADMIN), responses: { "200": { description: OK } } }
     post:
@@ -107,6 +124,27 @@ components:
         roles: { type: array, items: { type: string, enum: [CUSTOMER, MERCHANT, COURIER, DISPATCHER, ADMIN] } }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+    AddressRequest:
+      description: common.v1.yaml Address plus a label and the default flag. PUT replaces every field.
+      allOf:
+        - $ref: "common.v1.yaml#/components/schemas/Address"
+        - type: object
+          required: [label]
+          properties:
+            label: { type: string, maxLength: 40, example: Home }
+            isDefault: { type: boolean, description: "true makes this the default address" }
+    SavedAddress:
+      description: One saved address, returned only to its owner. line1 and line2 are encrypted at rest.
+      allOf:
+        - $ref: "common.v1.yaml#/components/schemas/Address"
+        - type: object
+          required: [id, label, isDefault, createdAt, updatedAt]
+          properties:
+            id: { type: string, format: uuid }
+            label: { type: string }
+            isDefault: { type: boolean }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
     Courier:
       type: object
       required: [id, fullName, enabled, profileComplete, assignable]
