@@ -73,13 +73,18 @@ Host ports are configurable in `.env` (defaults avoid clashing with other local 
 
 Password for all: value of `KC_SEED_USER_PASSWORD` in `.env` (default `Swift@2026`).
 
-| User | Role |
-|---|---|
-| admin@swiftdrop.lk | ADMIN |
-| dispatcher@swiftdrop.lk | DISPATCHER |
-| courier1@swiftdrop.lk, courier2@swiftdrop.lk | COURIER |
-| customer@swiftdrop.lk | CUSTOMER |
-| merchant@swiftdrop.lk | MERCHANT (merchant_id `00000000-0000-4000-8000-000000000001`) |
+| User | Role | User id (JWT `sub`) |
+|---|---|---|
+| admin@swiftdrop.lk | ADMIN | `10000000-0000-4000-8000-000000000001` |
+| dispatcher@swiftdrop.lk | DISPATCHER | `10000000-0000-4000-8000-000000000002` |
+| courier1@swiftdrop.lk | COURIER | `10000000-0000-4000-8000-000000000003` |
+| courier2@swiftdrop.lk | COURIER | `10000000-0000-4000-8000-000000000004` |
+| customer@swiftdrop.lk | CUSTOMER | `10000000-0000-4000-8000-000000000005` |
+| merchant@swiftdrop.lk | MERCHANT (merchant_id `00000000-0000-4000-8000-000000000001`) | `10000000-0000-4000-8000-000000000006` |
+
+The ids are fixed in the realm file, so `pnpm keycloak:reimport` keeps them and data that refers to a demo user
+(profiles, addresses, courier assignments) stays valid. Users created by hand or through Google get a new id on
+every re-import.
 
 Machine client for the merchant API: `merchant-demo` (client credentials, secret `KC_DEMO_MERCHANT_CLIENT_SECRET`).
 
