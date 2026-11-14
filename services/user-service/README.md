@@ -28,6 +28,7 @@ The rules are enforced by `LayeredArchitectureTest` (ArchUnit). Read each layer'
 |---|---|---|
 | `GET /api/v1/users/me` | any person role | Returns the caller's profile. The first call creates it from the token; later calls copy the e-mail and roles from the token again. |
 | `PUT /api/v1/users/me` | any person role | Replaces the full name and phone number. Leaving `phone` out removes it. |
+| `GET/POST /api/v1/users/me/addresses`, `PUT/DELETE .../{addressId}` | any person role | The caller's address book: at most 10 addresses, exactly one default while any exist. Another person's address answers 404. |
 | `GET /api/v1/admin/couriers?zoneId=&assignable=` | DISPATCHER, ADMIN | Courier directory for dispatch: every Keycloak user with role COURIER plus vehicle, home zone and daily capacity. |
 | `PUT /api/v1/admin/couriers/{courierId}` | ADMIN | Sets a courier's vehicle, home zone, daily capacity and availability. |
 
@@ -45,6 +46,8 @@ A `MERCHANT_API` machine client gets `403`: it has no profile. Full contract:
   secret `KC_USER_SERVICE_CLIENT_SECRET`), so couriers appear before their first sign-in. Listing role members
   needs the read-only `view-realm` permission in addition to `view-users`; both are in the realm file. If Keycloak
   cannot be reached the endpoint answers `503 IDENTITY_PROVIDER_UNAVAILABLE`.
+- **Address lines are encrypted at rest** with the same cipher as phone numbers; city and district stay readable
+  because pricing and dispatch work with them. A partial unique index keeps one default address per person.
 - **Phone numbers are encrypted at rest** with AES-256-GCM (`PiiCipher`, applied by a JPA converter) using
   `PII_ENCRYPTION_KEY`. The service refuses to start without a valid 32-byte key; `pnpm env:init` generates one.
   Numbers are normalised to E.164 (`+947XXXXXXXX`), and `PhoneNumber.toString()` never prints the number.
