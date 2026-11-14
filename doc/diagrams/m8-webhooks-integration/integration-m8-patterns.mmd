@@ -1,0 +1,17 @@
+%% M8 integration design: the numbers match the pattern table in README.md. Planned design, issue #21.
+flowchart LR
+    subgraph ASYNC["Asynchronous - parcel change to merchant"]
+        PS["parcel-service"] -- "1 outbox" --> OB[("outbox_event")]
+        OB -- "2 pub / sub" --> K["Kafka"]
+        K -- "3 idempotent consumer" --> WH["webhook-service"]
+        WH -- "4 work queue" --> Q["BullMQ"]
+        Q --> W["Delivery worker"]
+        W -- "5 webhook + HMAC" --> M["Merchant endpoint"]
+        W -. "6 retry + backoff" .-> Q
+        W -. "7 dead-letter channel" .-> K
+    end
+    subgraph SYNC["Synchronous - merchant calls SwiftDrop, admin recovers"]
+        MS["Merchant system"] -- "8 request / reply, client credentials" --> GW["api-gateway"]
+        GW -- "9 idempotent receiver" --> PS2["parcel-service"]
+        AD["Admin"] -- "10 manual replay" --> WH2["webhook-service"]
+    end

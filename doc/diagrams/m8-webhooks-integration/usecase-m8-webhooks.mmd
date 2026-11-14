@@ -1,0 +1,33 @@
+%% M8 use cases: merchant endpoints, admin replay and automatic delivery. Planned design, issue #21.
+flowchart LR
+    M(["Merchant<br/>(MERCHANT)"])
+    A(["Admin<br/>(ADMIN)"])
+    K["Kafka<br/>parcel and merchant events"]
+    E["Merchant endpoint<br/>external HTTPS receiver"]
+    subgraph SYS["SwiftDrop webhooks (M8)"]
+        subgraph MER["Merchant - scoped by merchant_id"]
+            U1("Register a webhook endpoint")
+            U2("Reveal the signing secret once")
+            U3("Send a signed test ping")
+            U4("List and remove endpoints")
+            U5("View the delivery log")
+        end
+        subgraph ADM["Admin only"]
+            U6("List dead-lettered deliveries")
+            U7("Replay a dead-lettered delivery")
+        end
+        subgraph AUTO["Automatic - driven by Kafka events"]
+            U8("Deliver a signed parcel update")
+            U9("Retry with exponential backoff")
+            U10("Dead-letter after the last attempt")
+            U11("Pause a suspended merchant")
+        end
+    end
+    M --> U1 & U3 & U4 & U5
+    A --> U6 & U7
+    K --> U8 & U11
+    U3 & U8 & U9 --> E
+    U1 -. "include" .-> U2
+    U7 -. "include" .-> U6
+    U9 -. "extend: non-2xx or timeout" .-> U8
+    U10 -. "extend: attempts used up" .-> U9

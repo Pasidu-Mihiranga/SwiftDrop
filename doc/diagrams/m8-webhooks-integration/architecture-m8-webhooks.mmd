@@ -1,0 +1,18 @@
+%% M8 architecture: webhook-service modules. Planned design, issue #21.
+flowchart TB
+    WEB["Web pages + BFF"] --> GW["api-gateway"]
+    GW --> C["Controllers"]
+    KAFKA["Kafka"] --> KC["Kafka consumers"]
+    subgraph SVC["webhook-service - NestJS"]
+        COMMON["swiftdrop-common"] -.-> C
+        C --> APP["EndpointService, ReplayService"]
+        KC --> FAN["FanOutService"]
+        DP["DeliveryProcessor"] --> HELP["Signer, PayloadMapper, SsrfGuard, SecretCipher"]
+    end
+    APP --> MONGO[("MongoDB webhooks")]
+    FAN --> MONGO
+    FAN --> REDIS[("Redis BullMQ")]
+    REDIS -- jobs --> DP
+    DP -- attempts and status --> MONGO
+    DP -- signed POST --> EP["Merchant endpoint"]
+    DP -- DLQ event --> KAFKA
