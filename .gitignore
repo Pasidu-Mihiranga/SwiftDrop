@@ -17,6 +17,7 @@ node_modules/
 dist/
 .next/
 out/
+!services/parcel-service/src/main/java/lk/swiftdrop/parcel/application/port/out/
 coverage/
 *.tsbuildinfo
 next-env.d.ts
