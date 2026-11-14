@@ -10,8 +10,8 @@ async function bootstrap(): Promise<void> {
   const logger = app.get<Logger>(LOGGER);
   app.useLogger(new PinoNestLogger(logger));
   app.enableShutdownHooks();
-  await app.listen(env.PORT, "0.0.0.0");
-  logger.info({ port: env.PORT }, "webhook-service started");
+  await app.listen(env().PORT, "0.0.0.0");
+  logger.info({ port: env().PORT }, "webhook-service started");
 }
 
 void bootstrap();
