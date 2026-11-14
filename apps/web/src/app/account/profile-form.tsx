@@ -1,17 +1,11 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { FEEDBACK_MOTION, PRESS } from "@/lib/motion";
 import { formatDate, formatPhone, MAX_NAME_LENGTH, type Profile, type ProfileFormState } from "@/lib/profile";
 import { updateProfile } from "./actions";
 
 const INITIAL: ProfileFormState = { status: "idle" };
-
-/**
- * Feedback motion only: results fade in with a short rise (200 ms, strong ease-out) and the button
- * gives a slight press. Nothing animates on load. Reduced-motion users get the fade without movement.
- */
-const FEEDBACK_MOTION =
-  "transition-[opacity,translate] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] starting:opacity-0 starting:translate-y-1 motion-reduce:starting:translate-y-0";
 
 export function ProfileForm({ initial }: { initial: Profile }) {
   const [state, formAction, pending] = useActionState(updateProfile, INITIAL);
@@ -116,7 +110,7 @@ export function ProfileForm({ initial }: { initial: Profile }) {
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="submit"
-            className="btn-primary active:scale-[0.97] motion-reduce:active:scale-100"
+            className={`btn-primary ${PRESS}`}
             disabled={pending || unchanged}
           >
             {pending ? "Saving..." : "Save changes"}
