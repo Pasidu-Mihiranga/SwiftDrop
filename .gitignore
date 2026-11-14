@@ -10,6 +10,7 @@ target/
 *.class
 .mvn/wrapper/maven-wrapper.jar
 hs_err_pid*
+replay_pid*
 
 # --- Node / Next.js ---
 node_modules/
@@ -18,6 +19,8 @@ dist/
 .next/
 out/
 !services/parcel-service/src/main/java/lk/swiftdrop/parcel/application/port/out/
+# ...but not source packages named "out", e.g. the hexagonal application/port/out interfaces.
+!**/src/**/out/
 coverage/
 *.tsbuildinfo
 next-env.d.ts
