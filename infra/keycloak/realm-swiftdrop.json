@@ -184,37 +184,37 @@
   ],
   "users": [
     {
-      "username": "admin@swiftdrop.lk", "email": "admin@swiftdrop.lk", "firstName": "Amara", "lastName": "Admin",
+      "id": "10000000-0000-4000-8000-000000000001", "username": "admin@swiftdrop.lk", "email": "admin@swiftdrop.lk", "firstName": "Amara", "lastName": "Admin",
       "enabled": true, "emailVerified": true,
       "credentials": [{ "type": "password", "value": "${KC_SEED_USER_PASSWORD}", "temporary": false }],
       "realmRoles": ["default-roles-swiftdrop", "ADMIN"]
     },
     {
-      "username": "dispatcher@swiftdrop.lk", "email": "dispatcher@swiftdrop.lk", "firstName": "Dilan", "lastName": "Dispatcher",
+      "id": "10000000-0000-4000-8000-000000000002", "username": "dispatcher@swiftdrop.lk", "email": "dispatcher@swiftdrop.lk", "firstName": "Dilan", "lastName": "Dispatcher",
       "enabled": true, "emailVerified": true,
       "credentials": [{ "type": "password", "value": "${KC_SEED_USER_PASSWORD}", "temporary": false }],
       "realmRoles": ["default-roles-swiftdrop", "DISPATCHER"]
     },
     {
-      "username": "courier1@swiftdrop.lk", "email": "courier1@swiftdrop.lk", "firstName": "Chamath", "lastName": "Courier",
+      "id": "10000000-0000-4000-8000-000000000003", "username": "courier1@swiftdrop.lk", "email": "courier1@swiftdrop.lk", "firstName": "Chamath", "lastName": "Courier",
       "enabled": true, "emailVerified": true,
       "credentials": [{ "type": "password", "value": "${KC_SEED_USER_PASSWORD}", "temporary": false }],
       "realmRoles": ["default-roles-swiftdrop", "COURIER"]
     },
     {
-      "username": "courier2@swiftdrop.lk", "email": "courier2@swiftdrop.lk", "firstName": "Kasun", "lastName": "Courier",
+      "id": "10000000-0000-4000-8000-000000000004", "username": "courier2@swiftdrop.lk", "email": "courier2@swiftdrop.lk", "firstName": "Kasun", "lastName": "Courier",
       "enabled": true, "emailVerified": true,
       "credentials": [{ "type": "password", "value": "${KC_SEED_USER_PASSWORD}", "temporary": false }],
       "realmRoles": ["default-roles-swiftdrop", "COURIER"]
     },
     {
-      "username": "customer@swiftdrop.lk", "email": "customer@swiftdrop.lk", "firstName": "Nimali", "lastName": "Customer",
+      "id": "10000000-0000-4000-8000-000000000005", "username": "customer@swiftdrop.lk", "email": "customer@swiftdrop.lk", "firstName": "Nimali", "lastName": "Customer",
       "enabled": true, "emailVerified": true,
       "credentials": [{ "type": "password", "value": "${KC_SEED_USER_PASSWORD}", "temporary": false }],
       "realmRoles": ["default-roles-swiftdrop"]
     },
     {
-      "username": "merchant@swiftdrop.lk", "email": "merchant@swiftdrop.lk", "firstName": "Malith", "lastName": "Merchant",
+      "id": "10000000-0000-4000-8000-000000000006", "username": "merchant@swiftdrop.lk", "email": "merchant@swiftdrop.lk", "firstName": "Malith", "lastName": "Merchant",
       "enabled": true, "emailVerified": true,
       "attributes": { "merchant_id": ["00000000-0000-4000-8000-000000000001"] },
       "credentials": [{ "type": "password", "value": "${KC_SEED_USER_PASSWORD}", "temporary": false }],
@@ -223,7 +223,7 @@
     {
       "username": "service-account-user-service-admin", "enabled": true,
       "serviceAccountClientId": "user-service-admin",
-      "clientRoles": { "realm-management": ["manage-users", "view-users", "query-users", "query-groups"] }
+      "clientRoles": { "realm-management": ["manage-users", "view-users", "query-users", "query-groups", "view-realm"] }
     },
     {
       "username": "service-account-merchant-service-admin", "enabled": true,
