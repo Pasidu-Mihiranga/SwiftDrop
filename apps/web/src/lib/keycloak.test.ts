@@ -1,5 +1,28 @@
 import { describe, expect, it } from "vitest";
-import { gatewayUrl, keycloakConfig } from "./keycloak";
+import { appUrl, gatewayUrl, keycloakConfig, keycloakLogoutUrl } from "./keycloak";
+
+describe("keycloakLogoutUrl", () => {
+  const config = { issuer: "http://localhost:8180/realms/swiftdrop", clientId: "swiftdrop-web" };
+
+  it("ends the Keycloak session for the signed-in user and comes back to the app", () => {
+    const url = new URL(keycloakLogoutUrl(config, "http://localhost:3000/", "id.token.value"));
+    expect(url.origin + url.pathname).toBe("http://localhost:8180/realms/swiftdrop/protocol/openid-connect/logout");
+    expect(url.searchParams.get("client_id")).toBe("swiftdrop-web");
+    expect(url.searchParams.get("post_logout_redirect_uri")).toBe("http://localhost:3000/");
+    expect(url.searchParams.get("id_token_hint")).toBe("id.token.value");
+  });
+
+  it("still logs out when the session no longer has an ID token", () => {
+    const url = new URL(keycloakLogoutUrl(config, "http://localhost:3000/"));
+    expect(url.searchParams.has("id_token_hint")).toBe(false);
+    expect(url.searchParams.get("client_id")).toBe("swiftdrop-web");
+  });
+
+  it("uses the public app URL for the way back", () => {
+    expect(appUrl({ AUTH_URL: "https://swiftdrop.local/" })).toBe("https://swiftdrop.local");
+    expect(appUrl({})).toBe("http://localhost:3000");
+  });
+});
 
 describe("keycloakConfig", () => {
   it("derives everything from the shared .env variables", () => {
