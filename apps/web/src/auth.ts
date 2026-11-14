@@ -67,12 +67,19 @@ async function refreshAccessToken(token: import("next-auth/jwt").JWT): Promise<i
         client_secret: kc.clientSecret,
       }),
     });
-    const refreshed = (await response.json()) as { access_token?: string; refresh_token?: string; expires_in?: number };
+    const refreshed = (await response.json()) as {
+      access_token?: string;
+      refresh_token?: string;
+      id_token?: string;
+      expires_in?: number;
+    };
     if (!response.ok || !refreshed.access_token) throw new Error("refresh rejected");
     return {
       ...token,
       accessToken: refreshed.access_token,
       refreshToken: refreshed.refresh_token ?? token.refreshToken,
+      // Keep the newest ID token: sign-out hands it to Keycloak to end the right session.
+      idToken: refreshed.id_token ?? token.idToken,
       expiresAt: Math.floor(Date.now() / 1000) + (refreshed.expires_in ?? 300),
       roles: rolesFromAccessToken(refreshed.access_token),
       error: undefined,

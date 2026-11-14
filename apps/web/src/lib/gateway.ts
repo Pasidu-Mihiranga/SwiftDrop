@@ -3,14 +3,23 @@ import { getToken } from "next-auth/jwt";
 import { headers } from "next/headers";
 import { gatewayUrl } from "@/lib/keycloak";
 
-/** Reads the (server-side only) Keycloak access token from the encrypted session cookie. */
-export async function accessToken(requestHeaders?: Headers): Promise<string | undefined> {
-  const token = await getToken({
+/** Decrypts the (server-side only) session cookie that holds the Keycloak tokens. */
+async function sessionToken(requestHeaders?: Headers) {
+  return getToken({
     req: { headers: requestHeaders ?? (await headers()) },
     secret: process.env.AUTH_SECRET,
     secureCookie: (process.env.AUTH_URL ?? "").startsWith("https://"),
   });
-  return token?.accessToken;
+}
+
+/** Reads the (server-side only) Keycloak access token from the encrypted session cookie. */
+export async function accessToken(requestHeaders?: Headers): Promise<string | undefined> {
+  return (await sessionToken(requestHeaders))?.accessToken;
+}
+
+/** The Keycloak ID token, needed to end the Keycloak session on sign-out. */
+export async function idToken(): Promise<string | undefined> {
+  return (await sessionToken())?.idToken;
 }
 
 /** Server components / actions call backend APIs through the gateway with the user's token. */
