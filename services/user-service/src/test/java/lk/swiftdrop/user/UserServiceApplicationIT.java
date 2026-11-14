@@ -16,9 +16,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Boots the whole service against real infrastructure: Flyway migrations, JPA mapping, security, actuator. */
 @Testcontainers
-@SpringBootTest
+@SpringBootTest(properties = "swiftdrop.pii.encryption-key=" + UserServiceApplicationIT.TEST_PII_KEY)
 @AutoConfigureMockMvc
 class UserServiceApplicationIT {
+
+    /** base64 of 32 ASCII bytes; a test-only key, never used outside tests. */
+    static final String TEST_PII_KEY = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 
     @Container
     @ServiceConnection

@@ -7,27 +7,58 @@ servers: [{ url: http://localhost:8080 }]
 security: [{ bearerAuth: [] }]
 paths:
   /api/v1/users/me:
-    get: { summary: The caller's profile (created on first call), responses: { "200": { description: OK } } }
+    get:
+      summary: The caller's profile (created on first call)
+      description: |
+        Person roles only (CUSTOMER, MERCHANT, COURIER, DISPATCHER, ADMIN); a MERCHANT_API machine client gets 403.
+        The first call creates the profile from the token (sub, email, name, roles). Later calls copy the e-mail and
+        roles from the token again, because Keycloak is their source of truth; the name and phone are left alone.
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Profile" } } } }
+        "401": { description: No or invalid token }
+        "403": { description: Not a person role }
+        "409": { description: "EMAIL_ALREADY_LINKED: the e-mail belongs to another profile" }
+        "422": { description: "EMAIL_REQUIRED: the token has no e-mail claim" }
     put:
-      summary: Update name / phone
+      summary: Replace name and phone (omit phone to remove it)
       requestBody:
         content:
           application/json:
             schema:
               type: object
+              required: [fullName]
               properties:
-                fullName: { type: string, maxLength: 100 }
-                phone: { type: string, pattern: "^(\\+94|0)7[0-9]{8}$" }
-      responses: { "200": { description: Updated } }
+                fullName: { type: string, minLength: 1, maxLength: 100 }
+                phone: { type: string, pattern: "^(\\+94|0)7[0-9]{8}$", description: "Stored as E.164 (+947XXXXXXXX), encrypted at rest" }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/Profile" } } } }
+        "400": { description: VALIDATION_FAILED (field names only; submitted values are never echoed) }
   /api/v1/users/me/addresses:
-    get: { summary: Saved addresses, responses: { "200": { description: OK } } }
+    get:
+      summary: The caller's saved addresses, default first then oldest first
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/SavedAddress" } } } } }
     post:
-      summary: Save an address
-      requestBody: { content: { application/json: { schema: { $ref: "common.v1.yaml#/components/schemas/Address" } } } }
-      responses: { "201": { description: Created } }
+      summary: Save an address (the first one becomes the default; at most 10)
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/AddressRequest" } } } }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/SavedAddress" } } } }
+        "400": { description: "VALIDATION_FAILED or INVALID_ADDRESS (lat and lng must be given together); values are never echoed" }
+        "422": { description: "ADDRESS_LIMIT_REACHED: the book already holds 10 addresses" }
   /api/v1/users/me/addresses/{addressId}:
-    put: { summary: Update address, parameters: [{ name: addressId, in: path, required: true, schema: { type: string } }], responses: { "200": { description: OK } } }
-    delete: { summary: Delete address, parameters: [{ name: addressId, in: path, required: true, schema: { type: string } }], responses: { "204": { description: Deleted } } }
+    parameters: [{ name: addressId, in: path, required: true, schema: { type: string, format: uuid } }]
+    put:
+      summary: "Replace an address; isDefault: true moves the default here (false never removes it)"
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/AddressRequest" } } } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/SavedAddress" } } } }
+        "404": { description: "ADDRESS_NOT_FOUND: unknown id or another person's address (indistinguishable)" }
+        "409": { description: "ADDRESS_BOOK_CHANGED: two changes to the default at the same time" }
+    delete:
+      summary: Delete an address; deleting the default promotes the oldest remaining one
+      responses:
+        "204": { description: Deleted }
+        "404": { description: "ADDRESS_NOT_FOUND: unknown id or another person's address (indistinguishable)" }
   /api/v1/admin/users:
     get: { summary: Search users (ADMIN), responses: { "200": { description: OK } } }
     post:
@@ -47,7 +78,87 @@ paths:
   /api/v1/admin/users/{userId}:
     patch: { summary: Enable/disable user or change roles (ADMIN), parameters: [{ name: userId, in: path, required: true, schema: { type: string } }], responses: { "200": { description: OK } } }
   /api/v1/admin/couriers:
-    get: { summary: "Couriers with vehicle, home zone and capacity", responses: { "200": { description: OK } } }
+    get:
+      summary: "Couriers with vehicle, home zone and capacity (DISPATCHER, ADMIN)"
+      description: |
+        Keycloak (realm role COURIER) decides who is a courier, so couriers are listed even before their first sign-in.
+        Dispatch details are null until an admin sets them (profileComplete = false). Sorted by full name.
+      parameters:
+        - { name: zoneId, in: query, required: false, schema: { type: string, format: uuid }, description: "Only couriers whose home zone is this pricing-service zone" }
+        - { name: assignable, in: query, required: false, schema: { type: boolean }, description: "true = enabled, details complete and active" }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Courier" } } } } }
+        "403": { description: Not DISPATCHER or ADMIN }
+        "503": { description: "IDENTITY_PROVIDER_UNAVAILABLE: Keycloak could not be reached" }
+  /api/v1/admin/couriers/{courierId}:
+    put:
+      summary: "Set a courier's vehicle, home zone, daily capacity and availability (ADMIN)"
+      parameters: [{ name: courierId, in: path, required: true, schema: { type: string }, description: Keycloak subject of the courier }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [vehicleType, homeZoneId, maxDailyCapacity]
+              properties:
+                vehicleType: { type: string, enum: [BIKE, THREE_WHEELER, VAN] }
+                homeZoneId: { type: string, format: uuid, description: pricing-service ZONE.id }
+                maxDailyCapacity: { type: integer, minimum: 1, maximum: 200 }
+                active: { type: boolean, default: true, description: "false takes the courier off dispatch" }
+      responses:
+        "200": { description: Saved, content: { application/json: { schema: { $ref: "#/components/schemas/Courier" } } } }
+        "400": { description: VALIDATION_FAILED }
+        "403": { description: Not ADMIN }
+        "404": { description: "COURIER_NOT_FOUND: no Keycloak user with role COURIER has this id" }
 components:
+  schemas:
+    Profile:
+      type: object
+      required: [id, email, fullName, status, roles, createdAt, updatedAt]
+      properties:
+        id: { type: string, description: Keycloak subject (JWT sub) }
+        email: { type: string, format: email }
+        fullName: { type: string }
+        phone: { type: [string, "null"], example: "+94771234567" }
+        status: { type: string, enum: [ACTIVE, DISABLED] }
+        roles: { type: array, items: { type: string, enum: [CUSTOMER, MERCHANT, COURIER, DISPATCHER, ADMIN] } }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    AddressRequest:
+      description: common.v1.yaml Address plus a label and the default flag. PUT replaces every field.
+      allOf:
+        - $ref: "common.v1.yaml#/components/schemas/Address"
+        - type: object
+          required: [label]
+          properties:
+            label: { type: string, maxLength: 40, example: Home }
+            isDefault: { type: boolean, description: "true makes this the default address" }
+    SavedAddress:
+      description: One saved address, returned only to its owner. line1 and line2 are encrypted at rest.
+      allOf:
+        - $ref: "common.v1.yaml#/components/schemas/Address"
+        - type: object
+          required: [id, label, isDefault, createdAt, updatedAt]
+          properties:
+            id: { type: string, format: uuid }
+            label: { type: string }
+            isDefault: { type: boolean }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    Courier:
+      type: object
+      required: [id, fullName, enabled, profileComplete, assignable]
+      properties:
+        id: { type: string, description: Keycloak subject; use it as courierId in dispatch }
+        fullName: { type: string }
+        email: { type: [string, "null"], format: email }
+        enabled: { type: boolean, description: Keycloak account may sign in }
+        profileComplete: { type: boolean }
+        vehicleType: { type: [string, "null"], enum: [BIKE, THREE_WHEELER, VAN, null] }
+        homeZoneId: { type: [string, "null"], format: uuid }
+        maxDailyCapacity: { type: [integer, "null"], minimum: 1, maximum: 200 }
+        active: { type: [boolean, "null"] }
+        assignable: { type: boolean, description: "enabled AND profileComplete AND active" }
+        profileUpdatedAt: { type: [string, "null"], format: date-time }
   securitySchemes:
     bearerAuth: { $ref: "common.v1.yaml#/components/securitySchemes/bearerAuth" }
