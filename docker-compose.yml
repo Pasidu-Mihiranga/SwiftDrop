@@ -303,7 +303,13 @@ services:
   user-service:
     <<: *app
     build: { context: ., dockerfile: services/user-service/Dockerfile }
-    environment: { <<: *java-env, DB_NAME: users_db, DB_USER: user_svc, PII_ENCRYPTION_KEY: "${PII_ENCRYPTION_KEY}" }
+    environment:
+      <<: *java-env
+      DB_NAME: users_db
+      DB_USER: user_svc
+      PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY}
+      KEYCLOAK_INTERNAL_URL: http://keycloak:8080
+      KC_USER_SERVICE_CLIENT_SECRET: ${KC_USER_SERVICE_CLIENT_SECRET}
 
   merchant-service:
     <<: *app

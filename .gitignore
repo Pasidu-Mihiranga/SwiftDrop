@@ -10,6 +10,7 @@ target/
 *.class
 .mvn/wrapper/maven-wrapper.jar
 hs_err_pid*
+replay_pid*
 
 # --- Node / Next.js ---
 node_modules/
