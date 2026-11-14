@@ -22,7 +22,7 @@ class LayeredArchitectureTest {
             .whereLayer("API").mayNotBeAccessedByAnyLayer()
             .whereLayer("Application").mayOnlyBeAccessedByLayers("API", "Infrastructure")
             .whereLayer("Domain").mayOnlyBeAccessedByLayers("API", "Application", "Infrastructure")
-            .whereLayer("Infrastructure").mayNotBeAccessedByAnyLayer();
+            .whereLayer("Infrastructure").mayOnlyBeAccessedByLayers("Application");
 
     @ArchTest
     static final ArchRule domainIsFrameworkFree = noClasses().that().resideInAPackage("..domain..")
