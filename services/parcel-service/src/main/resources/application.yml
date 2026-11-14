@@ -40,6 +40,16 @@ spring:
           jwk-set-uri: ${KEYCLOAK_JWKS_URI:http://localhost:${KEYCLOAK_HOST_PORT:8180}/realms/swiftdrop/protocol/openid-connect/certs}
           audiences: swiftdrop-api
 
+swiftdrop:
+  pii:
+    # base64-encoded 32-byte AES key for recipient phones and addresses; start-up fails without it
+    encryption-key: ${PII_ENCRYPTION_KEY:}
+  pricing:
+    # quote validation before a booking is stored; a timeout or an open circuit becomes 503
+    base-url: ${PRICING_SERVICE_URL:http://localhost:8083}
+    connect-timeout: 1s
+    read-timeout: 2s
+
 server:
   port: ${PORT:8084}
   shutdown: graceful
