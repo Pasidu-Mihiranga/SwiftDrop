@@ -363,6 +363,13 @@ services:
     environment:
       <<: *node-env
       MONGO_URI: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@mongo:27017/webhooks?authSource=admin
+      # encrypts signing secrets at rest (base64 32-byte key)
+      WEBHOOK_SECRET_KEY: ${PII_ENCRYPTION_KEY}
+      # retry delays in seconds; shorten for the demo, e.g. "5,10,20,40,60,90"
+      WEBHOOK_BACKOFF_SECONDS: ${WEBHOOK_BACKOFF_SECONDS:-30,120,600,1800,7200,21600}
+      # local demo only: lets webhooks reach the merchant simulator over http inside this network
+      WEBHOOK_ALLOW_HTTP: "true"
+      WEBHOOK_ALLOW_PRIVATE_NETWORKS: "true"
 
   ai-assistant-service:
     <<: *app
