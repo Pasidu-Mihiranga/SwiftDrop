@@ -1,0 +1,136 @@
+{{/*
+Postgres for dev clusters. Same image docker-compose.yml pins, and the same
+database-per-service-with-its-own-role model as infra/postgres/init.
+
+Production should point global.commonConfig.DB_HOST at a managed instance and set
+postgres.enabled=false.
+*/}}
+{{- if .Values.postgres.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  labels:
+    app.kubernetes.io/name: postgres
+    {{- include "swiftdrop.labels" . | nindent 4 }}
+data:
+  # Generated from .Values.postgres.databases so the list lives in one place instead of a
+  # second copy of infra/postgres/init/01-create-databases.sh.
+  01-create-databases.sh: |
+    #!/usr/bin/env bash
+    # Runs once, on the first start of an empty data directory.
+    set -euo pipefail
+
+    : "${SWIFTDROP_DB_PASSWORD:?SWIFTDROP_DB_PASSWORD must be set}"
+    : "${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD must be set}"
+
+    create_db() {
+      local db="$1" role="$2" password="$3"
+      echo "Creating database '${db}' owned by '${role}'"
+      psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres \
+           -v role="$role" -v password="$password" -v db="$db" <<'EOSQL'
+    CREATE ROLE :"role" LOGIN PASSWORD :'password';
+    CREATE DATABASE :"db" OWNER :"role";
+    REVOKE ALL ON DATABASE :"db" FROM PUBLIC;
+    EOSQL
+    }
+
+    {{- range .Values.postgres.databases }}
+    create_db "{{ .db }}" "{{ .role }}" "$SWIFTDROP_DB_PASSWORD"
+    {{- end }}
+    create_db "keycloak" "keycloak" "$KEYCLOAK_DB_PASSWORD"
+    echo "All SwiftDrop databases created."
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  labels:
+    app.kubernetes.io/name: postgres
+    {{- include "swiftdrop.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  labels:
+    app.kubernetes.io/name: postgres
+    {{- include "swiftdrop.labels" . | nindent 4 }}
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70
+        runAsGroup: 70
+        fsGroup: 70
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.postgres.user | quote }}
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secrets.platform }}
+          ports:
+            - name: postgres
+              containerPort: 5432
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d postgres"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d postgres"]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 6
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+          {{- with .Values.postgres.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: init
+          configMap:
+            name: postgres-init
+            defaultMode: 0555
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.postgres.storage }}
+{{- end }}

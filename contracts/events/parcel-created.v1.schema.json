@@ -23,7 +23,7 @@
         "dropoff": { "$ref": "envelope.schema.json#/$defs/location" },
         "sizeClass": { "enum": ["S", "M", "L", "XL"] },
         "weightKg": { "type": "number", "exclusiveMinimum": 0, "maximum": 100 },
-        "serviceLevel": { "enum": ["STANDARD", "EXPRESS"] },
+        "serviceLevel": { "enum": ["STANDARD", "EXPRESS", "SAME_DAY"] },
         "fee": { "$ref": "envelope.schema.json#/$defs/money" },
         "contacts": {
           "description": "Minimum contact data the notification-service needs. Masked in every log; stripped from merchant webhooks.",

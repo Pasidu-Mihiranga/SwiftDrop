@@ -21,6 +21,12 @@ spring:
       ddl-auto: validate
   flyway:
     enabled: true
+  jackson:
+    deserialization:
+      # A quote outlives a deploy: one issued minutes before a release is looked up after it,
+      # by a replica running newer code, and during a rolling update by one running older code.
+      # Neither may reject a field the other added, so unknown fields are ignored.
+      fail-on-unknown-properties: false
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -34,6 +40,25 @@ spring:
           issuer-uri: ${KEYCLOAK_ISSUER:http://localhost:${KEYCLOAK_HOST_PORT:8180}/realms/swiftdrop}
           jwk-set-uri: ${KEYCLOAK_JWKS_URI:http://localhost:${KEYCLOAK_HOST_PORT:8180}/realms/swiftdrop/protocol/openid-connect/certs}
           audiences: swiftdrop-api
+
+# Anonymous fee estimates and the public coverage list. The gateway also allows these two
+# paths, but the service enforces its own rules, so it has to opt in as well.
+swiftdrop:
+  security:
+    public-paths:
+      - /api/v1/pricing/quotes
+      - /api/v1/pricing/zones
+  pricing:
+    quote-ttl: ${PRICING_QUOTE_TTL:PT15M}
+    quote-zone-id: ${PRICING_QUOTE_ZONE_ID:Asia/Colombo}
+    # OSRM, for same-day distances. Leave the URL blank to run without a router: distances are
+    # then estimated and labelled as such. A quote waits on this call, so the timeouts are short.
+    routing:
+      url: ${OSRM_URL:}
+      connect-timeout: ${OSRM_CONNECT_TIMEOUT:PT0.3S}
+      read-timeout: ${OSRM_READ_TIMEOUT:PT1S}
+      cache-ttl: ${OSRM_CACHE_TTL:PT24H}
+      breaker-open-for: ${OSRM_BREAKER_OPEN_FOR:PT30S}
 
 server:
   port: ${PORT:8083}

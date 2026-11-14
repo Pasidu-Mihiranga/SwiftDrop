@@ -31,10 +31,18 @@ Each member owns **one vertical feature end-to-end**: backend service/module + f
 
 ## Contribution Sheet (fill in for submission)
 
+M2's platform share (the Helm library chart, the umbrella chart and Kubernetes/Ingress) is
+not a column in this table. It is delivered in `infra/helm`: a library chart, twelve thin
+service charts, an umbrella chart with the dev datastores and one Ingress, dev and
+production value overlays, `.github/workflows/helm.yml`, and the kind install scripts. The
+dev slice was deployed to a kind cluster and exercised end to end; what that proved and
+what it did not is recorded in `doc/04-m2-pricing-zones-issue-15.md`.
+
+
 | # | Member name | Student ID | Feature | Backend delivered | Frontend delivered | Tests / coverage | Diagrams | PRs |
 |---|---|---|---|---|---|---|---|---|
 | M1 | | | | | | | | |
-| M2 | | | | | | | | |
+| M2 | wijewardana S.J. | TODO: add student ID | **Pricing & Zones** | `pricing-service`: 6 Flyway migrations (zone, district_zone, size_class, rate_card) with reviewed seed data for 9 province zones, all 25 districts, 4 size classes and 81 rate-card pairs priced by province borders crossed; Strategy + Decorator fee pipeline (`ZoneMatrixStrategy`, `WeightStrategy`, size/express/COD decorators) with BigDecimal HALF_UP per line; deterministic rate-card selection; Redis-backed quotes with a configurable TTL; authenticated quote lookup for M3; ADMIN zone, district, rate-card and size-class APIs with half-open versioning; custom Micrometer meters behind a `PricingMetrics` port. All 12 OpenAPI paths implemented | Public `/quote` page and reusable fee-estimate widget (loading, validation, empty, expired and error states, countdown, `onQuote` handoff); ADMIN-only zones/districts and rate-card screens with effective-date visibility; server actions with problem+json field errors; zones loaded through the existing BFF path, no duplicated zone lists or hostnames in the browser | Java 181 tests (150 unit incl. ArchUnit, 31 Testcontainers integration), JaCoCo 96.34% lines / 89.47% branches. Web 117 tests, 99.72% lines / 90.27% branches. Both above the 70% gate; reports collected in `doc/test-reports/` | ER pricing/zones, Strategy class diagram, Kubernetes deployment diagram, plus use case, layered architecture, integration, 2 activity and 3 sequence diagrams; reconciled `er-v1.mmd` with the surrogate-key schema | branch `feat/m2-pricing-zones`, 28 commits; PR to be opened |
 | M3 | | | | | | | | |
 | M4 | | | | | | | | |
 | M5 | | | | | | | | |

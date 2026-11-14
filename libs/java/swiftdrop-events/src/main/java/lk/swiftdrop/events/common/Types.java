@@ -18,7 +18,7 @@ public final class Types {
 
     public enum SizeClass { S, M, L, XL }
 
-    public enum ServiceLevel { STANDARD, EXPRESS }
+    public enum ServiceLevel { STANDARD, EXPRESS, SAME_DAY }
 
     public enum ParcelSource { CUSTOMER, MERCHANT }
 

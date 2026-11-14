@@ -1,60 +1,22 @@
 %% M2 key flow 1: anonymous fee estimate (POST /api/v1/pricing/quotes).
 %% Public path - no bearer token. Integration pattern: synchronous request/reply.
+%% Simplified for the design report: the happy path only. Validation and the
+%% DISTRICT_NOT_SERVICED / SIZE_CLASS_WEIGHT_EXCEEDED guards are described in the text.
 sequenceDiagram
     autonumber
     actor G as Guest (browser)
-    participant W as Fee-estimate widget
-    participant B as Next.js BFF<br/>/api/bff/[...path]
+    participant W as Web app<br/>(Next.js BFF)
     participant GW as api-gateway
-    participant QC as QuoteController
-    participant QIS as QuoteIssuanceService
-    participant QPS as QuotePricingService
-    participant DR as DistrictAssignmentRepository
-    participant SR as SizeClassRepository
-    participant RCS as RateCardSelectionService
-    participant FC as FeeCalculator<br/>(Strategy + Decorator chain)
-    participant RD as RedisQuoteStore
+    participant PS as pricing-service
+    participant RD as Redis
 
-    G->>W: pick districts, weight, size class,<br/>service level, COD amount
-    W->>W: validate the form in the browser,<br/>districts come from GET /pricing/zones
-    alt form invalid
-        W-->>G: field errors, no request sent
-    else form valid
-        W->>B: POST /api/bff/v1/pricing/quotes
-        B->>GW: POST /api/v1/pricing/quotes (public path)
-        GW->>QC: forward
-        QC->>QC: Bean Validation on QuoteRequest
-        QC->>QIS: issue(input)
-        QIS->>QIS: issuedAt = clock.instant()<br/>quoteDate = today
-        QIS->>QPS: prepare(input, quoteDate)
-        QPS->>DR: findActiveZoneCodeByDistrict(fromDistrict)
-        QPS->>DR: findActiveZoneCodeByDistrict(toDistrict)
-        alt a district has no active zone
-            DR-->>QPS: empty
-            QPS-->>QC: BusinessRuleViolation DISTRICT_NOT_SERVICED
-            QC-->>G: 422 problem+json
-        else both districts covered
-            QPS->>SR: findByCode(sizeClass)
-            QPS->>QPS: sizeClass.accepts(weightKg)?
-            alt weight over the class limit
-                QPS-->>QC: SIZE_CLASS_WEIGHT_EXCEEDED
-                QC-->>G: 422 problem+json
-            else within the limit
-                QPS->>RCS: select(fromZone, toZone, quoteDate)
-                RCS-->>QPS: the rate card in force
-                QPS->>FC: calculate(card, sizeClass, weightKg,<br/>serviceLevel, codAmount)
-                FC-->>QPS: FeeBreakdown<br/>BASE, WEIGHT, SIZE, EXPRESS, COD + exact total
-                QPS-->>QIS: PreparedQuote
-                QIS->>QIS: build QuoteSnapshot<br/>quoteId = UUID.randomUUID()<br/>expiresAt = issuedAt + 15 min
-                QIS->>RD: save(snapshot, remaining TTL)
-                Note over QIS,RD: saved before the reply is sent, so every<br/>quote shown can be looked up
-                RD-->>QIS: ok
-                QIS-->>QC: QuoteSnapshot
-                QC-->>GW: 201 with fee, breakdown, zones, expiresAt
-                GW-->>B: 201
-                B-->>W: quote
-                W->>W: onQuote(quote) - returns the quoteId<br/>with the fee
-                W-->>G: itemised fee + expiry countdown
-            end
-        end
-    end
+    G->>W: enter districts, weight,<br/>size class, service level
+    W->>GW: POST /api/v1/pricing/quotes
+    GW->>PS: forward (public path,<br/>no token required)
+    PS->>PS: resolve zones, select the rate card<br/>in force, calculate the fee
+    PS->>RD: save quote snapshot<br/>(TTL 15 minutes)
+    RD-->>PS: ok
+    Note over PS,RD: saved before the reply is sent, so every<br/>quote shown can be looked up later
+    PS-->>GW: 201: fee, breakdown,<br/>zones, quoteId, expiresAt
+    GW-->>W: 201 quote
+    W-->>G: itemised fee and<br/>expiry countdown

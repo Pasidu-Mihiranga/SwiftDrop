@@ -1,0 +1,39 @@
+dependencies:
+- name: web
+  repository: file://../charts/web
+  version: 0.1.0
+- name: api-gateway
+  repository: file://../charts/api-gateway
+  version: 0.1.0
+- name: user-service
+  repository: file://../charts/user-service
+  version: 0.1.0
+- name: merchant-service
+  repository: file://../charts/merchant-service
+  version: 0.1.0
+- name: pricing-service
+  repository: file://../charts/pricing-service
+  version: 0.1.0
+- name: parcel-service
+  repository: file://../charts/parcel-service
+  version: 0.1.0
+- name: dispatch-service
+  repository: file://../charts/dispatch-service
+  version: 0.1.0
+- name: reporting-service
+  repository: file://../charts/reporting-service
+  version: 0.1.0
+- name: tracking-service
+  repository: file://../charts/tracking-service
+  version: 0.1.0
+- name: notification-service
+  repository: file://../charts/notification-service
+  version: 0.1.0
+- name: webhook-service
+  repository: file://../charts/webhook-service
+  version: 0.1.0
+- name: ai-assistant-service
+  repository: file://../charts/ai-assistant-service
+  version: 0.1.0
+digest: sha256:5059802c081c2180d540fce6745c508ff0b1efea11200df924159405ab44ca47
+generated: "2026-10-28T10:02:57.779127+05:30"

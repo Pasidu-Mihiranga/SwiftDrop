@@ -1,0 +1,370 @@
+# Issue #15: M2 Pricing & Zones implementation plan
+
+Owner: Sasindu345 (M2)  
+Branch: `feat/m2-pricing-zones`  
+Scope: pricing-service, fee estimate UI, admin pricing UI, Kubernetes/Helm
+
+This checklist follows the [architecture](01-architecture.md),
+[implementation plan](02-implementation-plan.md),
+[team ownership](03-team-contribution.md), and
+[`pricing-service` OpenAPI contract](../contracts/openapi/pricing-service.v1.yaml).
+Complete it in small steps and keep checked items tied to actual repository work.
+Each phase below is a review gate: finish it, report it, and wait for sign-off
+before starting the next one.
+
+## Phase 0: Recorded decisions
+
+The questions that previously blocked this checklist are now settled. The table
+is the authoritative record for the design PDF; the rows below it capture the
+detail.
+
+| Decision | Agreed answer |
+|---|---|
+| Zone scheme | Nine province zones (`WP`, `CP`, `SP`, `NP`, `EP`, `NWP`, `NCP`, `UP`, `SGP`) covering all 25 districts; 81 ordered rate-card pairs |
+| Currency and arithmetic | LKR, `BigDecimal`, scale 2, `HALF_UP` applied per breakdown line so the lines sum exactly to the total |
+| Fee formula and order | `BASE` + `WEIGHT`, then `SIZE`, then `EXPRESS`, then `COD` (see below) |
+| Rate-card precedence | Newest `effective_from` that is still in force on the quote date wins; two matches is a configuration error, never a silent pick |
+| Issued quotes vs admin edits | The quote is honoured. Redis holds the computed snapshot and lookup never recalculates; edits apply to new quotes only |
+| Quote lookup contract | Full schema defined now in the OpenAPI contract and proposed to M3; unknown and expired both answer `404 QUOTE_NOT_FOUND` |
+| Web approach | Client-side fee-estimate widget over the existing BFF path, with pure logic in `apps/web/src/lib` for the coverage gate |
+| Helm scope | Library chart, umbrella chart and thin service charts. Postgres, Redis and Keycloak are templated by the umbrella rather than pulled in as subcharts, so the images are the ones `docker-compose.yml` already pins and a kind cluster needs no registry; Strimzi and RustFS stay documented prerequisites |
+
+- [x] Create the M2 feature branch and issue-specific agent guidance.
+- [x] Currency, fee formula, operation order, precision and rounding agreed.
+      Fees are LKR with two decimals. For a quote the service computes
+      `subtotal = base_fee + per_kg_fee * ceil(weightKg)`, then
+      `SIZE = subtotal * (size_class.multiplier - 1)`, then
+      `EXPRESS = (subtotal + SIZE) * (express_multiplier - 1)`, then
+      `COD = codAmount * cod_fee_pct`. The breakdown returns one line per rule
+      in the order `BASE`, `WEIGHT`, `SIZE`, `EXPRESS`, `COD`; omitted rules are
+      omitted rather than returned as zero. Every line is rounded to two
+      decimals with `HALF_UP` before the total is summed, so the breakdown
+      always reconciles with `fee`.
+- [x] Rate-card precedence and the effect of edits on issued quotes agreed.
+      A rate card applies when `effective_from <= quoteDate` and
+      `effective_to` is null or after the quote date; if several rows match, the
+      latest `effective_from` wins and an exact tie is rejected as ambiguous
+      rather than resolved arbitrarily. Admin edits close the current row by
+      setting `effective_to` and insert a new row; rows are never hard-deleted.
+      Quotes already issued keep the fee they were given, because the Redis
+      snapshot is returned verbatim and never recomputed.
+- [x] Zone codes and the authoritative 25-district mapping agreed. The nine
+      zones follow the provinces and are stored as reviewed seed data in the
+      pricing database, not in Java or frontend code:
+
+      | Code | Zone | Districts |
+      |---|---|---|
+      | `WP` | Western | Colombo, Gampaha, Kalutara |
+      | `CP` | Central | Kandy, Matale, Nuwara Eliya |
+      | `SP` | Southern | Galle, Matara, Hambantota |
+      | `NP` | Northern | Jaffna, Kilinochchi, Mannar, Mullaitivu, Vavuniya |
+      | `EP` | Eastern | Ampara, Batticaloa, Trincomalee |
+      | `NWP` | North Western | Kurunegala, Puttalam |
+      | `NCP` | North Central | Anuradhapura, Polonnaruwa |
+      | `UP` | Uva | Badulla, Monaragala |
+      | `SGP` | Sabaragamuwa | Kegalle, Ratnapura |
+
+- [x] Quote lookup response, authentication, expiry behavior and the fields
+      parcel-service validates are defined in the contract. `GET
+      /api/v1/pricing/quotes/{quoteId}` requires a bearer token, returns the
+      stored snapshot (fee, breakdown, zones, districts, weight, size class,
+      service level, COD amount, issue and expiry times) and answers `404
+      QUOTE_NOT_FOUND` for both unknown and expired identifiers so expiry is not
+      distinguishable from a guess. The response is derived only from the stored
+      snapshot; request data is never substituted into it. **Proposed to M3 and
+      awaiting the parcel-service owner's confirmation.**
+- [x] Draft API gaps resolved in `contracts/openapi/pricing-service.v1.yaml`:
+      admin zone create/update, district assignment, rate-card create/close,
+      size-class read/update, request and response schemas, and problem+json
+      error responses for every endpoint.
+
+## Phase 1: Pricing data and zones
+
+- [x] Add a new Flyway migration for `zone` and `district_zone`, including
+      keys, referential integrity, and the zone lookup index.
+- [x] Add migrations for `size_class` and `rate_card`, including sensible
+      uniqueness, effective-date, and nonnegative-fee constraints.
+      `V3__create_size_class.sql` and `V4__create_rate_card.sql`.
+- [x] Add reviewed seed migrations for the nine zones, all 25 district
+      assignments, the four size classes, and the 81 rate-card pairs. Keep every
+      fee and district literal in SQL; none may appear in Java or frontend code.
+      `V5__seed_zones_and_districts.sql` and
+      `V6__seed_size_classes_and_rate_cards.sql`. Rate cards are priced by the
+      number of province borders a parcel crosses, computed as the shortest path
+      over an adjacency list declared in the seed file, so a one-province trip
+      such as Colombo to Kandy is not charged the same as Colombo to Jaffna.
+      Both seed files are idempotent and the matrix is symmetric.
+- [x] Add domain models and persistence adapters for zones, district mapping,
+      size classes, and rate cards using the existing layered package layout.
+      The `domain` layer stays free of Spring, JPA and Hibernate types.
+- [x] Track the four outbound repository interfaces under `application/port/out`
+      by exempting that source directory from the generic `out/` ignore rule.
+      A clean Maven compile succeeds with the interfaces present.
+- [x] Implement public active-zone lookup and admin zone/district maintenance,
+      and declare the public pricing paths in the service's own
+      `swiftdrop.security.public-paths`.
+- [x] Cover persistence, the seeded row counts, and invalid/duplicate mapping
+      behavior, plus anonymous read and non-admin rejection on the controllers.
+      71 tests green (52 unit including ArchUnit, 19 integration on
+      Testcontainers Postgres and Redis); JaCoCo line coverage 86 per cent.
+
+## Phase 2: Quotes and rate administration
+
+- [x] Implement deterministic rate-card selection for two active zones and
+      the quote date. Reject missing or ambiguous rates clearly.
+- [x] Implement pricing rules as domain strategies/decorators with a monetary
+      breakdown. Use decimal arithmetic and the agreed rounding policy.
+      `PricingStrategy` is the common interface. `ZoneMatrixStrategy` and
+      `WeightStrategy` charge the lane and the weight; `SizeSurchargeDecorator`,
+      `ExpressSurchargeDecorator` and `CodFeeDecorator` layer the surcharges on
+      top, each charging against the rounded total beneath it. `FeeCalculator`
+      only assembles the chain, so the formula is visible in the object graph and
+      adding a rule means adding a decorator rather than editing a calculation.
+- [x] Validate weight, size class, service level, COD amount, districts, and
+      active coverage at the API boundary.
+- [x] Store quote data in Redis under an opaque ID with a configurable
+      15-minute TTL; return the ID, fee, breakdown, zones, and expiry.
+- [x] Implement quote lookup for parcel-service validation. Define 404 for
+      unknown/expired quotes and prevent request data from being substituted.
+- [x] Implement ADMIN-only zone, rate-card, and size-class management APIs.
+      Rate cards are versioned rather than edited: a price change closes the card
+      in force by setting `effective_to` and adds a new one, and overlapping
+      periods for a lane are rejected. Effective periods are half-open, so a card
+      starting the day another ends leaves neither a gap nor an overlap.
+      Listing supports zone and effective-date filters with the shared pagination
+      envelope.
+- [x] Keep OpenAPI and generated Swagger behavior aligned with each endpoint.
+      All twelve contract paths are implemented, and every documented status code
+      has a test asserting the problem+json `code`.
+- [x] Cover pricing edge cases, quote expiry, and admin authorization.
+      171 tests green (140 unit including ArchUnit, 31 integration on
+      Testcontainers Postgres and Redis); JaCoCo coverage 96.2 per cent line
+      and 89.5 per cent branch.
+      Quote expiry is driven by a controlled clock so the boundary is asserted
+      exactly rather than by waiting, and every admin endpoint is checked against
+      CUSTOMER, COURIER, DISPATCHER, MERCHANT and anonymous callers.
+
+## Phase 3: Web flows
+
+- [x] Add a public `/quote` page and reusable fee-estimate widget with loading,
+      validation, empty, expired, and service-error states.
+- [x] Load zones from the pricing API through the existing BFF/gateway path.
+      Never duplicate zone lists, rates, or API hostnames in the browser.
+- [x] Add admin zone/district and rate-card views with create/edit flows,
+      effective-date visibility, and permission-aware navigation. Pricing
+      administration is ADMIN-only, so it needs a narrower route rule than the
+      shared `/admin` prefix.
+- [x] Reuse the existing web design system and CSS color variables; keep
+      controls accessible on phone and desktop viewports. Pricing notices and
+      status labels use shared Tailwind utilities, narrow layouts keep form
+      controls usable, and validation and action failures are announced.
+- [x] Keep testable pricing logic in `apps/web/src/lib` so it counts toward the
+      web coverage gate, and add the component-test setup the widget needs.
+- [ ] Hand the quote ID to the customer booking flow using the agreed M3
+      contract, without taking ownership of parcel booking logic.
+      The fee widget exposes `onQuote(quote)`, whose `quoteId` is required by
+      `CreateParcelRequest` in `contracts/openapi/parcel-service.v1.yaml`.
+      M3 has not added a customer booking page or confirmed its route yet, so
+      there is no destination to wire without creating a broken journey.
+
+## Phase 4: Kubernetes and Helm
+
+- [x] Create `infra/helm/swiftdrop-service` as the reusable library chart for
+      Deployment, Service, ConfigMap, Secret references, probes, and optional HPA.
+      A library chart's `values.yaml` is not merged into the charts that depend on
+      it, so the defaults live in `templates/_defaults.tpl` and
+      `swiftdrop-service.values` layers them under `global.defaults` and then the
+      service's own values. `PORT` is derived from `containerPort`, so an
+      application and its probes cannot disagree about the port. The Deployment
+      also renders a configurable `RollingUpdate` strategy.
+- [x] Create `infra/helm/swiftdrop` as the umbrella chart and thin service
+      charts/values for the application services, including pricing-service.
+      Twelve thin charts, one per workload; each is a `Chart.yaml`, a one-line
+      template including `swiftdrop-service.all`, and values. `scripts/helm-deps.sh`
+      vendors the dependencies, because `helm dependency update` is not recursive.
+- [x] Provide dev and production values for images, ports, resources,
+      dependencies, and externalized secrets; keep credentials out of Git.
+      `values-dev.yaml` enables web, api-gateway and pricing-service plus the three
+      datastores and states inline why each other service is off; `values-prod.yaml`
+      enables everything, pulls by immutable tag, turns the in-chart datastores off
+      in favour of managed ones, and enables the HPAs. Three Secrets
+      (`swiftdrop-platform-secrets`, `swiftdrop-app-secrets`, `swiftdrop-web-secrets`)
+      are created outside Git and only ever referenced by name; CI fails the build if
+      a chart ever contains something shaped like a credential.
+- [x] Configure Ingress for web, API, auth, and Grafana as specified in the
+      architecture; use environment-specific hosts and TLS settings.
+      One Ingress renders only the hosts whose workload is enabled, so a partial
+      install never points a rule at a Service that does not exist. TLS is off in
+      dev and on in production with a cert-manager issuer. `AUTH_URL` and the hosts
+      must share a scheme, because `apps/web/src/lib/gateway.ts` derives the session
+      cookie's `secure` flag from it.
+- [x] Document installation on kind/minikube, dependency setup, and required
+      image/secrets configuration. `infra/helm/README.md` covers the three-layer
+      design, the probe and metrics conventions per runtime, the Secrets, the
+      prerequisites, install, verification, teardown and the production differences.
+      `scripts/kind-up.sh` and `scripts/kind-deploy.sh` automate it, and
+      `make helm-lint`, `make kind-up`, `make kind-deploy`, `make kind-down` wrap them.
+- [x] Run Helm lint/template and a kind smoke deployment when the required
+      container images and cluster are available.
+      `helm lint` passes for all 13 charts; the dev overlay renders 17 objects and the
+      production overlay 40, and both parse as well-formed Kubernetes objects.
+      `.github/workflows/helm.yml` runs lint, template and that structural check on
+      every chart change. The kind deployment was run for real; the results are in
+      the Phase 4 verification section below.
+
+## Phase 4 verification: what the kind deployment actually proved
+
+Run on a kind cluster (Kubernetes 1.37) on this machine, Docker provided by Colima.
+
+| Check | Result |
+|---|---|
+| Rollout | All six pods Ready together: postgres, redis, keycloak, api-gateway, web and both pricing-service replicas |
+| Postgres init | Seven databases created, each owned by its own login role, generated from `postgres.databases` in values rather than a second copy of the shell script |
+| Flyway | Six migrations applied on first start |
+| Seed data | 9 zones, 25 districts, 4 size classes, 81 rate cards |
+| Keycloak | Realm imported from the ConfigMap built out of `infra/keycloak/realm-swiftdrop.json`; the discovery document's issuer equals the chart's `KEYCLOAK_ISSUER`, and a demo-user token carries the `swiftdrop-api` audience |
+| Anonymous zones | `GET /api/v1/pricing/zones` through the Ingress and gateway returns all nine zones with no token |
+| Anonymous quote | `POST /api/v1/pricing/quotes` through the Ingress and gateway: Colombo to Matara, 3 kg, M, LKR 609.50, lines 350.00 + 180.00 + 79.50 reconciling exactly |
+| Border pricing | Colombo to Kandy 725.65 against Colombo to Jaffna 908.50 for the same parcel, so the shortest-path band is in force |
+| Quote TTL | `issuedAt` to `expiresAt` is exactly 15 minutes, taken from `PRICING_QUOTE_TTL` in the ConfigMap; the Redis keys are `pricing:quote:<id>` with a live TTL |
+| Cross-replica lookup | A quote issued by one replica was looked up on the other, which never saw the POST, returning the identical snapshot with all five breakdown lines summing to the fee. This is what the two replicas are for |
+| Validation | 3 kg against size class S answers `422 SIZE_CLASS_WEIGHT_EXCEEDED` as problem+json |
+| Authorization | Anonymous lookup `401 UNAUTHORIZED`; unknown id `404 QUOTE_NOT_FOUND`; admin rate-cards with a CUSTOMER token `403 FORBIDDEN` |
+| Metrics | `/actuator/prometheus` serves the standard HTTP and JVM meters |
+| Web | `/quote` renders through the Ingress with all 25 districts fetched server-side from pricing-service through the gateway |
+
+Two chart defects were found by running it rather than by rendering it, and both are fixed:
+
+1. The startup probe's budget was shorter than a cold Spring Boot start on a small
+   cluster, so the kubelet restarted services that were only starting slowly. A
+   context took 198 seconds to initialise when several JVMs shared two cores. The dev
+   overlay now allows ten minutes for startup and lets liveness begin only afterwards.
+2. A rolling update surged an extra pod, and on a two-core node the old and the new
+   JVM starved each other so neither became ready. The library chart now renders a
+   configurable `RollingUpdate` strategy and the dev overlay sets `maxSurge: 0`.
+
+One portability fix came out of it too: under the containerd image store (Colima, or
+Docker Desktop with the containerd snapshotter) `kind load docker-image` fails with
+`content digest not found`, because `docker save` writes a multi-platform archive kind
+cannot import. `scripts/kind-deploy.sh` saves the host platform explicitly and loads the
+archive instead, falling back to the direct load elsewhere.
+
+Honest limits of this run. The VM has two CPUs and 3.8 GiB, shared with the repository's
+compose stack, and the kind node alone sat at 187 per cent CPU. The six pods do reach
+Ready together, but only after being started in sequence; a single `helm install` of the
+whole dev slice on this machine times out on the slowest pod's probe rather than on
+anything in the charts. Grafana and the LGTM stack were not installed, so the
+`grafana.swiftdrop.local` host is rendered only when `grafana.enabled` is set and was not
+exercised. TLS was not exercised either, since dev runs over plain http by design.
+
+## Phase 5: Delivery
+
+- [x] Add focused unit and integration coverage for calculations, persistence,
+      expiry, authorization, and the web workflows; meet the project 70% gate.
+      Java: 181 tests (150 unit including ArchUnit, 31 integration on Testcontainers),
+      JaCoCo 96.34 per cent lines and 89.47 per cent branches, gate met.
+      Web: 117 tests, 99.72 per cent lines and 90.27 per cent branches.
+      The web gate previously measured only `src/lib`, so the fee-widget component tests
+      ran outside it. The coverage scope now includes the pricing components, and
+      thresholds are set on all four metrics rather than lines alone. Components owned by
+      other milestones are excluded by name with the reason stated, so this gate measures
+      the code M2 wrote; each milestone removes its own line when it adds tests.
+      `PricingForm` and the six admin server actions were untested and now have 39 cases.
+      `scripts/collect-test-reports.sh` gathers every module's report and a summary table
+      into `doc/test-reports/`.
+- [x] Add pricing/zones ER detail, pricing strategy class diagram, and the
+      Kubernetes deployment diagram under `doc/diagrams`, and reconcile
+      `doc/diagrams/er-v1.mmd` with the surrogate-key pricing schema.
+      `er-v1.mmd` now carries the surrogate UUID keys on `ZONE` and `RATE_CARD`, the
+      unique `zone.code`, `district_zone.zone_id`, and the `cod_fee_pct` and
+      `max_dimensions_cm` columns that V2 to V4 actually create, with a note that an
+      issued quote is a Redis snapshot rather than a table. The deployment diagram no
+      longer says PLANNED.
+      No PNG or SVG exports are checked in: Mermaid CLI cannot launch its headless browser
+      in this environment, so the export command is documented for the design PDF instead.
+- [x] Add a pricing Grafana panel/metric and update service/Helm README docs.
+      Three meters behind a new `PricingMetrics` outbound port, implemented by
+      `MicrometerPricingMetrics` in infrastructure so the application layer stays free of
+      the metrics library: `pricing_quotes_issued_total` tagged by service level and size
+      class, `pricing_quote_fee_LKR` as a p50/p95 summary, and
+      `pricing_rate_card_selection_failures_total` tagged by reason, because a lane with no
+      usable rate card is a configuration error that a 4xx count would hide. Tag
+      cardinality is bounded and a test asserts no district, zone pair or quote id is ever
+      a tag. These are the first custom meters in the repository.
+      Dashboard `infra/observability/grafana/dashboards/pricing-overview.json`, uid
+      `swiftdrop-pricing`, 14 panels, auto-provisioned by the existing file provider; the
+      existing scrape config already covers the service. Every query was checked against a
+      live `/actuator/prometheus`, which corrected the percentile label from `phi` (what
+      `SimpleMeterRegistry` uses in tests) to `quantile` (what the Prometheus registry
+      publishes).
+- [ ] Demonstrate an anonymous estimate, an admin rate change, quote expiry,
+      and a valid quote being consumed by parcel-service.
+      `scripts/demo-m2-pricing.sh` covers the first three against a running deployment and
+      prints a pass or fail line per behaviour: 13 of 13 passing on the kind cluster, twice
+      in a row. Quote expiry was also proven for real by setting
+      `PRICING_QUOTE_TTL=PT1M` through Helm and polling one id: HTTP 200 for exactly
+      60 seconds, then `404 QUOTE_NOT_FOUND`.
+      The fourth demonstration stays open: `parcel-service` is still a scaffold with no
+      create-parcel endpoint, so nothing can consume a quote. The script ends by calling
+      `GET /api/v1/pricing/quotes/{id}` exactly as parcel-service will and asserting every
+      field of the agreed contract is present, which is as far as M2 can take it alone.
+- [x] Complete the M2 row in `doc/03-team-contribution.md` with delivered work.
+      Backend, frontend, tests and diagrams filled from the real work; the member name
+      comes from the repository's git identity and the Student ID is left as a marked
+      TODO. A note above the sheet records the Helm and Kubernetes platform share, which
+      the table has no column for.
+- [ ] Request review when the feature is ready. Do not commit or push until
+      the user explicitly asks; do not add an agent co-author trailer.
+
+## Current boundary
+
+The pricing service is feature complete behind the API: the seeded schema, the
+public coverage list, the Strategy and Decorator fee pipeline, Redis-backed
+quotes with a configurable lifetime, authenticated quote lookup for M3, and
+ADMIN maintenance of zones, districts, rate cards and size classes. Every path in
+the OpenAPI contract is implemented.
+
+The `/quote` page, fee widget, and admin pricing screens are implemented. The
+pricing UI uses shared status styles and responsive layouts; web type checking,
+80 tests, and a production webpack build pass. A live browser viewport review
+has not been possible in this environment. The native Turbopack build cannot
+bind its worker port here, so it has not been verified. The `/quote` page has now
+been served from a real cluster through the Ingress with its districts fetched
+live from pricing-service.
+
+Phase 4 is complete. `infra/helm` holds the library chart, twelve thin service
+charts and the umbrella chart with the dev datastores and the Ingress, and the dev
+slice has been deployed to kind and exercised end to end (see the Phase 4
+verification section).
+
+Phase 5 is complete except for one demonstration. Coverage is above the gate on both
+stacks with the reports collected, `er-v1.mmd` is reconciled, the pricing meters and the
+Grafana dashboard are in place and verified against a live scrape, the demo script passes
+13 of 13, and the contribution row is filled.
+
+Three items stay open, and only one of them is M2's to close:
+
+1. The quote-to-booking handoff (Phase 3) and the "valid quote consumed by
+   parcel-service" demonstration (Phase 5) both wait on M3. `parcel-service` has only a
+   `MetaController`, and `apps/web` has no customer booking page, so there is no
+   destination to wire and nothing to consume a quote. M2's side of the seam is finished
+   and proven: `FeeEstimateWidget` exposes `onQuote(quote)`, and
+   `GET /api/v1/pricing/quotes/{quoteId}` returns every field
+   `CreateParcelRequest` needs.
+2. M3 has still not confirmed the quote-lookup response shape proposed in Phase 0. That is
+   a conversation, not code.
+3. Review has not been requested and nothing has been pushed.
+
+What a reviewer should know about the running cluster: the demo script and the metric
+verification deliberately changed data and did not fully undo it, because the design
+forbids it. The WP to CP lane has several versioned rate cards rather than the single
+seeded one, since closing a card and adding its replacement is the whole point and rows are
+never hard-deleted. An inactive zone `TST` also remains, left by the check that
+`NO_RATE_CARD` is counted; it holds no districts and is excluded from the public coverage
+list. Both are undone by recreating the volume:
+`kubectl -n swiftdrop delete pvc data-postgres-0` then deleting the `postgres-0` pod.
+
+Note for local runs: this machine's active Docker context is Colima, which
+Testcontainers does not discover on its own. Integration tests need
+`DOCKER_HOST=unix://$HOME/.colima/default/docker.sock` and
+`TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock` in the environment.

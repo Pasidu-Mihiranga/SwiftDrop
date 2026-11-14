@@ -1,0 +1,59 @@
+name: CI · Kubernetes end to end
+
+# Installs the real chart on a throwaway kind cluster and runs the pricing demo through the
+# Ingress. It runs on GitHub's runner because a laptop rarely has the memory to spare, and
+# everything it creates, secrets included, disappears with the runner.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "infra/helm/**"
+      - "services/pricing-service/**"
+      - "services/api-gateway/**"
+      - "scripts/kind-*.sh"
+      - "scripts/demo-m2-pricing.sh"
+      - ".github/workflows/helm-e2e.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: helm-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kind:
+    name: install · demo
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.3
+      - name: Install kind
+        run: |
+          curl -fsSL -o kind https://kind.sigs.k8s.io/dl/v0.29.0/kind-linux-amd64
+          sudo install kind /usr/local/bin/kind
+      - name: Generate throwaway secrets
+        run: node scripts/init-env.mjs
+      - name: Pull the datastore images kind-deploy loads
+        run: |
+          docker pull postgres:16.15-alpine
+          docker pull redis:7.4.11-alpine
+          docker pull quay.io/keycloak/keycloak:26.8.1
+      - name: Create the cluster
+        run: ./scripts/kind-up.sh
+      - name: Build the images and install the chart
+        run: ./scripts/kind-deploy.sh
+      - name: Run the pricing demo through the Ingress
+        run: ./scripts/demo-m2-pricing.sh
+      - name: Show what went wrong
+        if: failure()
+        run: |
+          kubectl -n swiftdrop get pods -o wide || true
+          kubectl -n swiftdrop get events --sort-by=.lastTimestamp | tail -40 || true
+          for pod in $(kubectl -n swiftdrop get pods -o name); do
+            echo "--- ${pod}"
+            kubectl -n swiftdrop logs "${pod}" --all-containers --tail=40 || true
+          done

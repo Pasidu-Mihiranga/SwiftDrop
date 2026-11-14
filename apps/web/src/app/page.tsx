@@ -2,7 +2,7 @@ import Link from "next/link";
 import { TrackForm } from "@/components/track-form";
 
 const features = [
-  { title: "Book in minutes", text: "Enter pickup and drop-off, see the fee instantly, confirm." },
+  { title: "Know the price first", text: "Get a fee estimate for any two districts before you sign up." },
   { title: "Live tracking", text: "Follow every step from pickup to doorstep in real time." },
   { title: "For online stores", text: "Create orders from your shop via our API and get webhooks." },
 ];
@@ -18,6 +18,7 @@ export default function HomePage() {
         </div>
         <div className="mt-6 flex flex-wrap gap-3">
           <Link href="/login" className="btn bg-white text-brand-700 hover:bg-brand-50">Send a parcel</Link>
+          <Link href="/quote" className="btn border border-white/40 text-white hover:bg-white/10">Check a price</Link>
           <Link href="/merchant/register" className="btn border border-white/40 text-white hover:bg-white/10">Become a merchant</Link>
         </div>
       </section>

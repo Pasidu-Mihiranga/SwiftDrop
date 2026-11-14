@@ -46,7 +46,7 @@ export interface ParcelCreated {
   dropoff: Location;
   sizeClass: "S" | "M" | "L" | "XL";
   weightKg: number;
-  serviceLevel: "STANDARD" | "EXPRESS";
+  serviceLevel: "STANDARD" | "EXPRESS" | "SAME_DAY";
   fee: Money;
   contacts: {
     senderName?: string | null;

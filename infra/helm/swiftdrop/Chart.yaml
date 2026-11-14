@@ -1,0 +1,55 @@
+apiVersion: v2
+name: swiftdrop
+description: Umbrella chart for the SwiftDrop platform. Brings in the thin per-service charts and the dev datastores, and owns the Ingress.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+dependencies:
+  - name: web
+    version: 0.1.0
+    repository: file://../charts/web
+    condition: web.enabled
+  - name: api-gateway
+    version: 0.1.0
+    repository: file://../charts/api-gateway
+    condition: api-gateway.enabled
+  - name: user-service
+    version: 0.1.0
+    repository: file://../charts/user-service
+    condition: user-service.enabled
+  - name: merchant-service
+    version: 0.1.0
+    repository: file://../charts/merchant-service
+    condition: merchant-service.enabled
+  - name: pricing-service
+    version: 0.1.0
+    repository: file://../charts/pricing-service
+    condition: pricing-service.enabled
+  - name: parcel-service
+    version: 0.1.0
+    repository: file://../charts/parcel-service
+    condition: parcel-service.enabled
+  - name: dispatch-service
+    version: 0.1.0
+    repository: file://../charts/dispatch-service
+    condition: dispatch-service.enabled
+  - name: reporting-service
+    version: 0.1.0
+    repository: file://../charts/reporting-service
+    condition: reporting-service.enabled
+  - name: tracking-service
+    version: 0.1.0
+    repository: file://../charts/tracking-service
+    condition: tracking-service.enabled
+  - name: notification-service
+    version: 0.1.0
+    repository: file://../charts/notification-service
+    condition: notification-service.enabled
+  - name: webhook-service
+    version: 0.1.0
+    repository: file://../charts/webhook-service
+    condition: webhook-service.enabled
+  - name: ai-assistant-service
+    version: 0.1.0
+    repository: file://../charts/ai-assistant-service
+    condition: ai-assistant-service.enabled
