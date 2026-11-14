@@ -17,6 +17,8 @@ node_modules/
 dist/
 .next/
 out/
+# ...but not source packages named "out", e.g. the hexagonal application/port/out interfaces.
+!**/src/**/out/
 coverage/
 *.tsbuildinfo
 next-env.d.ts

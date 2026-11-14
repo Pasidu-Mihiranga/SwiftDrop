@@ -7,18 +7,32 @@ servers: [{ url: http://localhost:8080 }]
 security: [{ bearerAuth: [] }]
 paths:
   /api/v1/users/me:
-    get: { summary: The caller's profile (created on first call), responses: { "200": { description: OK } } }
+    get:
+      summary: The caller's profile (created on first call)
+      description: |
+        Person roles only (CUSTOMER, MERCHANT, COURIER, DISPATCHER, ADMIN); a MERCHANT_API machine client gets 403.
+        The first call creates the profile from the token (sub, email, name, roles). Later calls copy the e-mail and
+        roles from the token again, because Keycloak is their source of truth; the name and phone are left alone.
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Profile" } } } }
+        "401": { description: No or invalid token }
+        "403": { description: Not a person role }
+        "409": { description: "EMAIL_ALREADY_LINKED: the e-mail belongs to another profile" }
+        "422": { description: "EMAIL_REQUIRED: the token has no e-mail claim" }
     put:
-      summary: Update name / phone
+      summary: Replace name and phone (omit phone to remove it)
       requestBody:
         content:
           application/json:
             schema:
               type: object
+              required: [fullName]
               properties:
-                fullName: { type: string, maxLength: 100 }
-                phone: { type: string, pattern: "^(\\+94|0)7[0-9]{8}$" }
-      responses: { "200": { description: Updated } }
+                fullName: { type: string, minLength: 1, maxLength: 100 }
+                phone: { type: string, pattern: "^(\\+94|0)7[0-9]{8}$", description: "Stored as E.164 (+947XXXXXXXX), encrypted at rest" }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/Profile" } } } }
+        "400": { description: VALIDATION_FAILED (field names only; submitted values are never echoed) }
   /api/v1/users/me/addresses:
     get: { summary: Saved addresses, responses: { "200": { description: OK } } }
     post:
@@ -49,5 +63,18 @@ paths:
   /api/v1/admin/couriers:
     get: { summary: "Couriers with vehicle, home zone and capacity", responses: { "200": { description: OK } } }
 components:
+  schemas:
+    Profile:
+      type: object
+      required: [id, email, fullName, status, roles, createdAt, updatedAt]
+      properties:
+        id: { type: string, description: Keycloak subject (JWT sub) }
+        email: { type: string, format: email }
+        fullName: { type: string }
+        phone: { type: [string, "null"], example: "+94771234567" }
+        status: { type: string, enum: [ACTIVE, DISABLED] }
+        roles: { type: array, items: { type: string, enum: [CUSTOMER, MERCHANT, COURIER, DISPATCHER, ADMIN] } }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
   securitySchemes:
     bearerAuth: { $ref: "common.v1.yaml#/components/securitySchemes/bearerAuth" }
