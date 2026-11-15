@@ -13,7 +13,10 @@ import lk.swiftdrop.parcel.api.dto.ParcelResponse;
 import lk.swiftdrop.parcel.application.command.CancelParcelUseCase;
 import lk.swiftdrop.parcel.application.command.CreateParcelUseCase;
 import lk.swiftdrop.parcel.application.query.ParcelQueryService;
+import lk.swiftdrop.parcel.application.receipt.ReceiptPdfGenerator;
 import lk.swiftdrop.parcel.domain.model.Parcel;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -42,12 +45,14 @@ public class ParcelController {
     private final CreateParcelUseCase createParcel;
     private final CancelParcelUseCase cancelParcel;
     private final ParcelQueryService parcels;
+    private final ReceiptPdfGenerator receiptGenerator;
 
     public ParcelController(CreateParcelUseCase createParcel, CancelParcelUseCase cancelParcel,
-                            ParcelQueryService parcels) {
+                            ParcelQueryService parcels, ReceiptPdfGenerator receiptGenerator) {
         this.createParcel = createParcel;
         this.cancelParcel = cancelParcel;
         this.parcels = parcels;
+        this.receiptGenerator = receiptGenerator;
     }
 
     @PostMapping
@@ -74,6 +79,19 @@ public class ParcelController {
     @Operation(summary = "Parcel details for its owner, assigned courier, merchant or staff; 404 for anyone else")
     public ParcelResponse get(@PathVariable UUID parcelId, AuthenticatedUser caller) {
         return ParcelResponse.detailed(parcels.get(caller, parcelId));
+    }
+
+    @GetMapping(value = "/{parcelId}/receipt", produces = MediaType.APPLICATION_PDF_VALUE)
+    @Operation(summary = "Delivery receipt (PDF) for parcel owner, merchant or staff; 404 for anyone else")
+    public ResponseEntity<byte[]> receipt(@PathVariable UUID parcelId, AuthenticatedUser caller) {
+        Parcel parcel = parcels.getForReceipt(caller, parcelId);
+        byte[] pdfBytes = receiptGenerator.generate(parcel);
+        String filename = "receipt-" + parcel.trackingNumber().value() + ".pdf";
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PDF_VALUE)
+                .body(pdfBytes);
     }
 
     @PostMapping("/{parcelId}/cancel")
