@@ -252,6 +252,9 @@ importers:
       '@testcontainers/mongodb':
         specifier: 12.2.1
         version: 12.2.1(bare-buffer@3.7.2)
+      '@testcontainers/redis':
+        specifier: 12.2.1
+        version: 12.2.1(bare-buffer@3.7.2)
       '@types/jest':
         specifier: 30.0.0
         version: 30.0.0
@@ -1950,6 +1953,9 @@ packages:
 
   '@testcontainers/mongodb@12.2.1':
     resolution: {integrity: sha512-63fM+g33Bi8jyeVZFHVUxbu5SyGOEnUhK5IMjSfovzKvK8XhgxrYAqEHd14IkiObjrjN36EeMbZvXNQM9mOvvg==}
+
+  '@testcontainers/redis@12.2.1':
+    resolution: {integrity: sha512-pF/HAs0LEsSfuQv++Wyp36S9cFNo8vfweddUOJQl/+wuAW1ThlupJLQv7L4PKkpqYGq+epRuaKhPrNKKnmbU3g==}
 
   '@testing-library/dom@10.4.2':
     resolution: {integrity: sha512-yzr2S9HyAIdhz2/6qHgbs665Q7PKVcDF05vsOlHPxG1mo36gKVesdYVeDLnXgfjJ03CrKRk08knc6+E/9m8v2Q==}
@@ -7070,6 +7076,15 @@ snapshots:
   '@testcontainers/mongodb@12.2.1(bare-buffer@3.7.2)':
     dependencies:
       compare-versions: 6.1.1
+      testcontainers: 12.2.1(bare-buffer@3.7.2)
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - react-native-b4a
+      - supports-color
+
+  '@testcontainers/redis@12.2.1(bare-buffer@3.7.2)':
+    dependencies:
       testcontainers: 12.2.1(bare-buffer@3.7.2)
     transitivePeerDependencies:
       - bare-abort-controller

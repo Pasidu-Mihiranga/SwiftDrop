@@ -1,4 +1,4 @@
-import { Global, Module, type OnApplicationShutdown, type Provider } from "@nestjs/common";
+import { Global, Inject, Module, type OnApplicationShutdown, type Provider } from "@nestjs/common";
 import { type Connection, createConnection } from "mongoose";
 import { env } from "../config/env";
 
@@ -13,7 +13,7 @@ const connectionProvider: Provider = {
 @Global()
 @Module({ providers: [connectionProvider], exports: [MONGO_CONNECTION] })
 export class MongoModule implements OnApplicationShutdown {
-  constructor(private readonly connection: Connection) {}
+  constructor(@Inject(MONGO_CONNECTION) private readonly connection: Connection) {}
 
   async onApplicationShutdown(): Promise<void> {
     await this.connection.close();
