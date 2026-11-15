@@ -17,3 +17,11 @@ describe("tracking-service configuration (Mongo and Redis)", () => {
     expect(() => loadEnv({ REDIS_URL: "rediss://cache.example.net:6380" })).not.toThrow();
   });
 });
+
+describe("consumer switch", () => {
+  it("is on by default and can be turned off", () => {
+    expect(loadEnv({}).KAFKA_CONSUMER_ENABLED).toBe(true);
+    expect(loadEnv({ KAFKA_CONSUMER_ENABLED: "false" }).KAFKA_CONSUMER_ENABLED).toBe(false);
+    expect(() => loadEnv({ KAFKA_CONSUMER_ENABLED: "maybe" })).toThrow();
+  });
+});
