@@ -1,0 +1,2 @@
+{{/* Everything this workload needs comes from the library chart. */}}
+{{ include "swiftdrop-service.all" . }}
