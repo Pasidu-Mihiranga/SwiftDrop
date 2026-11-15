@@ -48,3 +48,55 @@ export function appUrl(env: Env = process.env): string {
 export function gatewayUrl(env: Env = process.env): string {
   return (env.GATEWAY_URL ?? "http://localhost:8080").replace(/\/$/, "");
 }
+
+/** A fresh set of Keycloak tokens, as returned from the token endpoint. */
+export interface RefreshedTokens {
+  accessToken: string;
+  refreshToken: string;
+  idToken?: string;
+  /** Unix seconds. */
+  expiresAt: number;
+}
+
+/**
+ * Exchanges a refresh token for a new access token.
+ *
+ * Shared by the Auth.js callback (which persists the result into the session cookie) and
+ * {@link gatewayFetch} (which cannot write the cookie from inside a Server Component, so it
+ * uses the fresh token for just the one outgoing call instead). Returns undefined rather than
+ * throwing: Keycloak may have already ended the session (idle timeout, sign-out elsewhere), and
+ * that is an ordinary "sign in again" case, not a bug.
+ */
+export async function refreshKeycloakToken(
+  config: Pick<KeycloakConfig, "internalUrl" | "clientId" | "clientSecret">,
+  refreshToken: string,
+): Promise<RefreshedTokens | undefined> {
+  try {
+    const response = await fetch(`${config.internalUrl}/protocol/openid-connect/token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: refreshToken,
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
+      }),
+      cache: "no-store",
+    });
+    const body = (await response.json()) as {
+      access_token?: string;
+      refresh_token?: string;
+      id_token?: string;
+      expires_in?: number;
+    };
+    if (!response.ok || !body.access_token) return undefined;
+    return {
+      accessToken: body.access_token,
+      refreshToken: body.refresh_token ?? refreshToken,
+      idToken: body.id_token,
+      expiresAt: Math.floor(Date.now() / 1000) + (body.expires_in ?? 300),
+    };
+  } catch {
+    return undefined;
+  }
+}

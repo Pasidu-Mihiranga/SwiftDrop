@@ -2,7 +2,28 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { FeeEstimateWidget } from "./fee-estimate-widget";
-import type { Quote, Zone } from "@/lib/pricing";
+import type { GeoPick, LocatedPoint, Quote, Zone } from "@/lib/pricing";
+
+// Leaflet needs a real browser, so the picker is stood in for by a button that "clicks the map"
+// at Colombo Fort. What is under test is how the form uses a pick, not Leaflet.
+vi.mock("./location-picker", () => ({
+  LocationPicker: ({
+    purpose,
+    onPick,
+  }: {
+    purpose: string;
+    onPick: (point: GeoPick, located: LocatedPoint) => void;
+  }) => (
+    <button
+      type="button"
+      onClick={() => onPick({ latitude: 6.934412, longitude: 79.842812 }, { district: "Colombo", zoneCode: "WP" })}
+    >
+      Pick {purpose} on the stub map
+    </button>
+  ),
+}));
+
+const MAP = { tileUrl: "https://tiles.example/{z}/{x}/{y}.png", attribution: "Example tiles" };
 
 const ZONES: Zone[] = [
   { code: "WP", name: "Western", districts: ["Colombo", "Gampaha"], active: true },
@@ -387,5 +408,150 @@ describe("FeeEstimateWidget", () => {
     await screen.findByText(/estimated fee/i);
     expect(screen.queryByText(/billed as/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/priced as/i)).not.toBeInTheDocument();
+  });
+
+  it("shows the vehicle select only for same-day and sends the vehicle", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(quote()), { status: 200, headers: { "content-type": "application/json" } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<FeeEstimateWidget zones={ZONES} />);
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    expect(screen.queryByLabelText("Vehicle")).not.toBeInTheDocument();
+    await fillForm(user);
+    await user.selectOptions(screen.getByLabelText("Service"), "SAME_DAY");
+    await user.selectOptions(screen.getByLabelText("Vehicle"), "VAN");
+    await user.click(screen.getByRole("button", { name: "Get estimate" }));
+
+    await screen.findByText(/estimated fee/i);
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1].body))).toMatchObject({
+      serviceLevel: "SAME_DAY",
+      vehicleType: "VAN",
+    });
+  });
+
+  it("sends ticked special handling codes", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(quote()), { status: 200, headers: { "content-type": "application/json" } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<FeeEstimateWidget zones={ZONES} specialHandling={[{ code: "FRAGILE", label: "Fragile handling" }]} />);
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    await fillForm(user);
+    await user.click(screen.getByLabelText("Fragile handling"));
+    await user.click(screen.getByLabelText("Fragile handling"));
+    await user.click(screen.getByLabelText("Fragile handling"));
+    await user.click(screen.getByRole("button", { name: "Get estimate" }));
+
+    await screen.findByText(/estimated fee/i);
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1].body)).specialHandling).toEqual(["FRAGILE"]);
+  });
+
+  it("shows transit, estimated distance, weights, pricing version and hides zero lines", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          quote({
+            breakdown: [
+              { rule: "BASE", amount: 200 },
+              { rule: "LINE_HAUL", amount: 100 },
+              { rule: "FUEL", amount: 0 },
+            ],
+            estimatedTransitDays: 2,
+            distanceKm: 115.4,
+            distanceSource: "ESTIMATED",
+            chargeableWeightKg: 5,
+            pricingVersion: "abc123def456",
+          }),
+        ),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    ));
+    render(<FeeEstimateWidget zones={ZONES} />);
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    await fillForm(user);
+    await user.click(screen.getByRole("button", { name: "Get estimate" }));
+
+    await screen.findByText(/estimated fee/i);
+    expect(screen.getByText("2 days")).toBeInTheDocument();
+    expect(screen.getByText("estimated")).toBeInTheDocument();
+    expect(screen.getByText("Actual weight").nextSibling).toHaveTextContent("2 kg");
+    expect(screen.getByText("Chargeable weight").nextSibling).toHaveTextContent("5 kg");
+    expect(screen.getByText(/pricing version abc123def456/i)).toBeInTheDocument();
+    expect(screen.getByText("Line haul (distance band)")).toBeInTheDocument();
+    expect(screen.queryByText("Fuel surcharge")).not.toBeInTheDocument();
+  });
+
+  it("maps a new error code to its message", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(problemResponse(422, { status: 422, code: "NO_DISTANCE_BAND" })));
+    render(<FeeEstimateWidget zones={ZONES} />);
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    await fillForm(user);
+    await user.click(screen.getByRole("button", { name: "Get estimate" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/cannot price that distance/i);
+  });
+
+  it("offers no map when no tile server is configured", () => {
+    render(<FeeEstimateWidget zones={ZONES} />);
+
+    expect(screen.queryByText(/Pin the exact collection point/)).not.toBeInTheDocument();
+  });
+
+  it("loads the map only when it is opened", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<FeeEstimateWidget zones={ZONES} map={MAP} />);
+
+    expect(screen.queryByRole("button", { name: /stub map/ })).not.toBeInTheDocument();
+    await user.click(screen.getByText("Pin the exact collection point on a map"));
+
+    expect(await screen.findByRole("button", { name: "Pick collection on the stub map" })).toBeInTheDocument();
+  });
+
+  it("fills the district from the point picked and sends the point with the quote", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(quote()), { status: 200, headers: { "content-type": "application/json" } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<FeeEstimateWidget zones={ZONES} map={MAP} />);
+
+    await user.click(screen.getByText("Pin the exact collection point on a map"));
+    await user.click(await screen.findByRole("button", { name: "Pick collection on the stub map" }));
+    expect(screen.getByLabelText("Collect from")).toHaveValue("Colombo");
+
+    await user.selectOptions(screen.getByLabelText("Deliver to"), "Kandy");
+    await user.type(screen.getByLabelText("Weight (kg)"), "2");
+    await user.click(screen.getByRole("button", { name: "Get estimate" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toMatchObject({
+      fromDistrict: "Colombo",
+      fromLatitude: 6.934412,
+      fromLongitude: 79.842812,
+    });
+  });
+
+  it("forgets a pinned point when a different district is chosen from the list", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(quote()), { status: 200, headers: { "content-type": "application/json" } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<FeeEstimateWidget zones={ZONES} map={MAP} />);
+
+    await user.click(screen.getByText("Pin the exact collection point on a map"));
+    await user.click(await screen.findByRole("button", { name: "Pick collection on the stub map" }));
+    await user.selectOptions(screen.getByLabelText("Collect from"), "Gampaha");
+    await user.selectOptions(screen.getByLabelText("Deliver to"), "Kandy");
+    await user.type(screen.getByLabelText("Weight (kg)"), "2");
+    await user.click(screen.getByRole("button", { name: "Get estimate" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).not.toHaveProperty("fromLatitude");
   });
 });
