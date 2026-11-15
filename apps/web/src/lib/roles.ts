@@ -61,6 +61,7 @@ export function navigationFor(roles: readonly string[]): { href: string; label: 
   if (roles.includes("MERCHANT")) items.push({ href: "/merchant", label: "Merchant portal" });
   if (roles.includes("COURIER")) items.push({ href: "/courier", label: "Today's runs" });
   if (roles.includes("DISPATCHER") || roles.includes("ADMIN")) items.push({ href: "/admin", label: "Operations" });
+  if (roles.includes("ADMIN")) items.push({ href: "/admin/notifications/sms-inbox", label: "SMS Inbox" });
   return items;
 }
 

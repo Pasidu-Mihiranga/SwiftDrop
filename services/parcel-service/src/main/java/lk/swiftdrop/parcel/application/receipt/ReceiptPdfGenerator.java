@@ -336,7 +336,7 @@ public class ReceiptPdfGenerator {
             proofCell.setBorderColor(BORDER_GRAY);
             proofCell.setPadding(6);
 
-            Paragraph proofText = new Paragraph("✔ Delivery Proof Verified: Parcel delivered successfully to recipient.",
+            Paragraph proofText = new Paragraph("[VERIFIED] Delivery Proof: Parcel delivered successfully to recipient.",
                     new Font(Font.HELVETICA, 9, Font.BOLD, TXT_STATUS_DELIVERED));
             proofCell.addElement(proofText);
             table.addCell(proofCell);

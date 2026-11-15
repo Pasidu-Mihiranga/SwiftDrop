@@ -146,6 +146,43 @@ pnpm new-service --type nest --name chat-service --port 8093 --route chat --mong
 - **Events:** published only through the outbox (`OutboxWriter.publish(...)`), consumed idempotently.
 - **Config:** environment variables only; secrets live in `.env` (local) or Kubernetes Secrets.
 
+## Observability and Debugging with Grafana
+
+SwiftDrop provides a complete LGTM (Loki, Grafana, Tempo, Prometheus) observability stack orchestrated with Grafana Alloy.
+
+### 1. Starting the Observability Stack
+
+```bash
+pnpm obs:up
+```
+
+Open Grafana at [http://localhost:3001](http://localhost:3001) using credentials `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD` (defaults in `.env`: `admin` / `admin`).
+
+### 2. Available Dashboards
+
+- **SwiftDrop - Platform Overview (`swiftdrop-platform`):** Real-time cluster health, RED metrics (Rate, Errors, Duration), Kafka consumer lag across all topics, and active error log streams.
+- **SwiftDrop - Notifications & Business KPIs (`swiftdrop-m9-observability`):** Real-time delivery status transitions, OpenPDF receipts generated, email/SMS notification throughput, and JVM/Node.js memory metrics.
+
+### 3. Distributed Tracing with Tempo
+
+Every incoming request receives an OpenTelemetry trace context at `api-gateway` and propagates through Kafka headers across downstream microservices:
+1. Open **Explore** in Grafana and choose **Tempo** as the data source.
+2. Search for traces by service (`api-gateway`, `parcel-service`, `notification-service`) or operation name.
+3. Drill down into individual spans to inspect span attributes, Kafka topic partition offsets, and execution timings.
+
+### 4. Trace-to-Log Correlation
+
+1. Within Tempo trace view, click **Trace to Logs** to view matching logs in **Loki**.
+2. Every log line contains the matching `traceId` and `correlationId`.
+3. PII (customer email, phone number, physical address) is automatically sanitized in logs before ingestion.
+
+### 5. Inspecting Notification Dead Letters and Consumer Lag
+
+If notification delivery encounters persistent failures:
+1. Check **Kafka Consumer Lag** panel on the M9 dashboard.
+2. Failed events are routed to `swiftdrop.notification.dead-letter.v1` after max retry attempts (default: 3).
+3. View dead-letter payload and original failure stack trace in Kafka UI at [http://localhost:8088](http://localhost:8088).
+
 ## Tests
 
 ```bash
