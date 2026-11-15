@@ -9,6 +9,8 @@ import { REDIS } from "../../src/infrastructure/redis.module";
 import type { Timeline } from "../../src/modules/timeline/domain/timeline";
 import { REALTIME_ADAPTER, TrackingGateway } from "../../src/modules/realtime/tracking.gateway";
 import { canJoin, roomsFor, rooms } from "../../src/modules/realtime/domain/rooms";
+import { SocketTicketStore } from "../../src/modules/realtime/socket-ticket.store";
+import { memoryRedis } from "../support/memory-redis";
 
 const ISSUER = "http://localhost:8180/realms/swiftdrop";
 const TRACKING = "SD261020K7Q2M9X";
@@ -86,11 +88,13 @@ describe("tracking Socket.IO gateway", () => {
         .setExpirationTime("5m").sign(privateKey);
     const verifier = createJwtVerifier({ issuer: ISSUER, audience: "swiftdrop-api", keys });
 
+    const tickets = new SocketTicketStore(memoryRedis() as never);
     const moduleRef = await Test.createTestingModule({
       providers: [
         TrackingGateway,
         { provide: JWT_VERIFIER, useValue: verifier },
         { provide: REDIS, useValue: {} },
+        { provide: SocketTicketStore, useValue: tickets },
         { provide: LOGGER, useValue: silentLogger },
         // In-process test: no Redis adapter (its cross-replica behaviour is covered by the F6 integration test).
         { provide: REALTIME_ADAPTER, useValue: false },
@@ -109,11 +113,11 @@ describe("tracking Socket.IO gateway", () => {
   });
 
   /** Connects with an optional token; resolves once connected, rejects on a refused handshake. */
-  function connect(token?: string): Promise<Socket> {
+  function connect(token?: string, ticket?: string): Promise<Socket> {
     const socket = io(url, {
       path: "/ws/tracking",
       transports: ["websocket"],
-      auth: token ? { token } : {},
+      auth: token ? { token } : ticket ? { ticket } : {},
       reconnection: false,
       forceNew: true,
     });
@@ -128,6 +132,18 @@ describe("tracking Socket.IO gateway", () => {
 
   it("refuses a handshake with an invalid token", async () => {
     await expect(connect("not-a-token")).rejects.toThrow("UNAUTHORIZED");
+  });
+
+  it("accepts a single-use ticket in the handshake, and refuses it the second time", async () => {
+    const tickets = app.get(SocketTicketStore);
+    const ticket = await tickets.issue({ id: CUSTOMER, roles: ["CUSTOMER"] });
+    const socket = await connect(undefined, ticket);
+    expect(await join(socket, `user:${CUSTOMER}`)).toEqual({ ok: true });
+    await expect(connect(undefined, ticket)).rejects.toThrow("UNAUTHORIZED");
+  });
+
+  it("refuses an unknown ticket", async () => {
+    await expect(connect(undefined, "never-issued")).rejects.toThrow("UNAUTHORIZED");
   });
 
   it("lets an anonymous socket join a public tracking room only", async () => {

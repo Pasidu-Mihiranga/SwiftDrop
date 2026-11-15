@@ -10,6 +10,7 @@ import { toPublicView } from "../timeline/domain/public-view";
 import type { Timeline } from "../timeline/domain/timeline";
 import type { TimelineBroadcaster } from "../timeline/timeline.broadcast.port";
 import { canJoin, roomsFor } from "./domain/rooms";
+import { SocketTicketStore } from "./socket-ticket.store";
 import { socketClosed, socketOpened } from "../../observability/tracking-metrics";
 
 export const REALTIME_ADAPTER = Symbol("REALTIME_ADAPTER");
@@ -33,18 +34,27 @@ export class TrackingGateway implements OnGatewayInit, TimelineBroadcaster {
     @Inject(JWT_VERIFIER) private readonly verify: JwtVerifier,
     @Inject(REDIS) private readonly redis: Redis,
     @Inject(LOGGER) private readonly logger: Logger,
+    private readonly tickets: SocketTicketStore,
     @Optional() @Inject(REALTIME_ADAPTER) private readonly useRedisAdapter: boolean = true,
   ) {}
 
   afterInit(server: Server): void {
     server.use(async (socket, next) => {
-      const token = (socket.handshake.auth as { token?: unknown } | undefined)?.token;
-      if (typeof token !== "string" || token.length === 0) return next(); // anonymous: public rooms only
+      const auth = socket.handshake.auth as { token?: unknown; ticket?: unknown } | undefined;
       try {
-        socket.data.user = await this.verify(token);
-        next();
+        if (typeof auth?.token === "string" && auth.token.length > 0) {
+          socket.data.user = await this.verify(auth.token);
+          return next();
+        }
+        if (typeof auth?.ticket === "string" && auth.ticket.length > 0) {
+          const user = await this.tickets.consume(auth.ticket); // single use: removed on this call
+          if (!user) return next(new Error("UNAUTHORIZED"));
+          socket.data.user = user;
+          return next();
+        }
+        return next(); // anonymous: public rooms only
       } catch {
-        next(new Error("UNAUTHORIZED"));
+        return next(new Error("UNAUTHORIZED"));
       }
     });
     server.on("connection", (socket) => {
