@@ -61,4 +61,16 @@ class ParcelQueryServiceTest {
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasFieldOrPropertyWithValue("code", "PARCEL_NOT_FOUND");
     }
+
+    @Test
+    void getForReceiptAllowsOwnerAndRejectsOthersWithNotFound() {
+        Parcel parcel = ParcelFixtures.bookedBy("cust-1");
+        when(parcels.findById(parcel.id())).thenReturn(Optional.of(parcel));
+
+        assertThat(service.getForReceipt(ParcelFixtures.customer("cust-1"), parcel.id())).isEqualTo(parcel);
+
+        assertThatThrownBy(() -> service.getForReceipt(ParcelFixtures.customer("cust-2"), parcel.id()))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasFieldOrPropertyWithValue("code", "PARCEL_NOT_FOUND");
+    }
 }

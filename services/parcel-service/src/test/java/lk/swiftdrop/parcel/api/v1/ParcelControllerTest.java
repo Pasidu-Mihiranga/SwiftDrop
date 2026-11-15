@@ -13,6 +13,7 @@ import lk.swiftdrop.parcel.application.command.CreateParcelUseCase;
 import lk.swiftdrop.parcel.application.exception.PricingUnavailableException;
 import lk.swiftdrop.parcel.application.model.PagedResult;
 import lk.swiftdrop.parcel.application.query.ParcelQueryService;
+import lk.swiftdrop.parcel.application.receipt.ReceiptPdfGenerator;
 import lk.swiftdrop.parcel.domain.exception.ParcelNotCancellableException;
 import lk.swiftdrop.parcel.domain.exception.QuoteExpiredException;
 import lk.swiftdrop.parcel.domain.model.Parcel;
@@ -72,6 +73,8 @@ class ParcelControllerTest {
     private CancelParcelUseCase cancelParcel;
     @MockitoBean
     private ParcelQueryService parcels;
+    @MockitoBean
+    private ReceiptPdfGenerator receiptGenerator;
 
     private static RequestPostProcessor as(String userId, String role) {
         return jwt().jwt(token -> token.subject(userId).claim("realm_access", Map.of("roles", List.of(role))))
@@ -240,5 +243,29 @@ class ParcelControllerTest {
         mvc.perform(post("/api/v1/parcels/" + pickedUp + "/cancel").with(as("cust-1", "CUSTOMER")))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.code").value("PARCEL_NOT_CANCELLABLE"));
+    }
+
+    @Test
+    void generatesReceiptPdfForAuthorizedCaller() throws Exception {
+        Parcel parcel = ParcelFixtures.bookedBy("cust-1");
+        byte[] samplePdf = "%PDF-1.4 sample pdf content".getBytes();
+        when(parcels.getForReceipt(any(), eq(parcel.id()))).thenReturn(parcel);
+        when(receiptGenerator.generate(parcel)).thenReturn(samplePdf);
+
+        mvc.perform(get("/api/v1/parcels/" + parcel.id() + "/receipt").with(as("cust-1", "CUSTOMER")))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF))
+                .andExpect(header().string("Content-Disposition", containsString("attachment; filename=\"receipt-" + parcel.trackingNumber().value() + ".pdf\"")))
+                .andExpect(content().bytes(samplePdf));
+    }
+
+    @Test
+    void receiptForAnotherCustomerReturns404() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(parcels.getForReceipt(any(), eq(id))).thenThrow(ResourceNotFoundException.of("Parcel", id));
+
+        mvc.perform(get("/api/v1/parcels/" + id + "/receipt").with(as("cust-2", "CUSTOMER")))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("PARCEL_NOT_FOUND"));
     }
 }
