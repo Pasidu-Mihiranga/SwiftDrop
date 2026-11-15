@@ -1,0 +1,5 @@
+apiVersion: v2
+name: swiftdrop-service
+description: Library chart supplying the Deployment, Service, ConfigMap, probes and optional HPA that every SwiftDrop workload shares.
+type: library
+version: 0.1.0
