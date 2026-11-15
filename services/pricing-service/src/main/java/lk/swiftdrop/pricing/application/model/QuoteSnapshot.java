@@ -5,6 +5,7 @@ import lk.swiftdrop.pricing.domain.model.DistanceSource;
 import lk.swiftdrop.pricing.domain.model.FeeBreakdown;
 import lk.swiftdrop.pricing.domain.model.ServiceLevel;
 import lk.swiftdrop.pricing.domain.model.SizeClassCode;
+import lk.swiftdrop.pricing.domain.model.VehicleType;
 import lk.swiftdrop.pricing.domain.model.WeightBasis;
 
 import java.math.BigDecimal;
@@ -29,6 +30,10 @@ import java.util.UUID;
  * @param agreementId        the negotiated terms applied; null when none were
  * @param distanceKm         how far a same-day job travels; null for a zone-priced quote
  * @param distanceSource     whether that distance was routed or estimated
+ * @param estimatedTransitDays from the distance band; null for same-day and for older quotes
+ * @param vehicleType        same-day only: the vehicle the fee was priced for
+ * @param specialHandling    handling option codes charged for; empty when none (or an older quote)
+ * @param pricingVersion     fingerprint of the configuration that produced the fee; null for older quotes
  */
 public record QuoteSnapshot(UUID quoteId, Money fee, List<FeeBreakdown.Line> breakdown,
                             String fromZone, String toZone, String fromDistrict, String toDistrict,
@@ -38,10 +43,13 @@ public record QuoteSnapshot(UUID quoteId, Money fee, List<FeeBreakdown.Line> bre
                             WeightBasis weightBasis, Dimensions dimensionsCm,
                             SizeClassCode declaredSizeClass, BigDecimal declaredValue,
                             UUID merchantId, UUID agreementId,
-                            BigDecimal distanceKm, DistanceSource distanceSource) {
+                            BigDecimal distanceKm, DistanceSource distanceSource,
+                            Integer estimatedTransitDays, VehicleType vehicleType,
+                            List<String> specialHandling, String pricingVersion) {
 
     public QuoteSnapshot {
         breakdown = List.copyOf(breakdown);
+        specialHandling = specialHandling == null ? List.of() : List.copyOf(specialHandling);
         // An older stored value carries none of these. Normalising here means no reader has to
         // remember that a quote from before this release bills on actual weight.
         chargeableWeightKg = chargeableWeightKg == null ? weightKg : chargeableWeightKg;
@@ -57,6 +65,22 @@ public record QuoteSnapshot(UUID quoteId, Money fee, List<FeeBreakdown.Line> bre
         this(quoteId, fee, breakdown, fromZone, toZone, fromDistrict, toDistrict, weightKg,
                 sizeClass, serviceLevel, codAmount, issuedAt, expiresAt,
                 weightKg, null, WeightBasis.ACTUAL, null, sizeClass, null, null, null, null, null);
+    }
+
+    /** A quote issued before line haul, vehicles, handling options and pricing versions existed. */
+    public QuoteSnapshot(UUID quoteId, Money fee, List<FeeBreakdown.Line> breakdown,
+                         String fromZone, String toZone, String fromDistrict, String toDistrict,
+                         BigDecimal weightKg, SizeClassCode sizeClass, ServiceLevel serviceLevel,
+                         BigDecimal codAmount, Instant issuedAt, Instant expiresAt,
+                         BigDecimal chargeableWeightKg, BigDecimal volumetricWeightKg,
+                         WeightBasis weightBasis, Dimensions dimensionsCm,
+                         SizeClassCode declaredSizeClass, BigDecimal declaredValue,
+                         UUID merchantId, UUID agreementId,
+                         BigDecimal distanceKm, DistanceSource distanceSource) {
+        this(quoteId, fee, breakdown, fromZone, toZone, fromDistrict, toDistrict, weightKg, sizeClass,
+                serviceLevel, codAmount, issuedAt, expiresAt, chargeableWeightKg, volumetricWeightKg,
+                weightBasis, dimensionsCm, declaredSizeClass, declaredValue, merchantId, agreementId,
+                distanceKm, distanceSource, null, null, List.of(), null);
     }
 
     /** Whether the parcel was measured into a class other than the one selected. */

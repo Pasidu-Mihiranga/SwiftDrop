@@ -35,19 +35,6 @@ class ZoneEntity {
         // for JPA
     }
 
-    ZoneEntity(UUID id, String code, String name, boolean active) {
-        this.id = id;
-        this.code = code;
-        this.name = name;
-        this.active = active;
-    }
-
-    /** The code is intentionally not mutable; only these two attributes can be edited. */
-    void rename(String newName, boolean newActive) {
-        this.name = newName;
-        this.active = newActive;
-    }
-
     UUID getId() {
         return id;
     }

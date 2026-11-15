@@ -8,6 +8,7 @@ import lk.swiftdrop.pricing.application.query.QuotePricingInput;
 import lk.swiftdrop.pricing.application.query.LaneDistanceService;
 import lk.swiftdrop.pricing.domain.model.DistanceRate;
 import lk.swiftdrop.pricing.domain.model.LaneDistance;
+import lk.swiftdrop.pricing.domain.model.ServiceLevel;
 import lk.swiftdrop.pricing.application.query.QuotePricingService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -50,9 +51,12 @@ public class QuoteIssuanceService {
         // a read transaction must not be held open across a network round trip.
         LaneDistance distance = laneDistances.measure(input.serviceLevel(), input.fromDistrict(),
                 input.toDistrict(), input.origin(), input.destination(), quoteDate).orElse(null);
-        DistanceRate distanceRate = distance == null ? null
+        // Every lane is measured now (line haul needs it), but only same-day work is priced per
+        // kilometre, so only it needs the distance rate and only it feeds the same-day meter.
+        boolean sameDay = input.serviceLevel() == ServiceLevel.SAME_DAY;
+        DistanceRate distanceRate = distance == null || !sameDay ? null
                 : laneDistances.rateInForce(quoteDate).orElse(null);
-        if (distance != null) {
+        if (distance != null && sameDay) {
             metrics.laneDistanceResolved(distance.source());
         }
         PreparedQuote prepared = pricing.prepare(input, quoteDate, distance, distanceRate);
@@ -66,7 +70,9 @@ public class QuoteIssuanceService {
                 prepared.weight().basis(), input.dimensions(), input.sizeClass(), input.declaredValue(),
                 input.merchantId(), prepared.agreementId(),
                 prepared.distance() == null ? null : prepared.distance().kilometres(),
-                prepared.distance() == null ? null : prepared.distance().source());
+                prepared.distance() == null ? null : prepared.distance().source(),
+                prepared.estimatedTransitDays(), prepared.vehicleType(), prepared.specialHandling(),
+                prepared.pricingVersion());
         Duration remaining = Duration.between(clock.instant(), snapshot.expiresAt());
         if (remaining.isZero() || remaining.isNegative()) {
             throw new IllegalStateException("Quote expired before it could be stored");

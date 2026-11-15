@@ -8,11 +8,14 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lk.swiftdrop.pricing.application.query.QuotePricingInput;
+import lk.swiftdrop.pricing.application.query.QuotePricingService;
 import lk.swiftdrop.pricing.domain.model.Dimensions;
 import lk.swiftdrop.pricing.domain.model.ServiceLevel;
 import lk.swiftdrop.pricing.domain.model.SizeClassCode;
+import lk.swiftdrop.pricing.domain.model.VehicleType;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 /**
  * Quote fields accepted from anonymous customers; rates and zones are never caller-supplied.
@@ -48,7 +51,22 @@ public record QuoteRequest(
         @DecimalMin("-90") @DecimalMax("90") @Digits(integer = 3, fraction = 6) BigDecimal fromLatitude,
         @DecimalMin("-180") @DecimalMax("180") @Digits(integer = 3, fraction = 6) BigDecimal fromLongitude,
         @DecimalMin("-90") @DecimalMax("90") @Digits(integer = 3, fraction = 6) BigDecimal toLatitude,
-        @DecimalMin("-180") @DecimalMax("180") @Digits(integer = 3, fraction = 6) BigDecimal toLongitude) {
+        @DecimalMin("-180") @DecimalMax("180") @Digits(integer = 3, fraction = 6) BigDecimal toLongitude,
+        /** Same-day only: the vehicle to price for. Omitted means a bike; ignored for other services. */
+        VehicleType vehicleType,
+        /** Handling option codes from GET /api/v1/pricing/special-handling. */
+        @Size(max = QuotePricingService.MAX_SPECIAL_HANDLING)
+        List<@NotBlank @Size(max = 32) String> specialHandling) {
+
+    /** A request with no vehicle preference and no special handling. */
+    public QuoteRequest(String fromCity, String fromDistrict, String toCity, String toDistrict, BigDecimal weightKg,
+                        SizeClassCode sizeClass, ServiceLevel serviceLevel, BigDecimal codAmount,
+                        BigDecimal lengthCm, BigDecimal widthCm, BigDecimal heightCm, BigDecimal declaredValue,
+                        BigDecimal fromLatitude, BigDecimal fromLongitude, BigDecimal toLatitude,
+                        BigDecimal toLongitude) {
+        this(fromCity, fromDistrict, toCity, toDistrict, weightKg, sizeClass, serviceLevel, codAmount, lengthCm,
+                widthCm, heightCm, declaredValue, fromLatitude, fromLongitude, toLatitude, toLongitude, null, null);
+    }
 
     @AssertTrue(message = "give both a latitude and a longitude for a point, or neither")
     public boolean isCoordinatesPaired() {
@@ -85,6 +103,7 @@ public record QuoteRequest(
                 codAmount == null ? BigDecimal.ZERO : codAmount,
                 lengthCm == null ? null : new Dimensions(lengthCm, widthCm, heightCm),
                 declaredValue, merchantId, point(fromLatitude, fromLongitude),
-                point(toLatitude, toLongitude));
+                point(toLatitude, toLongitude), vehicleType,
+                specialHandling == null ? List.of() : specialHandling);
     }
 }
