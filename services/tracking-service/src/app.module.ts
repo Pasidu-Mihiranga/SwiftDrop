@@ -3,8 +3,10 @@ import { SwiftDropCommonModule } from "@swiftdrop/common/nest";
 import { ConsumersModule } from "./consumers/consumers.module";
 import { env } from "./config/env";
 import { MongoModule } from "./infrastructure/mongo.module";
+import { RedisModule } from "./infrastructure/redis.module";
 import { MetaModule } from "./modules/meta/meta.module";
 import { TimelineModule } from "./modules/timeline/timeline.module";
+import { TrackingModule } from "./modules/tracking/tracking.module";
 
 @Module({
   imports: [
@@ -15,7 +17,9 @@ import { TimelineModule } from "./modules/timeline/timeline.module";
       jwksUri: env.KEYCLOAK_JWKS_URI,
     }),
     MongoModule,
+    RedisModule,
     TimelineModule,
+    TrackingModule,
     ConsumersModule,
     MetaModule,
   ],
