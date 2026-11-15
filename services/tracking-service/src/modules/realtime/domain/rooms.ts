@@ -25,6 +25,14 @@ export function canJoin(room: string, user?: AuthenticatedUser): boolean {
   return false;
 }
 
+/** Rooms a signed-in user may join: their own user room, their merchant room, and dispatch for staff. */
+export function roomsForUser(user: AuthenticatedUser): string[] {
+  const list = [rooms.user(user.id)];
+  if (user.merchantId) list.push(rooms.merchant(user.merchantId));
+  if (user.roles.some((role) => role === "DISPATCHER" || role === "ADMIN")) list.push(rooms.dispatch);
+  return list;
+}
+
 /** Every room that should hear about a change to this timeline. */
 export function roomsFor(timeline: Timeline): string[] {
   const list = [rooms.tracking(timeline.trackingNumber), ...timeline.ownerIds.map(rooms.user), rooms.dispatch];

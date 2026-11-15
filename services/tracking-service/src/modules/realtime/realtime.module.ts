@@ -1,5 +1,7 @@
 import { Global, Module } from "@nestjs/common";
 import { TIMELINE_BROADCASTER } from "../timeline/timeline.broadcast.port";
+import { SocketTicketController } from "./socket-ticket.controller";
+import { SocketTicketStore } from "./socket-ticket.store";
 import { REALTIME_ADAPTER, TrackingGateway } from "./tracking.gateway";
 
 /**
@@ -7,7 +9,9 @@ import { REALTIME_ADAPTER, TrackingGateway } from "./tracking.gateway";
  */
 @Global()
 @Module({
+  controllers: [SocketTicketController],
   providers: [
+    SocketTicketStore,
     TrackingGateway,
     { provide: REALTIME_ADAPTER, useValue: true },
     { provide: TIMELINE_BROADCASTER, useExisting: TrackingGateway },
