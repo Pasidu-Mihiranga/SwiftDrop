@@ -25,6 +25,11 @@ const schema = z.object({
     .string()
     .regex(/^mongodb(\+srv)?:\/\//, "MONGO_URI must start with mongodb:// or mongodb+srv://")
     .default(`mongodb://localhost:${mongoPort}/tracking`),
+  /** Set to false to run the service without consuming Kafka (unit tests, local API work). */
+  KAFKA_CONSUMER_ENABLED: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
   REDIS_URL: z
     .string()
     .regex(/^rediss?:\/\//, "REDIS_URL must start with redis:// or rediss://")

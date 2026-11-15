@@ -1,9 +1,10 @@
 import { Module, type Provider } from "@nestjs/common";
-import { createConnection, type Model } from "mongoose";
-import { env } from "../../config/env";
+import { type Connection, type Model } from "mongoose";
+import { MONGO_CONNECTION } from "../../infrastructure/mongo.module";
 import type { Timeline } from "./domain/timeline";
 import { MongoTimelineRepository } from "./infrastructure/mongo-timeline.repository";
 import { timelineSchema } from "./infrastructure/timeline.schema";
+import { TIMELINE_BROADCASTER, type TimelineBroadcaster } from "./timeline.broadcast.port";
 import { TIMELINE_REPOSITORY } from "./timeline.repository.port";
 import { TimelineService } from "./timeline.service";
 
@@ -11,7 +12,8 @@ export const TIMELINE_MODEL = Symbol("TIMELINE_MODEL");
 
 const modelProvider: Provider = {
   provide: TIMELINE_MODEL,
-  useFactory: (): Model<Timeline> => createConnection(env.MONGO_URI).model<Timeline>("Timeline", timelineSchema),
+  inject: [MONGO_CONNECTION],
+  useFactory: (connection: Connection): Model<Timeline> => connection.model<Timeline>("Timeline", timelineSchema),
 };
 
 const repositoryProvider: Provider = {
@@ -20,9 +22,15 @@ const repositoryProvider: Provider = {
   useFactory: (model: Model<Timeline>) => new MongoTimelineRepository(model),
 };
 
+/** No-op until the Socket.IO gateway is added in F5. */
+const broadcasterProvider: Provider = {
+  provide: TIMELINE_BROADCASTER,
+  useValue: { timelineChanged: async () => undefined } satisfies TimelineBroadcaster,
+};
+
 /** Timeline read model: projection rules, the application service and the MongoDB adapter. */
 @Module({
-  providers: [modelProvider, repositoryProvider, TimelineService],
-  exports: [TimelineService],
+  providers: [modelProvider, repositoryProvider, broadcasterProvider, TimelineService],
+  exports: [TimelineService, TIMELINE_BROADCASTER],
 })
 export class TimelineModule {}

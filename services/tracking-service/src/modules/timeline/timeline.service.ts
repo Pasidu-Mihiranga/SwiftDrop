@@ -15,15 +15,16 @@ const MAX_ATTEMPTS = 3;
 export class TimelineService {
   constructor(@Inject(TIMELINE_REPOSITORY) private readonly repository: TimelineRepositoryPort) {}
 
-  onCreated(event: ParcelCreated, eventId: string): Promise<void> {
+  /** Each on* method resolves to the saved timeline, or null when the event was a duplicate. */
+  onCreated(event: ParcelCreated, eventId: string): Promise<Timeline | null> {
     return this.apply(event.trackingNumber, event.parcelId, (current) => applyCreated(current, event, eventId));
   }
 
-  onStatusChanged(event: ParcelStatusChanged, eventId: string): Promise<void> {
+  onStatusChanged(event: ParcelStatusChanged, eventId: string): Promise<Timeline | null> {
     return this.apply(event.trackingNumber, event.parcelId, (current) => applyStatus(current, event, eventId));
   }
 
-  onAssigned(event: ParcelAssigned, eventId: string): Promise<void> {
+  onAssigned(event: ParcelAssigned, eventId: string): Promise<Timeline | null> {
     return this.apply(event.trackingNumber, event.parcelId, (current) => applyAssigned(current, event, eventId));
   }
 
@@ -31,15 +32,15 @@ export class TimelineService {
     trackingNumber: string,
     parcelId: string,
     project: (current: Timeline | null) => Timeline,
-  ): Promise<void> {
+  ): Promise<Timeline | null> {
     for (let attempt = 1; ; attempt++) {
       const current = (await this.repository.findByTrackingNumber(trackingNumber)) ??
         (await this.repository.findByParcelId(parcelId));
       const next = project(current);
-      if (current && next === current) return; // duplicate event: nothing to save
+      if (current && next === current) return null; // duplicate event: nothing to save
       try {
         await this.repository.save(next, current?.version ?? 0);
-        return;
+        return next;
       } catch (error) {
         if (!(error instanceof VersionConflictError) || attempt === MAX_ATTEMPTS) throw error;
       }
