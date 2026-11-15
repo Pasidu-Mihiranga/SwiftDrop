@@ -59,4 +59,17 @@ class ParcelAccessPolicyTest {
         assertThat(ParcelAccessPolicy.canCancel(parcel, ParcelFixtures.user("courier-1", "COURIER", null))).isFalse();
         assertThat(ParcelAccessPolicy.canCancel(parcel, ParcelFixtures.user("admin-1", "ADMIN", null))).isFalse();
     }
+
+    @Test
+    void owningCustomerMerchantAndStaffMayViewReceipt() {
+        assertThat(ParcelAccessPolicy.canViewReceipt(parcel, ParcelFixtures.customer("cust-1"))).isTrue();
+        assertThat(ParcelAccessPolicy.canViewReceipt(parcel, ParcelFixtures.user("owner-1", "MERCHANT", MERCHANT_ID))).isTrue();
+        assertThat(ParcelAccessPolicy.canViewReceipt(parcel, ParcelFixtures.user("svc-1", "MERCHANT_API", MERCHANT_ID))).isTrue();
+        assertThat(ParcelAccessPolicy.canViewReceipt(parcel, ParcelFixtures.user("disp-1", "DISPATCHER", null))).isTrue();
+        assertThat(ParcelAccessPolicy.canViewReceipt(parcel, ParcelFixtures.user("admin-1", "ADMIN", null))).isTrue();
+
+        // Assigned courier and another customer cannot view receipt
+        assertThat(ParcelAccessPolicy.canViewReceipt(parcel, ParcelFixtures.user("courier-1", "COURIER", null))).isFalse();
+        assertThat(ParcelAccessPolicy.canViewReceipt(parcel, ParcelFixtures.customer("cust-2"))).isFalse();
+    }
 }
