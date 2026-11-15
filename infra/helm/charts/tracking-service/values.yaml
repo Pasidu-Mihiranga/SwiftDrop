@@ -1,0 +1,35 @@
+# tracking-service values. Only what differs from the swiftdrop-service library defaults
+# (infra/helm/swiftdrop-service/templates/_defaults.tpl) belongs here.
+#
+# Shared settings (database host, Keycloak, Kafka, Redis) come from the umbrella chart's
+# global.commonConfig. Credentials come only from the Secrets named in secretRefs.
+
+image:
+  repository: swiftdrop/tracking-service
+
+containerPort: 8090
+
+probes:
+  liveness:
+    path: /health/live
+  readiness:
+    path: /health/live
+  startup:
+    path: /health/live
+metrics:
+  path: /metrics
+
+# node:22-alpine runs as the "node" user (uid 1000), not 10001.
+podSecurityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+# HPA on tracking-service per doc/02-implementation-plan.md section 10.
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+secretRefs: ["swiftdrop-app-secrets"]
+config:
+  NODE_ENV: production

@@ -1,0 +1,37 @@
+# web values. Only what differs from the swiftdrop-service library defaults
+# (infra/helm/swiftdrop-service/templates/_defaults.tpl) belongs here.
+#
+# Shared settings (database host, Keycloak, Kafka, Redis) come from the umbrella chart's
+# global.commonConfig. Credentials come only from the Secrets named in secretRefs.
+
+image:
+  repository: swiftdrop/web
+
+containerPort: 3000
+
+# Next.js has no dedicated health route, so the probes use the public landing page.
+# A 2xx or 3xx response counts as success, so the login redirect is fine.
+probes:
+  liveness:
+    path: /
+  readiness:
+    path: /
+  startup:
+    path: /
+# The web app serves no Prometheus endpoint.
+metrics:
+  enabled: false
+# node:22-alpine runs as the "node" user (uid 1000), not 10001.
+podSecurityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+secretRefs: ["swiftdrop-web-secrets"]
+config:
+  NODE_ENV: production
+  HOSTNAME: 0.0.0.0
+  KEYCLOAK_REALM: swiftdrop
+  AUTH_KEYCLOAK_ID: swiftdrop-web
+  GATEWAY_URL: http://api-gateway:8080
+  # AUTH_URL and AUTH_KEYCLOAK_ISSUER are browser-facing, so the umbrella's
+  # values-dev.yaml / values-prod.yaml set them from the Ingress hosts.

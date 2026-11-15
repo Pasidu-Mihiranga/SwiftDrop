@@ -18,7 +18,6 @@ node_modules/
 dist/
 .next/
 out/
-!services/parcel-service/src/main/java/lk/swiftdrop/parcel/application/port/out/
 # ...but not source packages named "out", e.g. the hexagonal application/port/out interfaces.
 !**/src/**/out/
 coverage/
@@ -58,3 +57,15 @@ infra/helm/charts/*/charts/*.tgz
 !.vscode/settings.json
 .DS_Store
 Thumbs.db
+
+# --- Helm ---
+# Vendored chart dependencies: regenerate with scripts/helm-deps.sh. Chart.lock is committed.
+infra/helm/*/charts/*.tgz
+infra/helm/charts/*/charts/*.tgz
+
+# --- Collected coverage reports ---
+# Generated build output: regenerate with scripts/collect-test-reports.sh after a test run.
+# SUMMARY.md is committed so the numbers are reviewable without running anything.
+doc/test-reports/java/
+doc/test-reports/node/
+doc/test-reports/python/

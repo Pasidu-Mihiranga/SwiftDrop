@@ -9,6 +9,7 @@
   "scripts": {
     "env:init": "node scripts/init-env.mjs",
     "infra:up": "docker compose --profile infra up -d",
+    "routing:up": "docker compose --profile routing up -d osrm",
     "obs:up": "docker compose --profile infra --profile observability up -d",
     "stack:up": "docker compose --profile infra --profile observability --profile apps up -d --build",
     "stack:down": "docker compose --profile infra --profile observability --profile apps down",

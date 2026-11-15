@@ -1,0 +1,6 @@
+dependencies:
+- name: swiftdrop-service
+  repository: file://../../swiftdrop-service
+  version: 0.1.0
+digest: sha256:982b9493a63df9ea2dfc510f40c616aca8bbac37f45de9fdedf0380b2bbd226d
+generated: "2026-10-28T10:02:57.644127+05:30"
