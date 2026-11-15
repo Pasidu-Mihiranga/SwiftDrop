@@ -23,6 +23,6 @@ const repositoryProvider: Provider = {
 /** Timeline read model: projection rules, the application service and the MongoDB adapter. */
 @Module({
   providers: [modelProvider, repositoryProvider, TimelineService],
-  exports: [TimelineService],
+  exports: [TimelineService, TIMELINE_REPOSITORY],
 })
 export class TimelineModule {}
