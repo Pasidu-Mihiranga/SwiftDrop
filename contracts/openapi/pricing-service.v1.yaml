@@ -7,28 +7,41 @@ info:
 
     Pricing model. A quote resolves both districts to active zones, selects the rate card
     in force for that ordered zone pair on the quote date, and applies the rules in a fixed
-    order, each adding one breakdown line: BASE or DISTANCE, WEIGHT, SIZE, EXPRESS,
-    REMOTE_AREA, MERCHANT_DISCOUNT, INSURANCE, COD.
+    order, each adding one breakdown line: BASE or DISTANCE, LINE_HAUL, WEIGHT, SIZE,
+    EXPRESS, MINIMUM_CHARGE, FUEL, SPECIAL_HANDLING, REMOTE_AREA, MERCHANT_DISCOUNT,
+    INSURANCE, COD, TAX.
 
-    STANDARD and EXPRESS are priced by zone. SAME_DAY is priced on the road travelled and
-    emits DISTANCE in place of BASE.
+    STANDARD and EXPRESS are priced by zone plus a line-haul charge for the distance band the
+    road distance falls in. SAME_DAY is priced on the road travelled, emits DISTANCE in place
+    of BASE, never emits LINE_HAUL, and is limited by the vehicle chosen (BIKE or VAN).
+
+    Geography is fixed master data: nine province zones and 25 districts, with each district
+    in exactly one zone. There are no write endpoints for zones or districts, and the database
+    rejects changes to them.
 
         chargeable_kg = max(weightKg, length * width * height / volumetric_divisor)
         BASE     = base_fee, or a merchant's negotiated flat_base_fee for the lane
-        DISTANCE = flag_fall + per_km_fee * max(road_km, min_chargeable_km)
+        DISTANCE = (flag_fall + per_km_fee * max(road_km, min_chargeable_km)) * vehicle.rate_multiplier
+        LINE_HAUL = band.line_haul_fee, for the band with band.min_km <= road_km < band.max_km
         WEIGHT   = weight_charge(ceil(chargeable_kg))
         SIZE     = charged_so_far * (size_class.multiplier - 1)
         EXPRESS  = charged_so_far * (express_multiplier - 1), EXPRESS quotes only
+        MINIMUM  = max(minimum_charge - charged_so_far, 0)
+        FUEL     = charged_so_far * fuel_surcharge_pct
+        HANDLING = sum of the chosen special handling options' flat fees
         REMOTE   = origin_remote_fee + destination_remote_fee
         DISCOUNT = -min(charged_so_far * agreement.pct + agreement.flat, charged_so_far)
         INSURE   = max(band.flat_fee, declaredValue * band.pct)
         COD      = codAmount * cod_fee_pct
+        TAX      = charged_so_far * tax_pct, on everything above it
 
     weight_charge is per_kg_fee for every kilogram when the card has no weight bands.
     Where it has bands they are marginal: each band's rate applies only to the kilograms
     falling inside it, so the price rises smoothly rather than jumping at a boundary.
 
     REMOTE, INSURE and COD do not compound: none is worked out from the lines above it.
+    MINIMUM tops up only the transport charge (lane, line haul, weight, size, express); fuel
+    is charged on the topped-up amount, and the optional extras are added on top of it.
 
     DISCOUNT is the only negative line, and the only one that needs a token. Quote creation
     stays anonymous; where the caller presents a token carrying a merchant_id, the terms in
@@ -61,7 +74,7 @@ tags:
   - name: zones
     description: Public service-zone coverage.
   - name: admin-zones
-    description: Zone and district administration (ADMIN).
+    description: Read-only view of the fixed zones and district mapping (ADMIN).
   - name: admin-rate-cards
     description: Rate-card administration (ADMIN).
   - name: admin-size-classes
@@ -92,7 +105,13 @@ paths:
             No rate card is in force for the resolved zone pair (NO_RATE_CARD), the rate-card
             configuration is ambiguous (AMBIGUOUS_RATE_CARD), a district is not in an active
             serviced zone (DISTRICT_NOT_SERVICED), or the selected size class cannot carry the
-            requested weight (SIZE_CLASS_WEIGHT_EXCEEDED).
+            requested weight (SIZE_CLASS_WEIGHT_EXCEEDED). Also: a map point outside every
+            district (OUTSIDE_COVERAGE) or outside the district named for it
+            (LOCATION_DISTRICT_MISMATCH); no distance band covers the lane (NO_DISTANCE_BAND);
+            the lane cannot be measured (DISTANCE_UNAVAILABLE); an unknown or retired handling
+            option (UNKNOWN_SPECIAL_HANDLING) or more than five (TOO_MANY_SPECIAL_HANDLING); and,
+            for SAME_DAY, a vehicle that is not offered (VEHICLE_NOT_OFFERED), a parcel too heavy
+            for it (SAME_DAY_TOO_HEAVY) or a trip beyond its range (SAME_DAY_OUT_OF_RANGE).
           content:
             application/problem+json:
               schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
@@ -132,12 +151,59 @@ paths:
           content:
             application/json:
               schema: { type: array, items: { $ref: "#/components/schemas/Zone" } }
+  /api/v1/pricing/special-handling:
+    get:
+      tags: [zones]
+      operationId: listSpecialHandling
+      summary: Special handling options a quote can include (public)
+      description: >
+        Active options in display order. Fees are not listed; each chosen option is charged on
+        the quote as part of the SPECIAL_HANDLING line.
+      security: []
+      responses:
+        "200":
+          description: Options
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/SpecialHandlingOption" } }
+  /api/v1/pricing/locate:
+    get:
+      tags: [zones]
+      operationId: locatePoint
+      summary: The district and zone a map point is in (public)
+      description: >
+        Resolved from district boundaries held by pricing-service (OpenStreetMap-derived,
+        ODbL), the same ones the quote endpoint checks a point against. Boundaries are
+        simplified, so a point within about a hundred metres of a border may resolve to the
+        neighbouring district.
+      security: []
+      parameters:
+        - { name: latitude, in: query, required: true, schema: { type: number, minimum: -90, maximum: 90 } }
+        - { name: longitude, in: query, required: true, schema: { type: number, minimum: -180, maximum: 180 } }
+      responses:
+        "200":
+          description: Located
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Location" }
+        "400":
+          description: A coordinate is missing or out of range (INVALID_COORDINATES)
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
+        "422":
+          description: The point is outside every district SwiftDrop serves (OUTSIDE_COVERAGE)
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
   /api/v1/admin/pricing/zones:
     get:
       tags: [admin-zones]
       operationId: listZones
       summary: List zones (ADMIN)
-      description: Includes inactive zones.
+      description: >-
+        Read-only. Zones, districts and the district-to-zone mapping are fixed master data
+        (9 provinces, 25 districts); there are no write endpoints.
       responses:
         "200":
           description: Zones
@@ -146,78 +212,6 @@ paths:
               schema: { type: array, items: { $ref: "#/components/schemas/Zone" } }
         "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
         "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
-    post:
-      tags: [admin-zones]
-      operationId: createZone
-      summary: Create zone (ADMIN)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/ZoneCreateRequest" }
-      responses:
-        "201":
-          description: Created
-          headers:
-            Location:
-              description: URI of the created zone
-              schema: { type: string, format: uri-reference }
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Zone" }
-        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
-        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
-        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
-        "409":
-          description: A zone with that code already exists (ZONE_CODE_TAKEN)
-          content:
-            application/problem+json:
-              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
-  /api/v1/admin/pricing/zones/{zoneId}:
-    parameters:
-      - $ref: "#/components/parameters/ZoneId"
-    get:
-      tags: [admin-zones]
-      operationId: getZone
-      summary: Get one zone (ADMIN)
-      responses:
-        "200":
-          description: Zone
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Zone" }
-        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
-        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
-        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
-    put:
-      tags: [admin-zones]
-      operationId: updateZone
-      summary: Update zone (ADMIN)
-      description: |
-        Renames a zone or changes its active flag. The code is immutable because rate cards and
-        district assignments are keyed on the zone identity. Deactivating a zone makes every
-        district mapped to it unquotable, so the request is rejected if districts are still
-        assigned to it.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/ZoneUpdateRequest" }
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Zone" }
-        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
-        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
-        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
-        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
-        "422":
-          description: Districts are still assigned to the zone being deactivated (ZONE_IN_USE)
-          content:
-            application/problem+json:
-              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
   /api/v1/admin/pricing/districts:
     get:
       tags: [admin-zones]
@@ -231,36 +225,6 @@ paths:
               schema: { type: array, items: { $ref: "#/components/schemas/DistrictAssignment" } }
         "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
         "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
-  /api/v1/admin/pricing/districts/{district}:
-    parameters:
-      - name: district
-        in: path
-        required: true
-        schema: { type: string, maxLength: 100, example: Kandy }
-    put:
-      tags: [admin-zones]
-      operationId: assignDistrict
-      summary: Assign or reassign a district to a zone (ADMIN)
-      description: Idempotent. Creates the assignment if the district is new, otherwise moves it.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/DistrictAssignmentRequest" }
-      responses:
-        "200":
-          description: Assigned
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/DistrictAssignment" }
-        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
-        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
-        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
-        "404":
-          description: The target zone does not exist (ZONE_NOT_FOUND)
-          content:
-            application/problem+json:
-              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
   /api/v1/admin/pricing/rate-cards:
     get:
       tags: [admin-rate-cards]
@@ -547,12 +511,6 @@ paths:
 components:
   securitySchemes:
     bearerAuth: { $ref: "common.v1.yaml#/components/securitySchemes/bearerAuth" }
-  parameters:
-    ZoneId:
-      name: zoneId
-      in: path
-      required: true
-      schema: { type: string, format: uuid }
   schemas:
     ZoneCode:
       type: string
@@ -573,7 +531,25 @@ components:
       description: |
         Identifies one line of the fee breakdown. Lines are returned in this order and rules
         that do not apply are omitted.
-      enum: [BASE, DISTANCE, WEIGHT, SIZE, EXPRESS, REMOTE_AREA, MERCHANT_DISCOUNT, INSURANCE, COD]
+      enum: [BASE, DISTANCE, LINE_HAUL, WEIGHT, SIZE, EXPRESS, MINIMUM_CHARGE, FUEL, SPECIAL_HANDLING,
+             REMOTE_AREA, MERCHANT_DISCOUNT, INSURANCE, COD, TAX]
+    VehicleType:
+      type: string
+      description: The vehicle a SAME_DAY job is priced for. Ignored for other service levels.
+      enum: [BIKE, VAN]
+      default: BIKE
+    SpecialHandlingOption:
+      type: object
+      required: [code, label]
+      properties:
+        code: { type: string, maxLength: 32, example: FRAGILE }
+        label: { type: string, example: Fragile }
+    Location:
+      type: object
+      required: [district, zoneCode]
+      properties:
+        district: { type: string, example: Kandy }
+        zoneCode: { $ref: "#/components/schemas/ZoneCode" }
     BreakdownLine:
       type: object
       required: [rule, amount]
@@ -595,21 +571,8 @@ components:
         name: { type: string, maxLength: 128, example: Central }
         districts:
           type: array
-          description: Districts currently mapped to this zone.
+          description: Districts mapped to this zone. The mapping is fixed.
           items: { type: string, example: Kandy }
-        active: { type: boolean }
-    ZoneCreateRequest:
-      type: object
-      required: [code, name]
-      properties:
-        code: { $ref: "#/components/schemas/ZoneCode" }
-        name: { type: string, minLength: 1, maxLength: 128, example: Central }
-        active: { type: boolean, default: true }
-    ZoneUpdateRequest:
-      type: object
-      required: [name, active]
-      properties:
-        name: { type: string, minLength: 1, maxLength: 128, example: Central }
         active: { type: boolean }
     DistrictAssignment:
       type: object
@@ -618,18 +581,20 @@ components:
         district: { type: string, maxLength: 100, example: Kandy }
         zoneCode: { $ref: "#/components/schemas/ZoneCode" }
         zoneName: { type: string, example: Central }
-    DistrictAssignmentRequest:
-      type: object
-      required: [zoneCode]
-      properties:
-        zoneCode: { $ref: "#/components/schemas/ZoneCode" }
     SizeClassRate:
       type: object
-      required: [code, maxWeightKg, maxDimensionsCm, multiplier]
+      required: [code, maxWeightKg, maxDimensionsCm, maxLengthCm, maxWidthCm, maxHeightCm, multiplier]
       properties:
         code: { $ref: "common.v1.yaml#/components/schemas/SizeClass" }
         maxWeightKg: { type: number, exclusiveMinimum: 0, example: 5 }
-        maxDimensionsCm: { type: string, maxLength: 32, example: 40x30x20 }
+        maxDimensionsCm:
+          type: string
+          maxLength: 32
+          description: Display label rendered from the three measurements below.
+          example: 40x30x20
+        maxLengthCm: { type: number, exclusiveMinimum: 0, example: 40 }
+        maxWidthCm: { type: number, exclusiveMinimum: 0, example: 30 }
+        maxHeightCm: { type: number, exclusiveMinimum: 0, example: 20 }
         multiplier:
           type: number
           minimum: 1
@@ -638,10 +603,14 @@ components:
     SizeClassUpdateRequest:
       type: object
       required: [multiplier]
-      description: Omitted limits retain their existing configured values.
+      description: >-
+        Dimensions are three measurements, not a label, given all together or not at all.
+        Omitted limits retain their existing configured values.
       properties:
         maxWeightKg: { type: number, exclusiveMinimum: 0, maximum: 9999.99, multipleOf: 0.01, example: 5 }
-        maxDimensionsCm: { type: string, minLength: 1, maxLength: 32, example: 40x30x20 }
+        maxLengthCm: { type: number, exclusiveMinimum: 0, maximum: 9999.9, multipleOf: 0.1, example: 40 }
+        maxWidthCm: { type: number, exclusiveMinimum: 0, maximum: 9999.9, multipleOf: 0.1, example: 30 }
+        maxHeightCm: { type: number, exclusiveMinimum: 0, maximum: 9999.9, multipleOf: 0.1, example: 20 }
         multiplier: { type: number, minimum: 1, maximum: 99.999, multipleOf: 0.001, example: 1.25 }
     RateCard:
       type: object
@@ -803,13 +772,20 @@ components:
           type: number
           description: >
             Exact pickup and drop-off points, each a latitude and longitude together or
-            neither. Read only for SAME_DAY, which is priced on the road travelled; without
-            them the district's centre is used, which is a poor stand-in over a short
-            distance.
+            neither. When given, each must lie inside its district (see /pricing/locate).
+            They are measured between for every service level: SAME_DAY is priced on the road
+            travelled, and STANDARD and EXPRESS take their line-haul band from it. Without them
+            the district's centre is used, which is a poor stand-in over a short distance.
           example: 6.927079
         fromLongitude: { type: number, example: 79.861244 }
         toLatitude: { type: number, example: 7.091201 }
         toLongitude: { type: number, example: 79.994026 }
+        vehicleType: { $ref: "#/components/schemas/VehicleType" }
+        specialHandling:
+          type: array
+          maxItems: 5
+          description: Codes from /pricing/special-handling. A repeated code is charged once.
+          items: { type: string, maxLength: 32, example: FRAGILE }
         declaredValue:
           type: number
           minimum: 0
@@ -865,8 +841,29 @@ components:
           description: What the parcel was insured for. Absent when sent without cover.
         distanceKm:
           type: number
-          description: How far a same-day job travels. Absent for a zone-priced quote.
+          description: >
+            The road distance the fee was priced over: per kilometre for SAME_DAY, and to pick
+            the line-haul band otherwise. Absent only for a quote issued before line haul existed.
           example: 24.80
+        estimatedTransitDays:
+          type: integer
+          minimum: 1
+          description: From the distance band and service level. Absent for SAME_DAY.
+          example: 2
+        vehicleType:
+          $ref: "#/components/schemas/VehicleType"
+          description: SAME_DAY only. The vehicle the fee was priced for.
+        specialHandling:
+          type: array
+          description: The handling options charged for, in display order. Absent when none.
+          items: { type: string, example: FRAGILE }
+        pricingVersion:
+          type: string
+          description: >
+            A 12-character fingerprint of the configuration (rates, bands, settings, options)
+            that produced the fee. Two quotes with the same version were priced by the same
+            tariff. Absent for quotes issued before it existed.
+          example: 3f9a1c0b7e2d
         distanceSource:
           type: string
           enum: [ROUTED, ESTIMATED]

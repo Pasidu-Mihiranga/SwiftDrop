@@ -23,29 +23,6 @@ class ZoneTest {
     }
 
     @Test
-    void aNewZoneHasNoIdentityAndNoCoverage() {
-        Zone zone = Zone.newZone(CENTRAL, "Central", true);
-
-        assertThat(zone.id()).isNull();
-        assertThat(zone.hasDistricts()).isFalse();
-    }
-
-    @Test
-    void updatingKeepsIdentityAndCoverage() {
-        UUID id = UUID.randomUUID();
-        Zone zone = new Zone(id, CENTRAL, "Central", true, List.of("Kandy"));
-
-        Zone renamed = zone.with("Central Province", false);
-
-        assertThat(renamed.id()).isEqualTo(id);
-        assertThat(renamed.code()).isEqualTo(CENTRAL);
-        assertThat(renamed.name()).isEqualTo("Central Province");
-        assertThat(renamed.active()).isFalse();
-        assertThat(renamed.districts()).containsExactly("Kandy");
-        assertThat(renamed.hasDistricts()).isTrue();
-    }
-
-    @Test
     void stripsTheNameAndTreatsAMissingDistrictListAsEmpty() {
         Zone zone = new Zone(null, CENTRAL, "  Central  ", true, null);
 
