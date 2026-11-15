@@ -6,6 +6,7 @@ import { MongoModule } from "./infrastructure/mongo.module";
 import { RedisModule } from "./infrastructure/redis.module";
 import { MetaModule } from "./modules/meta/meta.module";
 import { TimelineModule } from "./modules/timeline/timeline.module";
+import { RealtimeModule } from "./modules/realtime/realtime.module";
 import { TrackingModule } from "./modules/tracking/tracking.module";
 
 @Module({
@@ -20,6 +21,7 @@ import { TrackingModule } from "./modules/tracking/tracking.module";
     RedisModule,
     TimelineModule,
     TrackingModule,
+    RealtimeModule,
     ConsumersModule,
     MetaModule,
   ],
