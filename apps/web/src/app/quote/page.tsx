@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { FeeEstimateWidget } from "@/components/fee-estimate-widget";
-import { fetchActiveZones } from "@/lib/pricing-api";
+import { mapConfig } from "@/lib/map-config";
+import { fetchActiveZones, fetchSpecialHandling } from "@/lib/pricing-api";
 
 export const metadata = {
   title: "Delivery fee estimate",
@@ -9,7 +10,10 @@ export const metadata = {
 
 /** Coverage is read on the server so no zone list or API host ever ships to the browser. */
 export default async function QuotePage() {
-  const { zones, error } = await fetchActiveZones();
+  const [{ zones, error }, { options: specialHandling }] = await Promise.all([
+    fetchActiveZones(),
+    fetchSpecialHandling(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -23,7 +27,12 @@ export default async function QuotePage() {
 
       <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="card min-w-0">
-          <FeeEstimateWidget zones={zones} coverageError={error} />
+          <FeeEstimateWidget
+            zones={zones}
+            specialHandling={specialHandling}
+            coverageError={error}
+            map={mapConfig()}
+          />
         </div>
 
         <aside className="space-y-4">

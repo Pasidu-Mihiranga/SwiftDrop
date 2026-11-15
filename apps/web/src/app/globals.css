@@ -76,3 +76,12 @@
 @utility field-error {
   @apply text-sm text-red-800;
 }
+
+/* The pin on the quote map. Leaflet adds this class to an SVG path at runtime, so it is plain CSS
+   rather than a utility, and it overrides Leaflet's default stroke and fill attributes. */
+.map-pin {
+  stroke: var(--color-brand-700);
+  stroke-width: 2;
+  fill: var(--color-brand-500);
+  fill-opacity: 0.6;
+}

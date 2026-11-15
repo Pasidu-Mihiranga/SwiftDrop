@@ -12,7 +12,22 @@ export type SizeClass = (typeof SIZE_CLASSES)[number];
 export const SERVICE_LEVELS = ["STANDARD", "EXPRESS", "SAME_DAY"] as const;
 export type ServiceLevel = (typeof SERVICE_LEVELS)[number];
 
-export const PRICING_RULES = ["BASE", "DISTANCE", "WEIGHT", "SIZE", "EXPRESS", "REMOTE_AREA", "MERCHANT_DISCOUNT", "INSURANCE", "COD"] as const;
+export const PRICING_RULES = [
+  "BASE",
+  "DISTANCE",
+  "LINE_HAUL",
+  "WEIGHT",
+  "SIZE",
+  "EXPRESS",
+  "MINIMUM_CHARGE",
+  "FUEL",
+  "SPECIAL_HANDLING",
+  "REMOTE_AREA",
+  "MERCHANT_DISCOUNT",
+  "INSURANCE",
+  "COD",
+  "TAX",
+] as const;
 export type PricingRule = (typeof PRICING_RULES)[number];
 
 /** Upper bound published by the quote contract. */
@@ -45,6 +60,18 @@ export interface BreakdownLine {
   amount: number;
 }
 
+export const VEHICLE_TYPES = ["BIKE", "VAN"] as const;
+export type VehicleType = (typeof VEHICLE_TYPES)[number];
+
+/** One handling option from GET /api/v1/pricing/special-handling. The fee is never sent to the browser. */
+export interface SpecialHandlingOption {
+  code: string;
+  label: string;
+}
+
+/** Most handling options a single quote may carry, published by the quote contract. */
+export const MAX_SPECIAL_HANDLING = 5;
+
 export const WEIGHT_BASES = ["ACTUAL", "VOLUMETRIC"] as const;
 export type WeightBasis = (typeof WEIGHT_BASES)[number];
 
@@ -72,10 +99,18 @@ export interface Quote {
   declaredValue?: number;
   /** The negotiated terms applied. Absent for a quote at the counter rate. */
   agreementId?: string;
-  /** How far a same-day job travels. Absent for a zone-priced quote. */
+  /** The distance the fee was priced over. Absent when no distance applied. */
   distanceKm?: number;
   /** ESTIMATED means no routing engine answered, so the figure is approximate. */
   distanceSource?: "ROUTED" | "ESTIMATED";
+  /** From the distance band. Absent for same-day, which is not scheduled by band. */
+  estimatedTransitDays?: number;
+  /** Same-day only: the vehicle the fee was priced for. */
+  vehicleType?: VehicleType;
+  /** Handling options charged for, as requested. */
+  specialHandling?: string[];
+  /** Short fingerprint of the configuration that produced this quote. */
+  pricingVersion?: string;
   issuedAt: string;
   expiresAt: string;
 }
@@ -156,6 +191,69 @@ export interface QuoteFormValues {
   lengthCm: string;
   widthCm: string;
   heightCm: string;
+  /** Same-day only. Ignored for other services. */
+  vehicleType: string;
+  specialHandling: string[];
+  /** Exact points picked on the map. Optional; each must lie inside its district. */
+  fromPoint?: GeoPick;
+  toPoint?: GeoPick;
+}
+
+/** A point picked on the map, in decimal degrees. */
+export interface GeoPick {
+  latitude: number;
+  longitude: number;
+}
+
+/** GET /api/v1/pricing/locate: the district and zone a map point is in. */
+export interface LocatedPoint {
+  district: string;
+  zoneCode: string;
+}
+
+/** Six decimals is about 11 cm, the precision the quote contract accepts. */
+export function roundCoordinate(value: number): number {
+  return Math.round(value * 1e6) / 1e6;
+}
+
+/** The BFF path that resolves a map point to its district. */
+export function locatePath(point: GeoPick): string {
+  const query = new URLSearchParams({
+    latitude: String(roundCoordinate(point.latitude)),
+    longitude: String(roundCoordinate(point.longitude)),
+  });
+  return `api/v1/pricing/locate?${query.toString()}`;
+}
+
+/**
+ * Applies a map pick: the district comes from the point, so the two always agree.
+ * The server checks the same thing, so this is what keeps the form from sending a mismatch.
+ */
+export function withPickedPoint(
+  values: QuoteFormValues,
+  side: "from" | "to",
+  point: GeoPick,
+  located: LocatedPoint,
+): QuoteFormValues {
+  return side === "from"
+    ? { ...values, fromDistrict: located.district, fromPoint: point }
+    : { ...values, toDistrict: located.district, toPoint: point };
+}
+
+/**
+ * Applies a district chosen from the list. A point picked earlier is dropped when it belongs
+ * to another district, because it would no longer describe where the parcel is.
+ */
+export function withDistrict(
+  values: QuoteFormValues,
+  side: "from" | "to",
+  district: string,
+  pointDistrict?: string,
+): QuoteFormValues {
+  const keepPoint = pointDistrict !== undefined && pointDistrict === district;
+  return side === "from"
+    ? { ...values, fromDistrict: district, fromPoint: keepPoint ? values.fromPoint : undefined }
+    : { ...values, toDistrict: district, toPoint: keepPoint ? values.toPoint : undefined };
 }
 
 export const EMPTY_QUOTE_FORM: QuoteFormValues = {
@@ -169,6 +267,8 @@ export const EMPTY_QUOTE_FORM: QuoteFormValues = {
   lengthCm: "",
   widthCm: "",
   heightCm: "",
+  vehicleType: "BIKE",
+  specialHandling: [],
 };
 
 export interface QuoteRequestBody {
@@ -184,6 +284,14 @@ export interface QuoteRequestBody {
   lengthCm?: number;
   widthCm?: number;
   heightCm?: number;
+  /** Same-day only. */
+  vehicleType?: VehicleType;
+  specialHandling?: string[];
+  /** Exact points, each pair together or not at all. */
+  fromLatitude?: number;
+  fromLongitude?: number;
+  toLatitude?: number;
+  toLongitude?: number;
 }
 
 export type QuoteFieldErrors = Partial<Record<keyof QuoteFormValues, string>>;
@@ -230,6 +338,12 @@ export function validateQuoteForm(values: QuoteFormValues, districts: readonly s
   if (!isSizeClass(values.sizeClass)) errors.sizeClass = "Choose a parcel size.";
   if (!isServiceLevel(values.serviceLevel)) errors.serviceLevel = "Choose a service level.";
 
+  const sameDay = values.serviceLevel === "SAME_DAY";
+  if (sameDay && !isVehicleType(values.vehicleType)) errors.vehicleType = "Choose a vehicle.";
+  if (values.specialHandling.length > MAX_SPECIAL_HANDLING) {
+    errors.specialHandling = `Choose at most ${MAX_SPECIAL_HANDLING} handling options.`;
+  }
+
   const hasCod = values.codAmount.trim() !== "";
   const codAmount = Number(values.codAmount);
   if (hasCod && (!Number.isFinite(codAmount) || codAmount < 0)) {
@@ -272,8 +386,22 @@ export function validateQuoteForm(values: QuoteFormValues, districts: readonly s
       weightKg,
       sizeClass: values.sizeClass as SizeClass,
       serviceLevel: values.serviceLevel as ServiceLevel,
+      ...(sameDay ? { vehicleType: values.vehicleType as VehicleType } : {}),
+      ...(values.specialHandling.length > 0 ? { specialHandling: [...values.specialHandling] } : {}),
       ...(hasCod ? { codAmount } : {}),
       ...(hasValue ? { declaredValue } : {}),
+      ...(values.fromPoint
+        ? {
+            fromLatitude: roundCoordinate(values.fromPoint.latitude),
+            fromLongitude: roundCoordinate(values.fromPoint.longitude),
+          }
+        : {}),
+      ...(values.toPoint
+        ? {
+            toLatitude: roundCoordinate(values.toPoint.latitude),
+            toLongitude: roundCoordinate(values.toPoint.longitude),
+          }
+        : {}),
       ...(hasDimensions
         ? {
             lengthCm: Number(values.lengthCm),
@@ -311,6 +439,22 @@ export function distanceNotice(quote: Quote): string | undefined {
   return `Priced over about ${quote.distanceKm} km. We could not measure the road route, so this is an estimate from the straight-line distance and the final fee may differ.`;
 }
 
+/** The plain label for a distance source, shown as a badge only when the figure is approximate. */
+export function distanceBadge(quote: Quote): string | undefined {
+  return quote.distanceSource === "ESTIMATED" ? "estimated" : undefined;
+}
+
+/** Transit time in words, or undefined when the quote carries none. */
+export function transitDaysLabel(days: number | undefined): string | undefined {
+  if (days === undefined || !Number.isFinite(days) || days <= 0) return undefined;
+  return days === 1 ? "1 day" : `${days} days`;
+}
+
+/** Breakdown lines worth showing. A zero line tells the customer nothing, so it is left out. */
+export function visibleBreakdown(breakdown: readonly BreakdownLine[]): BreakdownLine[] {
+  return breakdown.filter((line) => line.amount !== 0);
+}
+
 /** The notice shown when measurements put the parcel in a class the customer did not pick. */
 export function sizeClassNotice(quote: Quote): string | undefined {
   if (!quote.declaredSizeClass || quote.declaredSizeClass === quote.sizeClass) {
@@ -323,6 +467,10 @@ export function isSizeClass(value: string): value is SizeClass {
   return (SIZE_CLASSES as readonly string[]).includes(value);
 }
 
+export function isVehicleType(value: string): value is VehicleType {
+  return (VEHICLE_TYPES as readonly string[]).includes(value);
+}
+
 export function isServiceLevel(value: string): value is ServiceLevel {
   return (SERVICE_LEVELS as readonly string[]).includes(value);
 }
@@ -330,17 +478,39 @@ export function isServiceLevel(value: string): value is ServiceLevel {
 const RULE_LABELS: Record<PricingRule, string> = {
   BASE: "Base rate",
   DISTANCE: "Distance travelled",
+  LINE_HAUL: "Line haul (distance band)",
   WEIGHT: "Weight",
   SIZE: "Parcel size",
   EXPRESS: "Express delivery",
+  MINIMUM_CHARGE: "Minimum charge top-up",
+  FUEL: "Fuel surcharge",
+  SPECIAL_HANDLING: "Special handling",
   REMOTE_AREA: "Hard-to-reach area",
   MERCHANT_DISCOUNT: "Your agreed discount",
   INSURANCE: "Cover",
   COD: "Cash on delivery",
+  TAX: "Tax",
 };
 
 export function breakdownLabel(rule: PricingRule | string): string {
   return RULE_LABELS[rule as PricingRule] ?? rule;
+}
+
+const PRICING_ERROR_MESSAGES: Record<string, string> = {
+  OUTSIDE_COVERAGE: "That location is outside our service area.",
+  LOCATION_DISTRICT_MISMATCH: "The location you chose is not in the district you selected.",
+  UNKNOWN_SPECIAL_HANDLING: "One of the handling options is not available. Please untick it and try again.",
+  SAME_DAY_OUT_OF_RANGE: "That trip is too far for same-day delivery with this vehicle. Try a van or another service.",
+  NO_DISTANCE_BAND: "We cannot price that distance yet. Please try another route.",
+  SAME_DAY_TOO_HEAVY: "That parcel is too heavy or bulky for this vehicle. Try a van or another service.",
+  VEHICLE_NOT_OFFERED: "That vehicle is not available for same-day delivery just now.",
+  TOO_MANY_SPECIAL_HANDLING: "Choose fewer handling options and try again.",
+  DISTANCE_UNAVAILABLE: "We could not measure that route just now. Please try again shortly.",
+};
+
+/** A customer-safe message for a pricing error code, or undefined when the code is not one of these. */
+export function pricingErrorMessage(code: string | undefined): string | undefined {
+  return code ? PRICING_ERROR_MESSAGES[code] : undefined;
 }
 
 const SERVICE_LEVEL_LABELS: Record<ServiceLevel, string> = {
