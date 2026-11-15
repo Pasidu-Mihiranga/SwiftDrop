@@ -25,6 +25,8 @@ const schema = z.object({
     .string()
     .regex(/^mongodb(\+srv)?:\/\//, "MONGO_URI must start with mongodb:// or mongodb+srv://")
     .default(`mongodb://localhost:${mongoPort}/tracking`),
+  /** Public tracking lookups allowed per client IP per minute (enumeration protection). */
+  RATE_LIMIT_PUBLIC_PER_MIN: z.coerce.number().int().positive().default(60),
   REDIS_URL: z
     .string()
     .regex(/^rediss?:\/\//, "REDIS_URL must start with redis:// or rediss://")
