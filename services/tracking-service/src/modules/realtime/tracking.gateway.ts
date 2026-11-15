@@ -10,6 +10,7 @@ import { toPublicView } from "../timeline/domain/public-view";
 import type { Timeline } from "../timeline/domain/timeline";
 import type { TimelineBroadcaster } from "../timeline/timeline.broadcast.port";
 import { canJoin, roomsFor } from "./domain/rooms";
+import { socketClosed, socketOpened } from "../../observability/tracking-metrics";
 
 export const REALTIME_ADAPTER = Symbol("REALTIME_ADAPTER");
 export const PARCEL_STATUS_EVENT = "parcel.status";
@@ -45,6 +46,10 @@ export class TrackingGateway implements OnGatewayInit, TimelineBroadcaster {
       } catch {
         next(new Error("UNAUTHORIZED"));
       }
+    });
+    server.on("connection", (socket) => {
+      socketOpened();
+      socket.on("disconnect", () => socketClosed());
     });
     if (this.useRedisAdapter) {
       server.adapter(createAdapter(this.redis, this.redis.duplicate()));

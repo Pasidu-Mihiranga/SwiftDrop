@@ -148,6 +148,14 @@ describe("tracking REST API", () => {
     });
   });
 
+  describe("metrics", () => {
+    it("exposes the tracking counters on /metrics", async () => {
+      const res = await request(app.getHttpServer()).get("/metrics").expect(200);
+      expect(res.text).toContain("tracking_public_rate_limited_total");
+      expect(res.text).toContain("tracking_socket_connections");
+    });
+  });
+
   describe("owner timeline", () => {
     const url = `/api/v1/tracking/parcels/${PARCEL}/timeline`;
 
