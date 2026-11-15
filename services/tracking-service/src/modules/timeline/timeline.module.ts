@@ -31,6 +31,6 @@ const broadcasterProvider: Provider = {
 /** Timeline read model: projection rules, the application service and the MongoDB adapter. */
 @Module({
   providers: [modelProvider, repositoryProvider, broadcasterProvider, TimelineService],
-  exports: [TimelineService, TIMELINE_BROADCASTER],
+  exports: [TimelineService, TIMELINE_REPOSITORY, TIMELINE_BROADCASTER],
 })
 export class TimelineModule {}
