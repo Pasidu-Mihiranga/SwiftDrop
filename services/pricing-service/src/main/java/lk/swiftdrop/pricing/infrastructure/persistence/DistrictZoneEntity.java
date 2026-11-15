@@ -25,15 +25,6 @@ class DistrictZoneEntity {
         // for JPA
     }
 
-    DistrictZoneEntity(String district, ZoneEntity zone) {
-        this.district = district;
-        this.zone = zone;
-    }
-
-    void moveTo(ZoneEntity newZone) {
-        this.zone = newZone;
-    }
-
     String getDistrict() {
         return district;
     }

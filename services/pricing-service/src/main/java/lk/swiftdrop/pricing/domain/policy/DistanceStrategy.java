@@ -4,6 +4,7 @@ import lk.swiftdrop.pricing.domain.model.DistanceRate;
 import lk.swiftdrop.pricing.domain.model.FeeBreakdown;
 import lk.swiftdrop.pricing.domain.model.LaneDistance;
 import lk.swiftdrop.pricing.domain.model.PricingRule;
+import lk.swiftdrop.pricing.domain.model.SameDayVehicle;
 
 import java.math.BigDecimal;
 
@@ -26,7 +27,11 @@ public final class DistanceStrategy implements PricingStrategy {
             return soFar;
         }
         BigDecimal chargeable = rate.chargeableKilometres(distance.kilometres());
+        BigDecimal charge = rate.flagFall().add(rate.perKmFee().multiply(chargeable));
+        // The vehicle scales the whole trip, flag fall included: sending a van to collect costs
+        // more than sending a bike before a single kilometre is driven.
+        SameDayVehicle vehicle = context.rates().vehicle();
         return soFar.plus(PricingRule.DISTANCE,
-                rate.flagFall().add(rate.perKmFee().multiply(chargeable)));
+                vehicle == null ? charge : charge.multiply(vehicle.rateMultiplier()));
     }
 }

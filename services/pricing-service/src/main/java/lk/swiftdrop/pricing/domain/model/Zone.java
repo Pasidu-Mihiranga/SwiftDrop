@@ -27,18 +27,4 @@ public record Zone(UUID id, ZoneCode code, String name, boolean active, List<Str
         name = name.strip();
         districts = districts == null ? List.of() : districts.stream().sorted().toList();
     }
-
-    /** A zone that has not been persisted yet and has no districts assigned. */
-    public static Zone newZone(ZoneCode code, String name, boolean active) {
-        return new Zone(null, code, name, active, List.of());
-    }
-
-    /** Applies the only two mutable attributes, keeping identity and coverage intact. */
-    public Zone with(String newName, boolean newActive) {
-        return new Zone(id, code, newName, newActive, districts);
-    }
-
-    public boolean hasDistricts() {
-        return !districts.isEmpty();
-    }
 }

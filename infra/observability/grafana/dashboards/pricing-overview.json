@@ -254,8 +254,11 @@
           "refId": "A",
           "expr": "sum by (status) (rate(http_server_requests_seconds_count{service=\"pricing-service\", uri=~\"/api/v1/.*pricing.*\"}[5m])) * 60",
           "legendFormat": "{{status}}"
-        },
-        {
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10, "stacking": { "mode": "normal" } } } }
+    },
+    {
       "id": 15,
       "type": "timeseries",
       "title": "Same-day distances by source (per min)",
@@ -270,9 +273,6 @@
         }
       ],
       "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10 } } }
-    }
-      ],
-      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10, "stacking": { "mode": "normal" } } } }
     }
   ]
 }

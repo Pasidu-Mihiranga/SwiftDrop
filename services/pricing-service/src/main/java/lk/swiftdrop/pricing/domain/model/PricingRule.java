@@ -8,8 +8,10 @@ package lk.swiftdrop.pricing.domain.model;
  * charge for carrying the parcel down to the charges layered on top of it.
  *
  * <p>BASE and DISTANCE are alternatives, never both: a lane is priced either by zone or by
- * the road travelled, depending on the service level.
+ * the road travelled, depending on the service level. LINE_HAUL is the distance-band charge
+ * and applies only to the zone-priced side, since same-day work already pays per kilometre.
  */
 public enum PricingRule {
-    BASE, DISTANCE, WEIGHT, SIZE, EXPRESS, REMOTE_AREA, MERCHANT_DISCOUNT, INSURANCE, COD
+    BASE, DISTANCE, LINE_HAUL, WEIGHT, SIZE, EXPRESS, MINIMUM_CHARGE, FUEL, SPECIAL_HANDLING,
+    REMOTE_AREA, MERCHANT_DISCOUNT, INSURANCE, COD, TAX
 }
