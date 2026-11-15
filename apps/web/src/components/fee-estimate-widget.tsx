@@ -1,14 +1,21 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { bffFetch, fieldErrors, problemMessage } from "@/lib/bff";
+import { BffError, bffFetch, fieldErrors, problemMessage } from "@/lib/bff";
+import type { MapConfig } from "@/lib/map-config";
 import {
   EMPTY_QUOTE_FORM,
   MAX_SIDE_CM,
   MAX_WEIGHT_KG,
   SERVICE_LEVELS,
   SIZE_CLASSES,
+  VEHICLE_TYPES,
   breakdownLabel,
+  distanceBadge,
+  pricingErrorMessage,
+  transitDaysLabel,
+  visibleBreakdown,
   districtOptions,
   formatMoney,
   distanceNotice,
@@ -18,24 +25,45 @@ import {
   sizeClassNotice,
   validateQuoteForm,
   weightExplanation,
+  withDistrict,
+  withPickedPoint,
+  type GeoPick,
+  type LocatedPoint,
   type Quote,
   type QuoteFieldErrors,
   type QuoteFormValues,
+  type SpecialHandlingOption,
   type Zone,
 } from "@/lib/pricing";
 
 interface FeeEstimateWidgetProps {
   /** Coverage loaded on the server, so the browser never holds its own district list. */
   zones: Zone[];
+  /** Handling options loaded on the server. Empty hides the checkboxes. */
+  specialHandling?: SpecialHandlingOption[];
   /** Shown when the zones could not be loaded at all. */
   coverageError?: string;
   /** Called with the quote id so a booking flow can carry it forward. */
   onQuote?: (quote: Quote) => void;
+  /** Tile settings for the optional map. Absent hides the map and leaves the district lists. */
+  map?: MapConfig;
 }
+
+/** Leaflet needs a browser, so the map is loaded on the client only, and only when it is used. */
+const LocationPicker = dynamic(() => import("./location-picker").then((module) => module.LocationPicker), {
+  ssr: false,
+  loading: () => <p className="text-xs text-slate-600">Loading map...</p>,
+});
 
 type Status = "idle" | "loading" | "quoted" | "failed";
 
-export function FeeEstimateWidget({ zones, coverageError, onQuote }: FeeEstimateWidgetProps) {
+export function FeeEstimateWidget({
+  zones,
+  specialHandling = [],
+  coverageError,
+  onQuote,
+  map,
+}: FeeEstimateWidgetProps) {
   const [values, setValues] = useState<QuoteFormValues>(EMPTY_QUOTE_FORM);
   const [errors, setErrors] = useState<QuoteFieldErrors>({});
   const [status, setStatus] = useState<Status>("idle");
@@ -58,6 +86,31 @@ export function FeeEstimateWidget({ zones, coverageError, onQuote }: FeeEstimate
 
   const lifetime = quote ? quoteLifetime(quote.expiresAt, now) : undefined;
   const expired = lifetime?.expired ?? false;
+
+  const toggleHandling = useCallback((code: string, checked: boolean) => {
+    setValues((current) => ({
+      ...current,
+      specialHandling: checked
+        ? [...current.specialHandling, code]
+        : current.specialHandling.filter((existing) => existing !== code),
+    }));
+    setErrors((current) => ({ ...current, specialHandling: undefined }));
+  }, []);
+
+  const chooseDistrict = useCallback((side: "from" | "to", district: string) => {
+    // A pinned point is kept only while it is still in the district shown.
+    setValues((current) => {
+      const pinned = side === "from" ? current.fromPoint : current.toPoint;
+      const pinnedDistrict = pinned ? (side === "from" ? current.fromDistrict : current.toDistrict) : undefined;
+      return withDistrict(current, side, district, pinnedDistrict);
+    });
+    setErrors((current) => ({ ...current, [side === "from" ? "fromDistrict" : "toDistrict"]: undefined }));
+  }, []);
+
+  const pickPoint = useCallback((side: "from" | "to", point: GeoPick, located: LocatedPoint) => {
+    setValues((current) => withPickedPoint(current, side, point, located));
+    setErrors((current) => ({ ...current, [side === "from" ? "fromDistrict" : "toDistrict"]: undefined }));
+  }, []);
 
   const update = useCallback((field: keyof QuoteFormValues, value: string) => {
     setValues((current) => ({ ...current, [field]: value }));
@@ -95,7 +148,8 @@ export function FeeEstimateWidget({ zones, coverageError, onQuote }: FeeEstimate
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       setErrors(fieldErrors(error));
-      setMessage(problemMessage(error));
+      const code = error instanceof BffError ? error.problem.code : undefined;
+      setMessage(pricingErrorMessage(code) ?? problemMessage(error));
       setQuote(undefined);
       setStatus("failed");
     }
@@ -117,22 +171,50 @@ export function FeeEstimateWidget({ zones, coverageError, onQuote }: FeeEstimate
 
       <form onSubmit={submit} className="space-y-4" noValidate>
         <div className="grid gap-4 sm:grid-cols-2">
-          <DistrictField
-            id="fromDistrict"
-            label="Collect from"
-            value={values.fromDistrict}
-            districts={districts}
-            error={errors.fromDistrict}
-            onChange={(value) => update("fromDistrict", value)}
-          />
-          <DistrictField
-            id="toDistrict"
-            label="Deliver to"
-            value={values.toDistrict}
-            districts={districts}
-            error={errors.toDistrict}
-            onChange={(value) => update("toDistrict", value)}
-          />
+          <div className="min-w-0 space-y-2">
+            <DistrictField
+              id="fromDistrict"
+              label="Collect from"
+              value={values.fromDistrict}
+              districts={districts}
+              error={errors.fromDistrict}
+              onChange={(value) => chooseDistrict("from", value)}
+            />
+            {map ? (
+              <MapToggle id="fromMap" purpose="collection">
+                <LocationPicker
+                  id="fromMap"
+                  purpose="collection"
+                  tileUrl={map.tileUrl}
+                  attribution={map.attribution}
+                  point={values.fromPoint}
+                  onPick={(point, located) => pickPoint("from", point, located)}
+                />
+              </MapToggle>
+            ) : null}
+          </div>
+          <div className="min-w-0 space-y-2">
+            <DistrictField
+              id="toDistrict"
+              label="Deliver to"
+              value={values.toDistrict}
+              districts={districts}
+              error={errors.toDistrict}
+              onChange={(value) => chooseDistrict("to", value)}
+            />
+            {map ? (
+              <MapToggle id="toMap" purpose="delivery">
+                <LocationPicker
+                  id="toMap"
+                  purpose="delivery"
+                  tileUrl={map.tileUrl}
+                  attribution={map.attribution}
+                  point={values.toPoint}
+                  onPick={(point, located) => pickPoint("to", point, located)}
+                />
+              </MapToggle>
+            ) : null}
+          </div>
 
           <Field id="weightKg" label="Weight (kg)" error={errors.weightKg}>
             <input
@@ -187,6 +269,26 @@ export function FeeEstimateWidget({ zones, coverageError, onQuote }: FeeEstimate
             </select>
           </Field>
 
+          {values.serviceLevel === "SAME_DAY" ? (
+            <Field id="vehicleType" label="Vehicle" error={errors.vehicleType}>
+              <select
+                id="vehicleType"
+                name="vehicleType"
+                className="input"
+                value={values.vehicleType}
+                onChange={(event) => update("vehicleType", event.target.value)}
+                aria-invalid={Boolean(errors.vehicleType)}
+                aria-describedby={errors.vehicleType ? "vehicleType-error" : undefined}
+              >
+                {VEHICLE_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {vehicleTypeLabel(type)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ) : null}
+
           <Field
             id="codAmount"
             label="Cash to collect (optional)"
@@ -228,6 +330,25 @@ export function FeeEstimateWidget({ zones, coverageError, onQuote }: FeeEstimate
             />
           </Field>
         </div>
+
+        {specialHandling.length > 0 ? (
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium text-slate-700">Special handling (optional)</legend>
+            {specialHandling.map((option) => (
+              <label key={option.code} className="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  name="specialHandling"
+                  value={option.code}
+                  checked={values.specialHandling.includes(option.code)}
+                  onChange={(event) => toggleHandling(option.code, event.target.checked)}
+                />
+                {option.label}
+              </label>
+            ))}
+            {errors.specialHandling ? <p className="field-error">{errors.specialHandling}</p> : null}
+          </fieldset>
+        ) : null}
 
         <fieldset className="space-y-2">
           <legend className="text-sm font-medium text-slate-700">Parcel measurements (optional)</legend>
@@ -290,6 +411,9 @@ function QuoteSummary({ quote, expired, remaining }: { quote: Quote; expired: bo
   const billedWeight = weightExplanation(quote);
   const reclassified = sizeClassNotice(quote);
   const estimatedRoute = distanceNotice(quote);
+  const badge = distanceBadge(quote);
+  const transit = transitDaysLabel(quote.estimatedTransitDays);
+  const chargeable = quote.chargeableWeightKg ?? quote.weightKg;
   return (
     <div className="min-w-0 space-y-4 border-t border-slate-200 pt-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -312,12 +436,44 @@ function QuoteSummary({ quote, expired, remaining }: { quote: Quote; expired: bo
         Zone {quote.fromZone} to zone {quote.toZone}
       </p>
 
+      <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-2">
+        {transit ? (
+          <div>
+            <dt className="text-slate-600">Estimated transit</dt>
+            <dd>{transit}</dd>
+          </div>
+        ) : null}
+        {quote.distanceKm !== undefined ? (
+          <div>
+            <dt className="text-slate-600">Distance</dt>
+            <dd>
+              {quote.distanceKm} km
+              {badge ? <span className="status-pill-warning ml-2">{badge}</span> : null}
+            </dd>
+          </div>
+        ) : null}
+        <div>
+          <dt className="text-slate-600">Actual weight</dt>
+          <dd>{quote.weightKg} kg</dd>
+        </div>
+        <div>
+          <dt className="text-slate-600">Chargeable weight</dt>
+          <dd>{chargeable} kg</dd>
+        </div>
+        {quote.vehicleType ? (
+          <div>
+            <dt className="text-slate-600">Vehicle</dt>
+            <dd>{vehicleTypeLabel(quote.vehicleType)}</dd>
+          </div>
+        ) : null}
+      </dl>
+
       {billedWeight ? <p className="notice-info text-sm">{billedWeight}</p> : null}
       {reclassified ? <p className="notice-info text-sm">{reclassified}</p> : null}
       {estimatedRoute ? <p className="notice-warning text-sm">{estimatedRoute}</p> : null}
 
       <ul className="divide-y divide-slate-100 text-sm">
-        {quote.breakdown.map((line) => (
+        {visibleBreakdown(quote.breakdown).map((line) => (
           <li key={line.rule} className="flex items-center justify-between py-2">
             <span>{breakdownLabel(line.rule)}</span>
             <span className="tabular-nums">{formatMoney(line.amount, quote.fee.currency)}</span>
@@ -336,8 +492,15 @@ function QuoteSummary({ quote, expired, remaining }: { quote: Quote; expired: bo
       ) : (
         <p className="break-all text-xs text-slate-500">Reference {quote.quoteId}</p>
       )}
+      {quote.pricingVersion ? (
+        <p className="text-xs text-slate-500">Pricing version {quote.pricingVersion}</p>
+      ) : null}
     </div>
   );
+}
+
+function vehicleTypeLabel(type: string): string {
+  return type === "VAN" ? "Van" : type === "BIKE" ? "Bike" : type;
 }
 
 function SideField({
@@ -370,6 +533,24 @@ function SideField({
         aria-describedby={error ? `${id}-error` : "dimensions-hint"}
       />
     </Field>
+  );
+}
+
+/**
+ * Keeps the map unmounted until asked for. A closed details element still renders its children,
+ * so the picker is mounted only once opened: nobody downloads Leaflet or tiles they did not want.
+ */
+function MapToggle({ id, purpose, children }: { id: string; purpose: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <details
+      className="text-sm"
+      id={`${id}-toggle`}
+      onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)}
+    >
+      <summary className="cursor-pointer text-brand-700">Pin the exact {purpose} point on a map</summary>
+      {open ? <div className="mt-2">{children}</div> : null}
+    </details>
   );
 }
 

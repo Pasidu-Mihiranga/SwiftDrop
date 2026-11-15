@@ -7,6 +7,7 @@ import type {
   RateCard,
   RemoteAreaCharge,
   SizeClassRate,
+  SpecialHandlingOption,
   Zone,
 } from "@/lib/pricing";
 
@@ -32,6 +33,19 @@ export async function fetchActiveZones(): Promise<{ zones: Zone[]; error?: strin
     return { zones: (await response.json()) as Zone[] };
   } catch {
     return { zones: [], error: "We could not reach the pricing service. Please try again shortly." };
+  }
+}
+
+/** Public handling options. Empty on failure, so the quote form still works without them. */
+export async function fetchSpecialHandling(): Promise<{ options: SpecialHandlingOption[]; error?: string }> {
+  try {
+    const response = await gatewayFetch("/api/v1/pricing/special-handling");
+    if (!response.ok) {
+      return { options: [], error: "Special handling options are unavailable just now." };
+    }
+    return { options: (await response.json()) as SpecialHandlingOption[] };
+  } catch {
+    return { options: [], error: "Special handling options are unavailable just now." };
   }
 }
 
