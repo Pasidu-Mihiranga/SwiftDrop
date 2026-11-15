@@ -4,8 +4,16 @@ info:
   version: 1.0.0-draft
   description: |
     Tracking read model and real-time updates. Owner — M6.
-    WebSocket: Socket.IO at path /ws/tracking (through the gateway). Handshake `auth.token` = access token (optional for
-    public rooms). Rooms: `tracking:<trackingNumber>` (public, masked), `user:<sub>` (owner), `dispatch` (staff).
+    WebSocket: Socket.IO at path /ws/tracking (through the gateway). Handshake, one of:
+      - `auth.ticket`: single-use socket ticket from POST /api/v1/tracking/socket-tickets (60 s, consumed on use).
+        Browsers use this; no access token reaches browser JavaScript.
+      - `auth.token`: access token (service-to-service or native clients).
+      - neither: anonymous, public rooms only.
+    Rooms (client sends event `join` with `{ room }` and gets an ack `{ ok }` or `{ ok: false, error: "forbidden" }`):
+      - `tracking:<trackingNumber>`: public, masked view, anyone.
+      - `user:<sub>`: only the token's own subject.
+      - `merchant:<merchantId>`: only when the token carries the matching `merchant_id` claim.
+      - `dispatch`: DISPATCHER or ADMIN only.
     Server event `parcel.status` carries the same payload as GET /api/v1/tracking/public/{trackingNumber}.
 servers: [{ url: http://localhost:8080 }]
 paths:
@@ -38,6 +46,26 @@ paths:
               schema: { $ref: "#/components/schemas/TrackingView" }
         "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
         "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
+  /api/v1/tracking/socket-tickets:
+    post:
+      summary: Issue a single-use ticket for the Socket.IO handshake (called by the web BFF for the signed-in user)
+      security: [{ bearerAuth: [] }]
+      description: >-
+        The ticket is valid for 60 seconds and is consumed by the first handshake that presents it. The response lists
+        the rooms this principal may join, so the client can join them after connecting.
+      responses:
+        "201":
+          description: Ticket issued.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ticket, expiresIn, rooms]
+                properties:
+                  ticket: { type: string, description: "Opaque, base64url, 32 random bytes" }
+                  expiresIn: { type: integer, example: 60 }
+                  rooms: { type: array, items: { type: string }, example: ["user:3f2c0c1e-0000-4000-8000-000000000001"] }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
 components:
   securitySchemes:
     bearerAuth: { $ref: "common.v1.yaml#/components/securitySchemes/bearerAuth" }
