@@ -1,5 +1,5 @@
 import { Controller, Get, Header, Injectable, type NestMiddleware } from "@nestjs/common";
-import { collectDefaultMetrics, Histogram, Registry } from "prom-client";
+import { collectDefaultMetrics, Counter, Gauge, Histogram, Registry } from "prom-client";
 import { CORRELATION_HEADER, resolveCorrelationId } from "../http/problem";
 import { Public } from "./auth";
 
@@ -60,4 +60,23 @@ export class OpsController {
   live(): { status: string } {
     return { status: "UP" };
   }
+}
+
+interface MetricConfig {
+  name: string;
+  help: string;
+  labelNames?: string[];
+}
+
+/** Counter on the same registry as /metrics, so every service exposes it without extra wiring. */
+export function createCounter(config: MetricConfig): Counter {
+  return new Counter({ ...config, labelNames: config.labelNames ?? [], registers: [metricsRegistry] });
+}
+
+export function createGauge(config: MetricConfig): Gauge {
+  return new Gauge({ ...config, labelNames: config.labelNames ?? [], registers: [metricsRegistry] });
+}
+
+export function createHistogram(config: MetricConfig & { buckets?: number[] }): Histogram {
+  return new Histogram({ ...config, labelNames: config.labelNames ?? [], registers: [metricsRegistry] });
 }

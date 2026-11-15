@@ -4,6 +4,7 @@ import { LOGGER } from "@swiftdrop/common/nest";
 import type Redis from "ioredis";
 import { env } from "../../config/env";
 import { REDIS } from "../../infrastructure/redis.module";
+import { countRateLimited } from "../../observability/tracking-metrics";
 
 const WINDOW_SECONDS = 60;
 
@@ -47,6 +48,7 @@ export class RateLimitGuard implements CanActivate {
     }
 
     if (count > env.RATE_LIMIT_PUBLIC_PER_MIN) {
+      countRateLimited();
       res.setHeader("Retry-After", String(WINDOW_SECONDS));
       throw new ApiError(429, "RATE_LIMITED", "Too many lookups. Try again in a minute.");
     }

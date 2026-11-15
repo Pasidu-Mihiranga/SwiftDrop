@@ -20,6 +20,7 @@ import { MONGO_CONNECTION } from "../infrastructure/mongo.module";
 import type { Timeline } from "../modules/timeline/domain/timeline";
 import { TIMELINE_BROADCASTER, type TimelineBroadcaster } from "../modules/timeline/timeline.broadcast.port";
 import { TimelineService } from "../modules/timeline/timeline.service";
+import { countOutcome, observeProjection } from "../observability/tracking-metrics";
 
 const CONSUMER_GROUP = "tracking-service";
 const CONSUMER_NAME = "tracking-projection";
@@ -31,7 +32,10 @@ export function trackingHandlers(timelines: TimelineService, broadcaster: Timeli
       const check = validateEvent(contract, event);
       if (!check.valid) throw new Error(`Invalid ${contract} event: ${check.errors.join("; ")}`);
       const saved = await apply(event.data, event.eventId);
-      if (saved) await broadcaster.timelineChanged(saved, event.eventType);
+      if (!saved) return;
+      const seconds = Math.max(0, Date.now() - Date.parse(event.occurredAt)) / 1000;
+      observeProjection(event.eventType, seconds);
+      await broadcaster.timelineChanged(saved, event.eventType);
     };
   return {
     ParcelCreated: handler("parcel-created.v1", (data, id) => timelines.onCreated(data as ParcelCreated, id)),
@@ -71,6 +75,7 @@ export class ParcelEventsConsumer implements OnModuleInit, OnModuleDestroy {
       idempotency,
       logger: this.logger,
       deadLetterTopic: Topics.TRACKING_DEAD_LETTER,
+      onOutcome: (outcome, topic) => countOutcome(outcome, topic),
     });
   }
 
