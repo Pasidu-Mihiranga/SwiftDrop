@@ -37,6 +37,7 @@
     "@nestjs/testing": "11.2.8",
     "@testcontainers/kafka": "12.2.1",
     "@testcontainers/mongodb": "12.2.1",
+    "@testcontainers/redis": "12.2.1",
     "@types/jest": "30.0.0",
     "@types/node": "22.20.5",
     "@types/supertest": "7.2.1",
