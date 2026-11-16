@@ -39,7 +39,10 @@ export class NotificationDispatcherService {
     const prefs = await this.getUserPreferences(req.userId);
 
     // If an event is status-based and the user opted out of that status, skip external channels
-    const eventAllowed = !req.status || prefs.events.includes(req.status);
+    const eventAllowed =
+      !req.status ||
+      prefs.events.includes(req.status) ||
+      (req.status === "CREATED" && prefs.events.includes("PARCEL_CREATED"));
 
     // 2. Render Template
     const templateData: TemplateData = {
@@ -83,13 +86,44 @@ export class NotificationDispatcherService {
     if (req.userId) {
       await this.createInAppNotification({
         userId: req.userId,
-        title: rendered.subject,
-        message: rendered.text,
+        title: this.formatInAppTitle(rendered.subject, req.eventType),
+        message: this.formatInAppMessage(rendered.text, req.destination),
         type: req.eventType,
         trackingNumber: req.trackingNumber,
       });
       await this.logDispatch(req.eventId, req.eventType, "IN_APP", req.userId, true);
     }
+  }
+
+  private formatInAppTitle(subject: string, eventType: string): string {
+    let clean = subject.replace(/\[\s*SD[0-9A-Z]+\s*\]/gi, "").trim();
+    clean = clean.replace(/^SwiftDrop(?:\s*Update)?:\s*/gi, "").trim();
+    if (!clean) {
+      if (eventType === "ParcelCreated") return "Booking Confirmed";
+      if (eventType === "ParcelStatusChanged") return "Delivery Update";
+      if (eventType === "ParcelAssigned") return "Courier Assigned";
+      return "Notification";
+    }
+    return clean;
+  }
+
+  private formatInAppMessage(text: string, destination?: string): string {
+    let clean = text.replace(/\s*Track(?:\s*live)?(?:\s*at)?[:\s]+https?:\/\/\S+/gi, "").trim();
+    clean = clean.replace(/https?:\/\/\S+/gi, "").trim();
+    clean = clean.replace(/^SwiftDrop(?:\s*Update)?:\s*/gi, "").trim();
+    clean = clean.replace(
+      /Your delivery booking\s+[A-Z0-9]+\s+has been confirmed\.\s*Destination:\s*([A-Za-z0-9\s-]+)\.?/gi,
+      (_, city) => {
+        const formattedCity = city.trim().charAt(0).toUpperCase() + city.trim().slice(1).toLowerCase();
+        return `Delivery booking confirmed for ${formattedCity}.`;
+      },
+    );
+    clean = clean.replace(/Parcel\s+[A-Z0-9]+\s+(?:is\s+now|has\s+been)\s+/gi, "");
+    clean = clean.replace(/Note:\s*/gi, "");
+    clean = clean.replace(/Destination:\s*([A-Z]{3,})\b/g, (_, city: string) => {
+      return `Destination: ${city.charAt(0).toUpperCase()}${city.slice(1).toLowerCase()}`;
+    });
+    return clean.trim();
   }
 
   private async getUserPreferences(userId?: string): Promise<NotificationPreferenceDoc> {

@@ -172,9 +172,9 @@ export class NotificationConsumer implements OnModuleInit, OnModuleDestroy {
 
     let description = data.note;
     if (data.proof?.receivedBy) {
-      description = `Received by: ${data.proof.receivedBy}${data.note ? " (" + data.note + ")" : ""}`;
+      description = `Received by ${data.proof.receivedBy}${data.note ? " (" + data.note + ")" : ""}`;
     } else if (data.failureReason) {
-      description = `Delivery failed: ${data.failureReason}${data.note ? " (" + data.note + ")" : ""}`;
+      description = `Reason: ${data.failureReason}${data.note ? " (" + data.note + ")" : ""}`;
     }
 
     // Lookup contact details from cached parcel contacts

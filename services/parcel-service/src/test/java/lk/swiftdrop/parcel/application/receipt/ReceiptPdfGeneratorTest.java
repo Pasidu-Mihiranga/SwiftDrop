@@ -44,6 +44,10 @@ class ReceiptPdfGeneratorTest {
                 "courier-1", extendedHistory, booked.createdAt(), Instant.now(), booked.version());
 
         byte[] pdf = generator.generate(delivered);
+        try {
+            java.nio.file.Files.createDirectories(java.nio.file.Path.of("target"));
+            java.nio.file.Files.write(java.nio.file.Path.of("target/test-receipt.pdf"), pdf);
+        } catch (Exception ignored) {}
 
         assertThat(pdf).isNotEmpty();
         String header = new String(pdf, 0, Math.min(pdf.length, 10), StandardCharsets.ISO_8859_1);

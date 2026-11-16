@@ -102,7 +102,10 @@ export class NotificationController {
   ) {
     const email = body.email !== false;
     const sms = body.sms !== false;
-    const events = Array.isArray(body.events) ? body.events : ["CREATED", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED"];
+    const rawEvents = Array.isArray(body.events)
+      ? body.events
+      : ["CREATED", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED"];
+    const events = rawEvents.map((e) => (e === "PARCEL_CREATED" ? "CREATED" : e));
 
     await this.db.preferences.updateOne(
       { _id: user.id },
