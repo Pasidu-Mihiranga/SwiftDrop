@@ -38,6 +38,21 @@ export class TemplateService {
     Handlebars.registerHelper("currentYear", () => new Date().getFullYear());
   }
 
+  private formatCity(city?: string): string {
+    if (!city) return "your address";
+    const trimmed = city.trim();
+    if (trimmed.toUpperCase() === trimmed && trimmed.length > 2) {
+      return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+    }
+    return trimmed;
+  }
+
+  private userTrackingLink(trackingNumber?: string): string {
+    return trackingNumber
+      ? `https://swiftdrop.lk/track/${trackingNumber}`
+      : `https://swiftdrop.lk/track`;
+  }
+
   render(templateName: string, data: TemplateData): RenderedTemplate {
     const trackingUrl = data.trackingNumber
       ? `${env.FRONTEND_URL}/track/${data.trackingNumber}`
@@ -50,35 +65,59 @@ export class TemplateService {
     };
 
     switch (templateName) {
-      case "parcel-created":
+      case "parcel-created": {
+        const dest = this.formatCity(data.destination);
+        const trackLink = this.userTrackingLink(data.trackingNumber);
         return {
           subject: `SwiftDrop: Booking Confirmed [${data.trackingNumber}]`,
           html: this.renderParcelCreatedHtml(context),
-          text: `SwiftDrop: Your delivery booking ${data.trackingNumber} has been confirmed. Destination: ${data.destination}. Track live at ${trackingUrl}`,
-        };
-
-      case "parcel-status-changed": {
-        const readableStatus = this.humanStatus(data.status);
-        return {
-          subject: `SwiftDrop: Parcel ${readableStatus} [${data.trackingNumber}]`,
-          html: this.renderStatusChangedHtml(context, readableStatus),
-          text: `SwiftDrop Update: Parcel ${data.trackingNumber} is now ${readableStatus}. ${data.statusDescription ? "Note: " + data.statusDescription : ""}. Track live: ${trackingUrl}`,
+          text: `SwiftDrop: Your delivery booking ${data.trackingNumber} has been confirmed for ${dest}. Track: ${trackLink}`,
         };
       }
 
-      case "parcel-assigned":
+      case "parcel-status-changed": {
+        const readableStatus = this.humanStatus(data.status);
+        const trackLink = this.userTrackingLink(data.trackingNumber);
+        let message = `SwiftDrop: Your parcel ${data.trackingNumber} is now ${readableStatus}.`;
+
+        if (data.status === "DELIVERED") {
+          const detail = data.statusDescription ? ` (${data.statusDescription})` : "";
+          message = `SwiftDrop: Your parcel ${data.trackingNumber} has been delivered${detail}. Thank you for using SwiftDrop!`;
+        } else if (data.status === "PICKED_UP") {
+          message = `SwiftDrop: Your parcel ${data.trackingNumber} has been picked up by our courier and is on its way.`;
+        } else if (data.status === "IN_TRANSIT") {
+          message = `SwiftDrop: Your parcel ${data.trackingNumber} is in transit to the delivery facility.`;
+        } else if (data.status === "OUT_FOR_DELIVERY") {
+          message = `SwiftDrop: Your parcel ${data.trackingNumber} is Out for Delivery today with your courier.`;
+        } else if (data.status === "FAILED") {
+          const detail = data.statusDescription ? `: ${data.statusDescription}` : "";
+          message = `SwiftDrop: Delivery attempt for parcel ${data.trackingNumber} was unsuccessful${detail}. We will re-attempt shortly.`;
+        } else if (data.status === "CANCELLED") {
+          message = `SwiftDrop: Your delivery request for parcel ${data.trackingNumber} has been cancelled as requested.`;
+        }
+
+        return {
+          subject: `SwiftDrop: Parcel ${readableStatus} [${data.trackingNumber}]`,
+          html: this.renderStatusChangedHtml(context, readableStatus),
+          text: `${message} Track: ${trackLink}`,
+        };
+      }
+
+      case "parcel-assigned": {
+        const trackLink = this.userTrackingLink(data.trackingNumber);
         return {
           subject: `SwiftDrop: Courier Assigned [${data.trackingNumber}]`,
           html: this.renderCourierAssignedHtml(context),
-          text: `SwiftDrop: Courier ${data.courierName || "assigned"} has been assigned to your delivery ${data.trackingNumber}. Track live: ${trackingUrl}`,
+          text: `SwiftDrop: Courier ${data.courierName || "SwiftDrop Driver"} has been assigned to your delivery ${data.trackingNumber}. Track: ${trackLink}`,
         };
+      }
 
       case "merchant-lifecycle": {
         const isApproved = data.status === "APPROVED";
         return {
           subject: `SwiftDrop: Merchant Account ${isApproved ? "Approved" : "Update"}`,
           html: this.renderMerchantLifecycleHtml(context, isApproved),
-          text: `SwiftDrop Merchant Notice: Your merchant application has been ${data.status}. Log in to access your portal at ${env.FRONTEND_URL}/merchant`,
+          text: `SwiftDrop: Your merchant application has been ${data.status ? data.status.toLowerCase() : "updated"}. Access your portal at https://swiftdrop.lk/merchant`,
         };
       }
 
@@ -142,7 +181,7 @@ export class TemplateService {
         <tr><td class="label">Tracking Number</td><td class="value">${c.trackingNumber}</td></tr>
         <tr><td class="label">Destination</td><td class="value">${c.destination || "Address on file"}</td></tr>
         <tr><td class="label">Delivery Fee</td><td class="value">${c.fee || "Paid"}</td></tr>
-        <tr><td class="label">Status</td><td class="value" style="color:#0284c7;">CREATED</td></tr>
+        <tr><td class="label">Status</td><td class="value" style="color:#0284c7;">Booking Confirmed</td></tr>
       </table>
 
       <a href="${c.trackingUrl}" class="btn">Track Your Delivery Live</a>

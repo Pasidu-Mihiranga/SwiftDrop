@@ -38,7 +38,7 @@ describe("TemplateService", () => {
       expect(rendered.subject).toContain("Delivered");
       expect(rendered.html).toContain("Delivered");
       expect(rendered.html).toContain("Signed by recipient");
-      expect(rendered.text).toContain("is now Delivered");
+      expect(rendered.text).toContain("has been delivered");
     });
 
     it("renders OUT_FOR_DELIVERY status", () => {
