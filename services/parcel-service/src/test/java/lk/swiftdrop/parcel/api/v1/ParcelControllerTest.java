@@ -255,7 +255,7 @@ class ParcelControllerTest {
         mvc.perform(get("/api/v1/parcels/" + parcel.id() + "/receipt").with(as("cust-1", "CUSTOMER")))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_PDF))
-                .andExpect(header().string("Content-Disposition", containsString("attachment; filename=\"receipt-" + parcel.trackingNumber().value() + ".pdf\"")))
+                .andExpect(header().string("Content-Disposition", containsString("inline; filename=\"receipt-" + parcel.trackingNumber().value() + ".pdf\"")))
                 .andExpect(content().bytes(samplePdf));
     }
 

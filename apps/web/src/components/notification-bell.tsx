@@ -13,6 +13,70 @@ interface InAppNotification {
   createdAt: string;
 }
 
+/** Format notification titles to be clean, concise, and customer-facing without brand prefixes or raw tracking brackets */
+function formatNotificationTitle(title: string, type?: string): string {
+  if (!title) return "Notification";
+  let clean = title.trim();
+
+  // Remove "[SD...]" bracketed tracking numbers
+  clean = clean.replace(/\[\s*SD[0-9A-Z]+\s*\]/gi, "").trim();
+
+  // Remove "SwiftDrop: " or "SwiftDrop Update: " prefix
+  clean = clean.replace(/^SwiftDrop(?:\s*Update)?:\s*/gi, "").trim();
+
+  // If title was only "[SD...]", infer friendly title from event type
+  if (!clean || clean.startsWith("[")) {
+    if (type === "ParcelCreated") return "Booking Confirmed";
+    if (type === "ParcelAssigned") return "Courier Assigned";
+    if (type === "ParcelStatusChanged") return "Delivery Update";
+    if (type === "MerchantLifecycleChanged") return "Merchant Update";
+    return "Delivery Update";
+  }
+
+  return clean;
+}
+
+/** Format notification body into concise customer messages without developer localhost links or repetitive IDs */
+function formatNotificationMessage(message: string, trackingNumber?: string): string {
+  if (!message) return "";
+  let clean = message.trim();
+
+  // Remove tracking URLs from in-app notifications (the UI already provides a direct link)
+  clean = clean.replace(/\s*Track(?:\s*live)?(?:\s*at)?[:\s]+https?:\/\/\S+/gi, "");
+  clean = clean.replace(/https?:\/\/\S+/gi, "");
+
+  // Remove redundant brand prefixes
+  clean = clean.replace(/^SwiftDrop(?:\s*Update)?:\s*/gi, "");
+
+  // Convert verbose booking confirmation into a clean, concise phrase
+  clean = clean.replace(
+    /Your delivery booking\s+[A-Z0-9]+\s+has been confirmed\.\s*Destination:\s*([A-Za-z0-9\s-]+)\.?/gi,
+    (_, city) => {
+      const formattedCity = city.trim().charAt(0).toUpperCase() + city.trim().slice(1).toLowerCase();
+      return `Delivery booking confirmed for ${formattedCity}.`;
+    },
+  );
+
+  // Shorten parcel status changes e.g. "Parcel SD... is now Delivered." -> "Delivered."
+  if (trackingNumber) {
+    clean = clean.replace(new RegExp(`Parcel\\s+${trackingNumber}\\s+(?:is\\s+now|has\\s+been)\\s+`, "gi"), "");
+  }
+  clean = clean.replace(/Parcel\s+[A-Z0-9]+\s+(?:is\\s+now|has\\s+been)\s+/gi, "");
+
+  // Clean robotic note prefixes
+  clean = clean.replace(/Note:\s*Received by:\s*/gi, "Received by: ");
+  clean = clean.replace(/Note:\s*Received by\s*/gi, "Received by ");
+  clean = clean.replace(/Note:\s*Delivery failed:\s*/gi, "Reason: ");
+  clean = clean.replace(/Note:\s*/gi, "");
+
+  // Fix ALL-CAPS city destination (e.g. "Destination: DEKATANA." -> "Destination: Dekatana.")
+  clean = clean.replace(/Destination:\s*([A-Z]{3,})\b/g, (_, city: string) => {
+    return `Destination: ${city.charAt(0).toUpperCase()}${city.slice(1).toLowerCase()}`;
+  });
+
+  return clean.trim();
+}
+
 export function NotificationBell() {
   const [notifications, setNotifications] = useState<InAppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
@@ -135,7 +199,7 @@ export function NotificationBell() {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <h4 className={`font-medium ${n.read ? "text-slate-800" : "text-brand-950 font-bold"}`}>
-                      {n.title}
+                      {formatNotificationTitle(n.title, n.type)}
                     </h4>
                     {!n.read && (
                       <button
@@ -147,7 +211,9 @@ export function NotificationBell() {
                       </button>
                     )}
                   </div>
-                  <p className="mt-1 text-slate-600 whitespace-pre-wrap">{n.message}</p>
+                  <p className="mt-1 text-slate-600 leading-relaxed">
+                    {formatNotificationMessage(n.message, n.trackingNumber)}
+                  </p>
                   <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
                     {n.trackingNumber ? (
                       <Link

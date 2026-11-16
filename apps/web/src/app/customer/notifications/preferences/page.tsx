@@ -10,7 +10,7 @@ interface Preferences {
 }
 
 const AVAILABLE_EVENTS = [
-  { id: "PARCEL_CREATED", label: "Booking Confirmation", description: "When a new delivery order is placed and confirmed." },
+  { id: "CREATED", label: "Booking Confirmation", description: "When a new delivery order is placed and confirmed." },
   { id: "PICKED_UP", label: "Parcel Picked Up", description: "When our courier collects your parcel." },
   { id: "IN_TRANSIT", label: "In Transit / Hub Scans", description: "When your parcel moves through sorting hubs." },
   { id: "OUT_FOR_DELIVERY", label: "Out for Delivery", description: "When your parcel is loaded for delivery today." },
@@ -22,7 +22,7 @@ export default function NotificationPreferencesPage() {
   const [preferences, setPreferences] = useState<Preferences>({
     email: true,
     sms: true,
-    events: ["PARCEL_CREATED", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED"],
+    events: ["CREATED", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED"],
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -34,10 +34,13 @@ export default function NotificationPreferencesPage() {
         const res = await fetch("/api/bff/api/v1/notifications/preferences");
         if (res.ok) {
           const data = (await res.json()) as Preferences;
+          const rawEvents = data.events ?? ["CREATED", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED"];
+          // Normalize PARCEL_CREATED to CREATED if legacy key is present
+          const normalizedEvents = rawEvents.map((e) => (e === "PARCEL_CREATED" ? "CREATED" : e));
           setPreferences({
             email: data.email ?? true,
             sms: data.sms ?? true,
-            events: data.events ?? ["PARCEL_CREATED", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED"],
+            events: normalizedEvents,
           });
         }
       } catch {
