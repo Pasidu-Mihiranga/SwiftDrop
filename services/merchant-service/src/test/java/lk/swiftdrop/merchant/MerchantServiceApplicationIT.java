@@ -17,7 +17,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Boots the whole service against real infrastructure: Flyway migrations, JPA mapping, security, actuator. */
 @Testcontainers
-@SpringBootTest
+// test-only key (32 bytes, base64); real deployments read PII_ENCRYPTION_KEY
+@SpringBootTest(properties = "swiftdrop.pii.encryption-key=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=")
 @AutoConfigureMockMvc
 class MerchantServiceApplicationIT {
 
