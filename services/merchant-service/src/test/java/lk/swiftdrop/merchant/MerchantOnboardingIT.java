@@ -22,7 +22,14 @@ import lk.swiftdrop.common.web.error.ConflictException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import lk.swiftdrop.merchant.application.exception.IdentityProviderUnavailableException;
+import lk.swiftdrop.merchant.application.port.out.IdentityProvisioner;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -74,12 +81,44 @@ class MerchantOnboardingIT {
     private TransactionOperations transaction;
     @Autowired
     private JdbcTemplate jdbc;
+    /** Keycloak itself is exercised by KeycloakAdminAdapterIT; here it only has to succeed. */
+    @MockitoBean
+    private IdentityProvisioner identity;
 
     @BeforeEach
     void cleanUp() {
         jdbc.update("DELETE FROM outbox_event");
         jdbc.update("DELETE FROM api_credential");
         jdbc.update("DELETE FROM merchant");
+        when(identity.provisionClient(any())).thenAnswer(call -> "merchant-" + call.getArgument(0));
+    }
+
+    @Test
+    void approvalRecordsTheKeycloakClientOnceWithoutAnySecret() {
+        Merchant merchant = onboarding.register(MerchantFixtures.user("user-1"), business("PV12345"));
+
+        onboarding.approve(ADMIN, merchant.id());
+
+        Map<String, Object> credential = jdbc.queryForMap("SELECT * FROM api_credential WHERE merchant_id = ?", merchant.id());
+        assertThat(credential.get("keycloak_client_id")).isEqualTo("merchant-" + merchant.id());
+        assertThat(credential.get("revoked_at")).isNull();
+        assertThat(credential.keySet()).noneMatch(column -> column.contains("secret"));
+        verify(identity).grantMerchantRole("user-1", merchant.id());
+    }
+
+    @Test
+    void whenKeycloakIsDownTheMerchantStaysPendingWithNoCredentialOrEvent() {
+        Merchant merchant = onboarding.register(MerchantFixtures.user("user-1"), business("PV12345"));
+        when(identity.provisionClient(merchant.id()))
+                .thenThrow(new IdentityProviderUnavailableException("The identity provider is not reachable right now"));
+
+        assertThatThrownBy(() -> onboarding.approve(ADMIN, merchant.id()))
+                .isInstanceOf(IdentityProviderUnavailableException.class);
+
+        assertThat(jdbc.queryForObject("SELECT status FROM merchant WHERE id = ?", String.class, merchant.id()))
+                .isEqualTo("PENDING");
+        assertThat(count("SELECT count(*) FROM api_credential")).isZero();
+        assertThat(count("SELECT count(*) FROM outbox_event")).isEqualTo(1);
     }
 
     private static BusinessDetails business(String brNumber) {

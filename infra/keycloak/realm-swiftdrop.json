@@ -228,7 +228,7 @@
     {
       "username": "service-account-merchant-service-admin", "enabled": true,
       "serviceAccountClientId": "merchant-service-admin",
-      "clientRoles": { "realm-management": ["manage-clients", "view-clients", "query-clients", "manage-users", "view-users", "query-users"] }
+      "clientRoles": { "realm-management": ["manage-clients", "view-clients", "query-clients", "manage-users", "view-users", "query-users", "view-realm"] }
     },
     {
       "username": "service-account-merchant-demo", "enabled": true,
