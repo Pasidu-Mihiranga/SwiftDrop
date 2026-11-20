@@ -1,9 +1,9 @@
 package lk.swiftdrop.merchant.application.port.out;
 
+import lk.swiftdrop.merchant.application.model.PagedResult;
 import lk.swiftdrop.merchant.domain.model.Merchant;
 import lk.swiftdrop.merchant.domain.model.MerchantStatus;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -34,6 +34,6 @@ public interface MerchantRepository {
     /** @param brNumber already normalised by {@link lk.swiftdrop.merchant.domain.model.BusinessDetails} */
     boolean existsActiveByBrNumber(String brNumber);
 
-    /** Applications in one status, oldest first: the order an admin works through the queue. */
-    List<Merchant> findByStatus(MerchantStatus status);
+    /** One page of applications in one status, oldest first: the order an admin works through the queue. */
+    PagedResult<Merchant> findByStatus(MerchantStatus status, int page, int size);
 }

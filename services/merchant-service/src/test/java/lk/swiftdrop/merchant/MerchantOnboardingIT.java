@@ -8,6 +8,7 @@ import com.networknt.schema.SchemaValidatorsConfig;
 import com.networknt.schema.SpecVersion;
 import lk.swiftdrop.common.security.AuthenticatedUser;
 import lk.swiftdrop.merchant.application.command.MerchantOnboardingService;
+import lk.swiftdrop.merchant.application.model.PagedResult;
 import lk.swiftdrop.merchant.application.port.out.MerchantRepository;
 import lk.swiftdrop.merchant.application.query.MerchantQueryService;
 import lk.swiftdrop.merchant.domain.exception.BrNumberAlreadyRegisteredException;
@@ -213,14 +214,20 @@ class MerchantOnboardingIT {
     }
 
     @Test
-    void theAdminQueueListsOneStatusOldestFirst() {
+    void theAdminQueueListsOneStatusOldestFirstOnePageAtATime() {
         Merchant first = onboarding.register(MerchantFixtures.user("user-1"), business("PV1"));
         Merchant second = onboarding.register(MerchantFixtures.user("user-2"), business("PV2"));
-        onboarding.approve(ADMIN, onboarding.register(MerchantFixtures.user("user-3"), business("PV3")).id());
+        Merchant third = onboarding.register(MerchantFixtures.user("user-3"), business("PV3"));
+        onboarding.approve(ADMIN, onboarding.register(MerchantFixtures.user("user-4"), business("PV4")).id());
 
-        assertThat(queries.byStatus(MerchantStatus.PENDING)).extracting(Merchant::id)
-                .containsExactly(first.id(), second.id());
-        assertThat(queries.byStatus(MerchantStatus.APPROVED)).hasSize(1);
+        PagedResult<Merchant> firstPage = queries.byStatus(MerchantStatus.PENDING, 0, 2);
+        PagedResult<Merchant> secondPage = queries.byStatus(MerchantStatus.PENDING, 1, 2);
+
+        assertThat(firstPage.content()).extracting(Merchant::id).containsExactly(first.id(), second.id());
+        assertThat(firstPage.totalElements()).isEqualTo(3);
+        assertThat(firstPage.totalPages()).isEqualTo(2);
+        assertThat(secondPage.content()).extracting(Merchant::id).containsExactly(third.id());
+        assertThat(queries.byStatus(MerchantStatus.APPROVED, 0, 20).content()).hasSize(1);
     }
 
     @Test

@@ -1,9 +1,10 @@
 package lk.swiftdrop.merchant.infrastructure.persistence;
 
 import lk.swiftdrop.merchant.domain.model.MerchantStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -16,5 +17,5 @@ interface SpringDataMerchantRepository extends JpaRepository<MerchantEntity, UUI
 
     boolean existsByBrNumberAndStatusNot(String brNumber, MerchantStatus status);
 
-    List<MerchantEntity> findByStatusOrderByCreatedAtAsc(MerchantStatus status);
+    Page<MerchantEntity> findByStatus(MerchantStatus status, Pageable pageable);
 }
