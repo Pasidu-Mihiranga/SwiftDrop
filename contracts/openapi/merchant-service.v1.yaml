@@ -49,18 +49,38 @@ paths:
         "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
   /api/v1/merchants/me/credentials/rotate:
     post:
-      summary: Issue a new client secret (shown once)
+      summary: Issue a new client secret for the caller's merchant (MERCHANT user; shown once)
+      description: |
+        The merchant is the one in the caller's token (merchant_id) and the caller must be its owner; nothing is
+        read from the request. Merchant API clients (MERCHANT_API) cannot call this. Keycloak generates the new
+        secret and the previous one stops working immediately; access tokens already issued stay valid until they
+        expire. The secret appears only in this response (sent with Cache-Control no-store): it is never stored
+        by SwiftDrop or logged, so a lost secret can only be replaced by rotating again. The first call after
+        approval is how the merchant collects their first secret.
+
+        404 MERCHANT_NOT_FOUND when the caller owns no such merchant, 404 API_CREDENTIAL_NOT_FOUND when the
+        merchant has no credential in use, 422 MERCHANT_NOT_APPROVED when the merchant is not APPROVED (for
+        example SUSPENDED). 503 IDENTITY_PROVIDER_UNAVAILABLE means Keycloak did not confirm the rotation and no
+        secret is returned. Usually nothing changed and the previous secret still works, but if Keycloak applied
+        the change and its answer was lost, the previous secret no longer works. Either way, rotating again is safe
+        and returns a working secret.
       responses:
         "200":
-          description: New credentials
+          description: The new credentials. Store the secret now; it cannot be shown again.
+          headers:
+            Cache-Control: { description: no-store, schema: { type: string } }
           content:
             application/json:
-              schema:
-                type: object
-                properties:
-                  clientId: { type: string }
-                  clientSecret: { type: string }
-                  tokenUrl: { type: string, format: uri }
+              schema: { $ref: "#/components/schemas/ApiCredentialSecret" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
+        "422": { $ref: "common.v1.yaml#/components/responses/UnprocessableContent" }
+        "503":
+          description: Keycloak did not confirm the rotation; no secret is returned and rotating again is safe
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
   /api/v1/admin/merchants:
     get:
       summary: A page of merchant applications in one status, oldest first (ADMIN)
@@ -209,6 +229,19 @@ components:
         rejectionReason: { type: string, description: Present only when REJECTED. }
         reviewedAt: { type: string, format: date-time, description: When the latest decision was made. }
         createdAt: { type: string, format: date-time }
+    ApiCredentialSecret:
+      type: object
+      description: A merchant's client credentials for the OAuth 2.0 client credentials grant. Shown once.
+      required: [clientId, clientSecret, tokenUrl]
+      additionalProperties: false
+      properties:
+        clientId: { type: string, pattern: "^merchant-[0-9a-f-]{36}$", example: merchant-7e726c28-4a72-4fea-9ec1-c56b08262ddc }
+        clientSecret: { type: string, minLength: 1, description: Never stored by SwiftDrop; rotate again if it is lost. }
+        tokenUrl:
+          type: string
+          format: uri
+          description: Token endpoint to call with grant_type=client_credentials.
+          example: http://localhost:8180/realms/swiftdrop/protocol/openid-connect/token
     MerchantPage:
       type: object
       required: [content, page]

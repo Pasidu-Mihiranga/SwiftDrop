@@ -25,4 +25,22 @@ public record ApiCredential(UUID id, UUID merchantId, String keycloakClientId, I
     public static ApiCredential issue(UUID merchantId, String keycloakClientId, Instant now) {
         return new ApiCredential(UUID.randomUUID(), merchantId, keycloakClientId, now, null, null);
     }
+
+    public boolean isRevoked() {
+        return revokedAt != null;
+    }
+
+    /**
+     * Records that the client's secret was replaced. Only the time is kept; the secret itself is
+     * never part of this record.
+     *
+     * @throws IllegalStateException when the credential has been revoked
+     */
+    public ApiCredential rotate(Instant now) {
+        Objects.requireNonNull(now, "now");
+        if (isRevoked()) {
+            throw new IllegalStateException("A revoked API credential cannot be rotated");
+        }
+        return new ApiCredential(id, merchantId, keycloakClientId, createdAt, now, null);
+    }
 }

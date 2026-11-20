@@ -233,4 +233,53 @@ class KeycloakAdminAdapterTest {
                 .doesNotContainKey("secret");
         assertThat((List<?>) client.get("protocolMappers")).hasSize(2);
     }
+
+    // --- secret rotation
+
+    private static final String CLIENT_SECRET = ADMIN + "/clients/client-uuid/client-secret";
+
+    @Test
+    void keycloakRegeneratesTheSecretAndTheNewValueIsReturned() {
+        expectToken("token-1");
+        expectGet(FIND_CLIENT, FOUND_CLIENT);
+        server.expect(once(), requestTo(CLIENT_SECRET))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer token-1"))
+                .andRespond(withSuccess("{\"type\":\"secret\",\"value\":\"fresh-secret\"}", MediaType.APPLICATION_JSON));
+
+        assertThat(adapter.regenerateClientSecret(CLIENT_ID)).isEqualTo("fresh-secret");
+        server.verify();
+    }
+
+    @Test
+    void aClientMissingFromKeycloakIs503AndNothingIsRegenerated() {
+        expectToken("token-1");
+        expectGet(FIND_CLIENT, "[]");
+
+        assertThatThrownBy(() -> adapter.regenerateClientSecret(CLIENT_ID))
+                .isInstanceOfSatisfying(IdentityProviderUnavailableException.class,
+                        e -> assertThat(e.status().value()).isEqualTo(503));
+        server.verify();
+    }
+
+    @Test
+    void anAnswerWithoutASecretIs503() {
+        expectToken("token-1");
+        expectGet(FIND_CLIENT, FOUND_CLIENT);
+        server.expect(once(), requestTo(CLIENT_SECRET))
+                .andRespond(withSuccess("{\"type\":\"secret\"}", MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> adapter.regenerateClientSecret(CLIENT_ID))
+                .isInstanceOf(IdentityProviderUnavailableException.class);
+    }
+
+    @Test
+    void aKeycloakErrorWhileRegeneratingIs503() {
+        expectToken("token-1");
+        expectGet(FIND_CLIENT, FOUND_CLIENT);
+        server.expect(once(), requestTo(CLIENT_SECRET)).andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+
+        assertThatThrownBy(() -> adapter.regenerateClientSecret(CLIENT_ID))
+                .isInstanceOf(IdentityProviderUnavailableException.class);
+    }
 }

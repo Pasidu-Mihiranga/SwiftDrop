@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
@@ -122,6 +123,55 @@ class KeycloakAdminAdapterIT {
     void anApplicantWithoutAnAccountIsReportedAsMissing() {
         assertThatThrownBy(() -> adapter.grantMerchantRole(UUID.randomUUID().toString(), UUID.randomUUID()))
                 .isInstanceOf(MerchantOwnerMissingException.class);
+    }
+
+    @Test
+    void rotatingIssuesAWorkingSecretAndTheOldOneStopsWorkingAtOnce() {
+        UUID merchantId = UUID.randomUUID();
+        String clientId = adapter.provisionClient(merchantId);
+        String oldSecret = clientSecret(clientId);
+        assertThat(clientCredentialsStatus(clientId, oldSecret)).isEqualTo(200);
+
+        String newSecret = adapter.regenerateClientSecret(clientId);
+
+        assertThat(newSecret).isNotBlank().isNotEqualTo(oldSecret).hasSizeGreaterThanOrEqualTo(32);
+        assertThat(clientSecret(clientId)).as("what Keycloak now holds").isEqualTo(newSecret);
+        assertThat(clientCredentialsStatus(clientId, oldSecret)).as("the old secret").isEqualTo(401);
+        JsonNode claims = claims(token(form("grant_type", "client_credentials", "client_id", clientId,
+                "client_secret", newSecret)));
+        assertThat(claims.get("merchant_id").asString()).isEqualTo(merchantId.toString());
+        assertThat(realmRoles(claims)).contains("MERCHANT_API");
+    }
+
+    @Test
+    void rotatingAgainReplacesTheSecretEachTime() {
+        String clientId = adapter.provisionClient(UUID.randomUUID());
+
+        String first = adapter.regenerateClientSecret(clientId);
+        String second = adapter.regenerateClientSecret(clientId);
+
+        assertThat(second).isNotEqualTo(first);
+        assertThat(clientCredentialsStatus(clientId, first)).isEqualTo(401);
+        assertThat(clientCredentialsStatus(clientId, second)).isEqualTo(200);
+    }
+
+    @Test
+    void rotatingAClientKeycloakDoesNotHaveIs503() {
+        assertThatThrownBy(() -> adapter.regenerateClientSecret("merchant-" + UUID.randomUUID()))
+                .isInstanceOf(lk.swiftdrop.merchant.application.exception.IdentityProviderUnavailableException.class);
+    }
+
+    /** The HTTP status Keycloak answers a client credentials request with. */
+    private static int clientCredentialsStatus(String clientId, String secret) {
+        try {
+            http.post().uri("/realms/{realm}/protocol/openid-connect/token", REALM)
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(form("grant_type", "client_credentials", "client_id", clientId, "client_secret", secret))
+                    .retrieve().toBodilessEntity();
+            return 200;
+        } catch (HttpClientErrorException refused) {
+            return refused.getStatusCode().value();
+        }
     }
 
     // --- helpers: the bootstrap admin reads what the adapter did; no adapter code is reused here.

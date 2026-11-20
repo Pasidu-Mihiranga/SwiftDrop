@@ -46,4 +46,17 @@ class OpenApiContractTest {
                 "{\"type\":\"about:blank\",\"title\":\"Not Found\",\"status\":404}"))
                 .isInstanceOf(AssertionError.class);
     }
+
+    @Test
+    void newCredentialsNeedAllThreeFieldsAndNothingElse() {
+        String credentials = """
+                {"clientId":"merchant-7e726c28-4a72-4fea-9ec1-c56b08262ddc","clientSecret":"s3cret",
+                 "tokenUrl":"http://localhost:8180/realms/swiftdrop/protocol/openid-connect/token"}
+                """;
+
+        assertThatCode(() -> OpenApiContract.assertMerchantSchema("ApiCredentialSecret", credentials))
+                .doesNotThrowAnyException();
+        assertThatThrownBy(() -> OpenApiContract.assertMerchantSchema("ApiCredentialSecret",
+                credentials.replace(",\"clientSecret\":\"s3cret\"", ""))).isInstanceOf(AssertionError.class);
+    }
 }

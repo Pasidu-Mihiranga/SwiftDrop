@@ -107,6 +107,30 @@ public class KeycloakAdminAdapter implements IdentityProvisioner {
         });
     }
 
+    /**
+     * Keycloak generates the new secret itself (its client-secret endpoint) and replaces the old one
+     * in the same step. The response body is the only place the value appears; it is not logged.
+     */
+    @Override
+    public String regenerateClientSecret(String merchantClientId) {
+        return withFreshTokenOnce(() -> {
+            String clientUuid = findClient(merchantClientId).orElseThrow(() -> {
+                log.error("Merchant API client {} is missing from Keycloak", merchantClientId);
+                return new IdentityProviderUnavailableException(
+                        "The merchant's API client is missing from the identity provider");
+            });
+            Map<String, Object> credential = keycloak.post()
+                    .uri("/admin/realms/{realm}/clients/{id}/client-secret", realm, clientUuid)
+                    .headers(h -> h.setBearerAuth(serviceAccountToken()))
+                    .retrieve()
+                    .body(OBJECT);
+            if (credential == null || !(credential.get("value") instanceof String secret) || secret.isBlank()) {
+                throw new IdentityProviderUnavailableException("The identity provider returned no client secret");
+            }
+            return secret;
+        });
+    }
+
     private Optional<String> findClient(String merchantClientId) {
         List<Map<String, Object>> found = keycloak.get()
                 .uri("/admin/realms/{realm}/clients?clientId={clientId}", realm, merchantClientId)

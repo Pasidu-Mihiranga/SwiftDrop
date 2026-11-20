@@ -5,7 +5,13 @@ import lk.swiftdrop.common.security.KeycloakRealmRoleConverter;
 import lk.swiftdrop.common.security.SwiftDropSecurityAutoConfiguration;
 import lk.swiftdrop.common.web.SwiftDropWebAutoConfiguration;
 import lk.swiftdrop.merchant.MerchantFixtures;
+import lk.swiftdrop.merchant.application.command.MerchantCredentialService;
 import lk.swiftdrop.merchant.application.command.MerchantOnboardingService;
+import lk.swiftdrop.merchant.application.exception.ApiCredentialNotFoundException;
+import lk.swiftdrop.merchant.application.exception.IdentityProviderUnavailableException;
+import lk.swiftdrop.merchant.application.model.RotatedCredential;
+import lk.swiftdrop.merchant.domain.exception.MerchantNotApprovedException;
+import lk.swiftdrop.merchant.domain.model.MerchantStatus;
 import lk.swiftdrop.merchant.application.query.MerchantQueryService;
 import lk.swiftdrop.merchant.domain.exception.BrNumberAlreadyRegisteredException;
 import lk.swiftdrop.merchant.domain.exception.MerchantApplicationExistsException;
@@ -60,6 +66,8 @@ class MerchantControllerTest {
     private MerchantOnboardingService onboarding;
     @MockitoBean
     private MerchantQueryService merchants;
+    @MockitoBean
+    private MerchantCredentialService credentials;
 
     private static RequestPostProcessor as(String userId, String... roles) {
         return jwt().jwt(token -> token.subject(userId).claim("realm_access", Map.of("roles", List.of(roles))))
@@ -202,5 +210,78 @@ class MerchantControllerTest {
         mvc.perform(get("/api/v1/merchants/me").with(as("user-2", "CUSTOMER")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("MERCHANT_NOT_FOUND"));
+    }
+
+    // --- credential rotation
+
+    private static final String MERCHANT_ID = "7e726c28-4a72-4fea-9ec1-c56b08262ddc";
+    private static final String ROTATE = "/api/v1/merchants/me/credentials/rotate";
+
+    private static RequestPostProcessor merchantUser(String userId, String merchantId, String... roles) {
+        return jwt().jwt(token -> token.subject(userId).claim("merchant_id", merchantId)
+                        .claim("realm_access", Map.of("roles", List.of(roles))))
+                .authorities(new KeycloakRealmRoleConverter());
+    }
+
+    @Test
+    void theMerchantOwnerGetsTheNewSecretOnceAndItIsNotCached() throws Exception {
+        when(credentials.rotate(any())).thenReturn(new RotatedCredential("merchant-" + MERCHANT_ID, "s3cret-new"));
+
+        mvc.perform(post(ROTATE).with(merchantUser("user-1", MERCHANT_ID, "MERCHANT")))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(header().string("Pragma", "no-cache"))
+                .andExpect(jsonPath("$.clientId").value("merchant-" + MERCHANT_ID))
+                .andExpect(jsonPath("$.clientSecret").value("s3cret-new"))
+                .andExpect(jsonPath("$.tokenUrl", endsWith("/realms/swiftdrop/protocol/openid-connect/token")));
+
+        ArgumentCaptor<AuthenticatedUser> caller = ArgumentCaptor.forClass(AuthenticatedUser.class);
+        verify(credentials).rotate(caller.capture());
+        assertThat(caller.getValue().id()).isEqualTo("user-1");
+        assertThat(caller.getValue().merchantId()).contains(MERCHANT_ID);
+    }
+
+    @Test
+    void aMerchantIdInTheRequestIsIgnored() throws Exception {
+        when(credentials.rotate(any())).thenReturn(new RotatedCredential("merchant-" + MERCHANT_ID, "s3cret-new"));
+
+        mvc.perform(post(ROTATE + "?merchantId=someone-else").with(merchantUser("user-1", MERCHANT_ID, "MERCHANT"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"merchantId\":\"someone-else\"}"))
+                .andExpect(status().isOk());
+
+        verify(credentials).rotate(org.mockito.ArgumentMatchers.argThat(
+                user -> user.merchantId().orElseThrow().equals(MERCHANT_ID)));
+    }
+
+    @Test
+    void onlyAMerchantPersonMayRotate() throws Exception {
+        mvc.perform(post(ROTATE)).andExpect(status().isUnauthorized());
+        mvc.perform(post(ROTATE).with(as("user-1", "CUSTOMER"))).andExpect(status().isForbidden());
+        mvc.perform(post(ROTATE).with(as("admin-1", "ADMIN"))).andExpect(status().isForbidden());
+        // a merchant's machine client cannot replace its own secret, even with a merchant_id
+        mvc.perform(post(ROTATE).with(merchantUser("service-account-merchant-x", MERCHANT_ID, "MERCHANT_API")))
+                .andExpect(status().isForbidden());
+        mvc.perform(post(ROTATE).with(merchantUser("user-1", MERCHANT_ID, "MERCHANT", "MERCHANT_API")))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(credentials);
+    }
+
+    @Test
+    void rotationRefusalsUseTheirOwnCodes() throws Exception {
+        when(credentials.rotate(any()))
+                .thenThrow(new MerchantNotApprovedException(MerchantStatus.SUSPENDED))
+                .thenThrow(new ApiCredentialNotFoundException())
+                .thenThrow(new IdentityProviderUnavailableException("The identity provider is not reachable right now"));
+
+        mvc.perform(post(ROTATE).with(merchantUser("user-1", MERCHANT_ID, "MERCHANT")))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("MERCHANT_NOT_APPROVED"));
+        mvc.perform(post(ROTATE).with(merchantUser("user-1", MERCHANT_ID, "MERCHANT")))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("API_CREDENTIAL_NOT_FOUND"));
+        mvc.perform(post(ROTATE).with(merchantUser("user-1", MERCHANT_ID, "MERCHANT")))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("IDENTITY_PROVIDER_UNAVAILABLE"))
+                .andExpect(jsonPath("$.clientSecret").doesNotExist());
     }
 }
