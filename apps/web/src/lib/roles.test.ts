@@ -40,6 +40,19 @@ describe("accessFor", () => {
     expect(accessFor("/admin/dispatch", ["DISPATCHER"])).toBe("allowed");
   });
 
+  it("keeps merchant review to administrators", () => {
+    expect(accessFor("/admin/merchants", ["ADMIN"])).toBe("allowed");
+    expect(accessFor("/admin/merchants", ["DISPATCHER"])).toBe("forbidden");
+    expect(accessFor("/admin/merchants", ["MERCHANT"])).toBe("forbidden");
+    expect(accessFor("/admin/merchants", undefined)).toBe("login-required");
+  });
+
+  it("lets any signed-in user apply to become a merchant, but no visitor", () => {
+    expect(accessFor("/merchant/register", ["CUSTOMER"])).toBe("allowed");
+    expect(accessFor("/merchant/register", [])).toBe("allowed");
+    expect(accessFor("/merchant/register", undefined)).toBe("login-required");
+  });
+
   it("still asks an anonymous visitor to sign in before pricing configuration", () => {
     expect(accessFor("/admin/pricing/zones", undefined)).toBe("login-required");
   });
@@ -65,10 +78,11 @@ describe("homeFor and navigationFor", () => {
 });
 
 describe("adminNavigationFor", () => {
-  it("offers pricing configuration only to administrators", () => {
+  it("offers merchant review and pricing configuration only to administrators", () => {
     expect(adminNavigationFor(["ADMIN"]).map((i) => i.href)).toEqual([
       "/admin",
       "/admin/dispatch",
+      "/admin/merchants",
       "/admin/pricing/zones",
       "/admin/pricing/rate-cards",
       "/admin/pricing/remote-areas",
@@ -86,6 +100,7 @@ describe("adminNavigationFor", () => {
     expect(adminNavigationFor(["DISPATCHER", "ADMIN"]).map((i) => i.href)).toEqual([
       "/admin",
       "/admin/dispatch",
+      "/admin/merchants",
       "/admin/pricing/zones",
       "/admin/pricing/rate-cards",
       "/admin/pricing/remote-areas",

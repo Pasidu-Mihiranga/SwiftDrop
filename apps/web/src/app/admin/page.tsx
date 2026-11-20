@@ -12,6 +12,20 @@ export default async function AdminHome() {
     <div className="space-y-6">
       {isAdmin ? (
         <section className="card space-y-3">
+          <h2 className="font-semibold">Merchants</h2>
+          <p className="text-sm text-slate-600">
+            Review applications from online stores, and suspend a merchant whose API access should stop.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Link className="btn-primary" href="/admin/merchants">
+              Approval queue
+            </Link>
+          </div>
+        </section>
+      ) : null}
+
+      {isAdmin ? (
+        <section className="card space-y-3">
           <h2 className="font-semibold">Zones &amp; pricing</h2>
           <p className="text-sm text-slate-600">
             Zone coverage, district assignments, size multipliers, the rate cards every quote is priced from, and the charges and negotiated terms layered on top.
@@ -39,7 +53,6 @@ export default async function AdminHome() {
         check={{ service: "pricing-service", path: "/api/v1/pricing/zones" }}
         upcoming={[
           { feature: "Dispatch board & courier workload", owner: "M5" },
-          { feature: "Merchant approvals", owner: "M7" },
           { feature: "Users & couriers", owner: "M1" },
           { feature: "Reports (deliveries/day, success rate)", owner: "M10" },
           { feature: "Webhook dead-letter replay", owner: "M8" },
