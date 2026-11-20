@@ -3,6 +3,9 @@ package lk.swiftdrop.merchant;
 import lk.swiftdrop.common.security.KeycloakRealmRoleConverter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import lk.swiftdrop.merchant.application.exception.IdentityProviderUnavailableException;
 import lk.swiftdrop.merchant.application.port.out.IdentityProvisioner;
@@ -43,6 +46,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "swiftdrop.pii.encryption-key=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
         "swiftdrop.outbox.relay-enabled=false"})
 @AutoConfigureMockMvc
+@ExtendWith(OutputCaptureExtension.class)
 class MerchantApiFlowIT {
 
     @Container
@@ -204,5 +208,97 @@ class MerchantApiFlowIT {
                 .andExpect(jsonPath("$.code").value("MERCHANT_INVALID_TRANSITION"));
 
         assertThat(jdbc.queryForObject("SELECT status FROM merchant", String.class)).isEqualTo("PENDING");
+    }
+
+    // --- credential rotation
+
+    private static final String ROTATE = "/api/v1/merchants/me/credentials/rotate";
+    private static final String NEW_SECRET = "rotated-secret-5d1c9a7e3b";
+
+    /** The owner as they sign in after approval: MERCHANT role and the merchant_id Keycloak now adds. */
+    private static RequestPostProcessor merchant(String userId, String merchantId, String... roles) {
+        return jwt().jwt(token -> token.subject(userId).claim("merchant_id", merchantId)
+                        .claim("realm_access", Map.of("roles", List.of(roles))))
+                .authorities(new KeycloakRealmRoleConverter());
+    }
+
+    private String approvedMerchant(String userId, String brNumber) throws Exception {
+        String id = id(apply(userId, brNumber, 201));
+        call(post("/api/v1/admin/merchants/" + id + "/approve").with(as("admin-1", "ADMIN")), 200);
+        return id;
+    }
+
+    private java.sql.Timestamp rotatedAt() {
+        return jdbc.queryForObject("SELECT rotated_at FROM api_credential", java.sql.Timestamp.class);
+    }
+
+    @Test
+    void theOwnerRotatesAndTheSecretIsShownOnceButNeverStoredOrLogged(CapturedOutput output) throws Exception {
+        String id = approvedMerchant("user-1", "PV12345");
+        when(identity.regenerateClientSecret("merchant-" + id)).thenReturn(NEW_SECRET);
+        assertThat(rotatedAt()).isNull();
+
+        var response = mvc.perform(post(ROTATE).with(merchant("user-1", id, "MERCHANT")))
+                .andExpect(status().isOk())
+                .andReturn().getResponse();
+
+        String body = response.getContentAsString();
+        OpenApiContract.assertMerchantSchema("ApiCredentialSecret", body);
+        assertThat(response.getHeader("Cache-Control")).isEqualTo("no-store");
+        assertThat(JSON.readTree(body).get("clientId").asString()).isEqualTo("merchant-" + id);
+        assertThat(JSON.readTree(body).get("clientSecret").asString()).isEqualTo(NEW_SECRET);
+        assertThat(rotatedAt()).isNotNull();
+
+        // Nothing in the database holds the secret: not the credential row, not any event.
+        String everyStoredValue = String.join("|", jdbc.queryForList(
+                "SELECT concat_ws('|', a::text, m::text, (SELECT string_agg(o::text, '|') FROM outbox_event o)) "
+                        + "FROM api_credential a, merchant m", String.class));
+        assertThat(everyStoredValue).contains("merchant-" + id).doesNotContain(NEW_SECRET);
+        assertThat(jdbc.queryForList("SELECT column_name FROM information_schema.columns "
+                + "WHERE table_name = 'api_credential'", String.class)).noneMatch(c -> c.contains("secret"));
+        assertThat(output.getAll()).doesNotContain(NEW_SECRET);
+    }
+
+    @Test
+    void whenKeycloakFailsTheRotationIsRolledBackAndCanBeRetried() throws Exception {
+        String id = approvedMerchant("user-1", "PV12345");
+        when(identity.regenerateClientSecret("merchant-" + id))
+                .thenThrow(new IdentityProviderUnavailableException("The identity provider is not reachable right now"))
+                .thenReturn(NEW_SECRET);
+
+        String failed = call(post(ROTATE).with(merchant("user-1", id, "MERCHANT")), 503);
+        OpenApiContract.assertProblem(failed);
+        assertThat(JSON.readTree(failed).get("code").asString()).isEqualTo("IDENTITY_PROVIDER_UNAVAILABLE");
+        assertThat(rotatedAt()).as("the write before Keycloak was rolled back").isNull();
+
+        String retried = call(post(ROTATE).with(merchant("user-1", id, "MERCHANT")), 200);
+        assertThat(JSON.readTree(retried).get("clientSecret").asString()).isEqualTo(NEW_SECRET);
+        assertThat(rotatedAt()).isNotNull();
+    }
+
+    @Test
+    void nobodyCanRotateAnotherMerchantsCredentials() throws Exception {
+        String id = approvedMerchant("user-1", "PV12345");
+
+        // A token claiming user-1's merchant but belonging to someone else is answered as "no merchant".
+        OpenApiContract.assertProblem(call(post(ROTATE).with(merchant("user-2", id, "MERCHANT")), 404));
+        call(post(ROTATE).with(merchant("service-account-merchant-x", id, "MERCHANT_API")), 403);
+        call(post(ROTATE).with(as("user-1", "CUSTOMER")), 403);
+
+        assertThat(rotatedAt()).isNull();
+        org.mockito.Mockito.verify(identity, org.mockito.Mockito.never()).regenerateClientSecret(any());
+    }
+
+    @Test
+    void aSuspendedMerchantCannotRotate() throws Exception {
+        String id = approvedMerchant("user-1", "PV12345");
+        call(post("/api/v1/admin/merchants/" + id + "/suspend").with(as("admin-1", "ADMIN")), 200);
+
+        String refused = call(post(ROTATE).with(merchant("user-1", id, "MERCHANT")), 422);
+
+        OpenApiContract.assertProblem(refused);
+        assertThat(JSON.readTree(refused).get("code").asString()).isEqualTo("MERCHANT_NOT_APPROVED");
+        assertThat(rotatedAt()).isNull();
+        org.mockito.Mockito.verify(identity, org.mockito.Mockito.never()).regenerateClientSecret(any());
     }
 }

@@ -30,4 +30,15 @@ public interface IdentityProvisioner {
      *         account no longer exists
      */
     void grantMerchantRole(String ownerUserId, UUID merchantId);
+
+    /**
+     * Has the identity provider generate a new secret for the merchant's client and returns it.
+     * The previous secret stops working at once. The value must be shown to the merchant and then
+     * forgotten: it is never stored or logged.
+     *
+     * @param clientId the client id returned by {@link #provisionClient}
+     * @throws lk.swiftdrop.merchant.application.exception.IdentityProviderUnavailableException when the
+     *         provider cannot be reached, refuses the service account, or no longer has the client
+     */
+    String regenerateClientSecret(String clientId);
 }
