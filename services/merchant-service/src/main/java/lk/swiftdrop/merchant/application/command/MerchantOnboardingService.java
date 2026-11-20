@@ -4,7 +4,10 @@ import lk.swiftdrop.common.security.AuthenticatedUser;
 import lk.swiftdrop.events.common.Types.Actor;
 import lk.swiftdrop.events.common.Types.ActorRole;
 import lk.swiftdrop.events.merchant.MerchantLifecycleChanged;
+import lk.swiftdrop.merchant.application.port.out.ApiCredentialRepository;
+import lk.swiftdrop.merchant.application.port.out.IdentityProvisioner;
 import lk.swiftdrop.merchant.application.port.out.MerchantRepository;
+import lk.swiftdrop.merchant.domain.model.ApiCredential;
 import lk.swiftdrop.merchant.domain.exception.BrNumberAlreadyRegisteredException;
 import lk.swiftdrop.merchant.domain.exception.MerchantApplicationExistsException;
 import lk.swiftdrop.merchant.domain.exception.MerchantNotFoundException;
@@ -32,13 +35,18 @@ import java.util.function.UnaryOperator;
 public class MerchantOnboardingService {
 
     private final MerchantRepository merchants;
+    private final ApiCredentialRepository credentials;
+    private final IdentityProvisioner identity;
     private final OutboxWriter outbox;
     private final TransactionOperations transaction;
     private final Clock clock;
 
-    public MerchantOnboardingService(MerchantRepository merchants, OutboxWriter outbox,
+    public MerchantOnboardingService(MerchantRepository merchants, ApiCredentialRepository credentials,
+                                     IdentityProvisioner identity, OutboxWriter outbox,
                                      TransactionOperations transaction, Clock clock) {
         this.merchants = merchants;
+        this.credentials = credentials;
+        this.identity = identity;
         this.outbox = outbox;
         this.transaction = transaction;
         this.clock = clock;
@@ -67,9 +75,36 @@ public class MerchantOnboardingService {
         });
     }
 
-    /** Accepts a PENDING application. Keycloak client provisioning is added in step 2.1. */
+    /**
+     * Accepts a PENDING application and gives the merchant API access (design figure 6).
+     *
+     * <ol>
+     *   <li>The state rule is checked first, so a wrong decision never reaches Keycloak.</li>
+     *   <li>Keycloak is called before anything is committed: the merchant's client-credentials client
+     *       is created and the applicant gets the MERCHANT role and merchant_id attribute.</li>
+     *   <li>Only then, in one transaction: APPROVED, the api_credential record and the event.</li>
+     * </ol>
+     *
+     * If Keycloak fails the answer is 503 and the merchant stays PENDING. Every Keycloak call is
+     * idempotent, so approving again simply finishes the job.
+     */
     public Merchant approve(AuthenticatedUser admin, UUID merchantId) {
-        return decide(admin, merchantId, merchant -> merchant.approve(admin.id(), clock.instant()));
+        Merchant pending = merchants.findById(merchantId).orElseThrow(MerchantNotFoundException::new);
+        pending.approve(admin.id(), clock.instant());
+
+        String clientId = identity.provisionClient(pending.id());
+        identity.grantMerchantRole(pending.ownerUserId(), pending.id());
+
+        return transaction.execute(status -> {
+            // Reloaded inside the transaction: another admin may have decided in the meantime.
+            Merchant current = merchants.findById(merchantId).orElseThrow(MerchantNotFoundException::new);
+            Merchant approved = merchants.save(current.approve(admin.id(), clock.instant()));
+            if (credentials.findActiveByMerchant(approved.id()).isEmpty()) {
+                credentials.save(ApiCredential.issue(approved.id(), clientId, clock.instant()));
+            }
+            outbox.publish(toEvent(approved, current.status(), new Actor(admin.id(), ActorRole.ADMIN)));
+            return approved;
+        });
     }
 
     /** Turns down a PENDING application with a reason the applicant can read. */

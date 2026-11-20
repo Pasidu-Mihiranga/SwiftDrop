@@ -82,7 +82,14 @@ paths:
         "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
   /api/v1/admin/merchants/{merchantId}/approve:
     post:
-      summary: Approve a PENDING application (ADMIN) — publishes MerchantLifecycleChanged
+      summary: Approve a PENDING application (ADMIN) — grants MERCHANT role and provisions an API client
+      description: |
+        Keycloak is updated before anything is committed: a confidential client merchant-<merchantId> is created
+        (client credentials, MERCHANT_API role, fixed merchant_id claim, audience swiftdrop-api) and the applicant
+        receives the MERCHANT role and merchant_id attribute at their next sign-in. The client secret is not returned
+        here; the merchant collects it from the rotate endpoint. If Keycloak is unavailable the answer is 503
+        IDENTITY_PROVIDER_UNAVAILABLE, the merchant stays PENDING, and approving again is safe. 422
+        MERCHANT_OWNER_MISSING means the applicant's account no longer exists.
       parameters: [{ $ref: "#/components/parameters/MerchantId" }]
       responses:
         "200":
@@ -95,6 +102,11 @@ paths:
         "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
         "409": { $ref: "common.v1.yaml#/components/responses/Conflict" }
         "422": { $ref: "common.v1.yaml#/components/responses/UnprocessableContent" }
+        "503":
+          description: Keycloak could not be reached; nothing was committed and retrying is safe
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
   /api/v1/admin/merchants/{merchantId}/reject:
     post:
       summary: Reject a PENDING application with a reason the applicant can read (ADMIN)
