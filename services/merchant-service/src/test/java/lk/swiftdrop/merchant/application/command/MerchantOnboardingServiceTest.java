@@ -4,7 +4,12 @@ import lk.swiftdrop.common.security.AuthenticatedUser;
 import lk.swiftdrop.events.common.Types.ActorRole;
 import lk.swiftdrop.events.merchant.MerchantLifecycleChanged;
 import lk.swiftdrop.merchant.MerchantFixtures;
+import lk.swiftdrop.merchant.application.exception.IdentityProviderUnavailableException;
+import lk.swiftdrop.merchant.application.port.out.ApiCredentialRepository;
+import lk.swiftdrop.merchant.application.port.out.IdentityProvisioner;
 import lk.swiftdrop.merchant.application.port.out.MerchantRepository;
+import lk.swiftdrop.merchant.domain.model.ApiCredential;
+import org.mockito.InOrder;
 import lk.swiftdrop.merchant.domain.exception.BrNumberAlreadyRegisteredException;
 import lk.swiftdrop.merchant.domain.exception.InvalidMerchantTransitionException;
 import lk.swiftdrop.merchant.domain.exception.MerchantApplicationExistsException;
@@ -30,6 +35,7 @@ import static lk.swiftdrop.merchant.MerchantFixtures.OWNER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -46,15 +52,22 @@ class MerchantOnboardingServiceTest {
     @Mock
     private MerchantRepository merchants;
     @Mock
+    private ApiCredentialRepository credentials;
+    @Mock
+    private IdentityProvisioner identity;
+    @Mock
     private OutboxWriter outbox;
 
     private MerchantOnboardingService service;
 
     @BeforeEach
     void setUp() {
-        service = new MerchantOnboardingService(merchants, outbox, TransactionOperations.withoutTransaction(), CLOCK);
+        service = new MerchantOnboardingService(merchants, credentials, identity, outbox,
+                TransactionOperations.withoutTransaction(), CLOCK);
         // the stored copy comes back with a version, as the JPA adapter returns it
         lenient().when(merchants.save(any())).thenAnswer(call -> MerchantFixtures.stored(call.getArgument(0)));
+        lenient().when(identity.provisionClient(any())).thenAnswer(call -> "merchant-" + call.getArgument(0));
+        lenient().when(credentials.findActiveByMerchant(any())).thenReturn(Optional.empty());
     }
 
     private MerchantLifecycleChanged publishedEvent() {
@@ -133,6 +146,82 @@ class MerchantOnboardingServiceTest {
         assertThat(event.status()).isEqualTo(MerchantLifecycleChanged.MerchantStatus.APPROVED);
         assertThat(event.changedBy().role()).isEqualTo(ActorRole.ADMIN);
         assertThat(event.reason()).isNull();
+    }
+
+    @Test
+    void approvalProvisionsKeycloakBeforeAnythingIsStored() {
+        Merchant pending = MerchantFixtures.stored(MerchantFixtures.pending());
+        when(merchants.findById(pending.id())).thenReturn(Optional.of(pending));
+
+        service.approve(ADMIN, pending.id());
+
+        InOrder order = inOrder(identity, merchants, credentials, outbox);
+        order.verify(identity).provisionClient(pending.id());
+        order.verify(identity).grantMerchantRole(OWNER, pending.id());
+        order.verify(merchants).save(any());
+        order.verify(credentials).save(any());
+        order.verify(outbox).publish(any());
+    }
+
+    @Test
+    void approvalRecordsWhichKeycloakClientBelongsToTheMerchant() {
+        Merchant pending = MerchantFixtures.stored(MerchantFixtures.pending());
+        when(merchants.findById(pending.id())).thenReturn(Optional.of(pending));
+
+        service.approve(ADMIN, pending.id());
+
+        ArgumentCaptor<ApiCredential> credential = ArgumentCaptor.forClass(ApiCredential.class);
+        verify(credentials).save(credential.capture());
+        assertThat(credential.getValue().merchantId()).isEqualTo(pending.id());
+        assertThat(credential.getValue().keycloakClientId()).isEqualTo("merchant-" + pending.id());
+        assertThat(credential.getValue().createdAt()).isEqualTo(NOW);
+        assertThat(credential.getValue().rotatedAt()).isNull();
+    }
+
+    @Test
+    void aRetriedApprovalDoesNotRecordASecondClient() {
+        Merchant pending = MerchantFixtures.stored(MerchantFixtures.pending());
+        when(merchants.findById(pending.id())).thenReturn(Optional.of(pending));
+        when(credentials.findActiveByMerchant(pending.id()))
+                .thenReturn(Optional.of(ApiCredential.issue(pending.id(), "merchant-" + pending.id(), NOW)));
+
+        service.approve(ADMIN, pending.id());
+
+        verify(credentials, never()).save(any());
+    }
+
+    @Test
+    void whenKeycloakFailsTheMerchantStaysPendingAndNothingIsPublished() {
+        Merchant pending = MerchantFixtures.stored(MerchantFixtures.pending());
+        when(merchants.findById(pending.id())).thenReturn(Optional.of(pending));
+        when(identity.provisionClient(pending.id()))
+                .thenThrow(new IdentityProviderUnavailableException("The identity provider is not reachable right now"));
+
+        assertThatThrownBy(() -> service.approve(ADMIN, pending.id()))
+                .isInstanceOfSatisfying(IdentityProviderUnavailableException.class,
+                        e -> assertThat(e.status().value()).isEqualTo(503));
+        verify(merchants, never()).save(any());
+        verifyNoInteractions(credentials, outbox);
+    }
+
+    @Test
+    void aWrongDecisionNeverReachesKeycloak() {
+        Merchant approved = MerchantFixtures.stored(MerchantFixtures.pending().approve("admin-1", NOW));
+        when(merchants.findById(approved.id())).thenReturn(Optional.of(approved));
+
+        assertThatThrownBy(() -> service.approve(ADMIN, approved.id()))
+                .isInstanceOf(InvalidMerchantTransitionException.class);
+        verifyNoInteractions(identity, credentials, outbox);
+    }
+
+    @Test
+    void rejectingAndSuspendingNeverTouchKeycloak() {
+        Merchant pending = MerchantFixtures.stored(MerchantFixtures.pending());
+        when(merchants.findById(pending.id())).thenReturn(Optional.of(pending));
+
+        service.reject(ADMIN, pending.id(), "Incomplete");
+
+        verifyNoInteractions(identity, credentials);
     }
 
     @Test

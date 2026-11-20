@@ -23,3 +23,13 @@ secretRefs: ["swiftdrop-app-secrets"]
 config:
   DB_NAME: merchants_db
   DB_USER: merchant_svc
+  # In-cluster Keycloak for the Admin REST API (provisioning merchant API clients)
+  KEYCLOAK_INTERNAL_URL: http://keycloak:8080
+# Only the one platform key this service needs, not the whole platform Secret (which also holds
+# the datastore and Keycloak bootstrap passwords).
+extraEnv:
+  - name: KC_MERCHANT_SERVICE_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: swiftdrop-platform-secrets
+        key: KC_MERCHANT_SERVICE_CLIENT_SECRET

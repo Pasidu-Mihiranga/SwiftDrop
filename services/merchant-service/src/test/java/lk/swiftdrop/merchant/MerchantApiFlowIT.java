@@ -4,7 +4,13 @@ import lk.swiftdrop.common.security.KeycloakRealmRoleConverter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import lk.swiftdrop.merchant.application.exception.IdentityProviderUnavailableException;
+import lk.swiftdrop.merchant.application.port.out.IdentityProvisioner;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
@@ -57,12 +63,33 @@ class MerchantApiFlowIT {
     private MockMvc mvc;
     @Autowired
     private JdbcTemplate jdbc;
+    /** Keycloak itself is exercised by KeycloakAdminAdapterIT; here it only has to succeed or fail on cue. */
+    @MockitoBean
+    private IdentityProvisioner identity;
 
     @BeforeEach
     void cleanUp() {
         jdbc.update("DELETE FROM outbox_event");
         jdbc.update("DELETE FROM api_credential");
         jdbc.update("DELETE FROM merchant");
+        when(identity.provisionClient(any())).thenAnswer(call -> "merchant-" + call.getArgument(0));
+    }
+
+    @Test
+    void anApprovalKeycloakCouldNotCompleteIs503AndCanSimplyBeRepeated() throws Exception {
+        String id = id(apply("user-1", "PV12345", 201));
+        when(identity.provisionClient(java.util.UUID.fromString(id)))
+                .thenThrow(new IdentityProviderUnavailableException("The identity provider is not reachable right now"))
+                .thenReturn("merchant-" + id);
+
+        String failed = call(post("/api/v1/admin/merchants/" + id + "/approve").with(as("admin-1", "ADMIN")), 503);
+        OpenApiContract.assertProblem(failed);
+        assertThat(JSON.readTree(failed).get("code").asString()).isEqualTo("IDENTITY_PROVIDER_UNAVAILABLE");
+        assertThat(jdbc.queryForObject("SELECT status FROM merchant", String.class)).isEqualTo("PENDING");
+
+        String approved = call(post("/api/v1/admin/merchants/" + id + "/approve").with(as("admin-1", "ADMIN")), 200);
+        assertThat(JSON.readTree(approved).get("status").asString()).isEqualTo("APPROVED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM api_credential", Integer.class)).isEqualTo(1);
     }
 
     private static RequestPostProcessor as(String userId, String... roles) {
