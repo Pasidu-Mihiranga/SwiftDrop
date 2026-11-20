@@ -51,6 +51,8 @@ swiftdrop:
       client-secret: ${KC_MERCHANT_SERVICE_CLIENT_SECRET:}
       connect-timeout: 2s
       read-timeout: 5s
+    # Token endpoint merchants call with their client credentials (the browser-facing issuer URL)
+    token-url: ${KEYCLOAK_TOKEN_URL:${spring.security.oauth2.resourceserver.jwt.issuer-uri}/protocol/openid-connect/token}
   pii:
     # base64-encoded 32-byte AES key for merchant phones and pickup addresses; start-up fails without it
     encryption-key: ${PII_ENCRYPTION_KEY:}
