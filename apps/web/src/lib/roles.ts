@@ -16,6 +16,8 @@ const AREAS: AreaRule[] = [
   // Pricing configuration is administrator-only, which is narrower than the rest of /admin.
   // pricing-service enforces the same rule, so this only keeps the page out of the way.
   { prefix: "/admin/pricing", roles: ["ADMIN"] },
+  // Merchant review is administrator-only too; merchant-service enforces the same rule.
+  { prefix: "/admin/merchants", roles: ["ADMIN"] },
   { prefix: "/customer", roles: ["CUSTOMER"] },
   { prefix: "/merchant", roles: ["MERCHANT"] },
   { prefix: "/courier", roles: ["COURIER"] },
@@ -72,6 +74,7 @@ export function adminNavigationFor(roles: readonly string[]): { href: string; la
     items.push({ href: "/admin/dispatch", label: "Dispatch" });
   }
   if (roles.includes("ADMIN")) {
+    items.push({ href: "/admin/merchants", label: "Merchants" });
     items.push({ href: "/admin/pricing/zones", label: "Zones & districts" });
     items.push({ href: "/admin/pricing/rate-cards", label: "Rate cards" });
     items.push({ href: "/admin/pricing/remote-areas", label: "Remote areas" });
