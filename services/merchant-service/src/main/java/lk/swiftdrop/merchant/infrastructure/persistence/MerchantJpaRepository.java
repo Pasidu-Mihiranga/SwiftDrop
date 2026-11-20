@@ -1,6 +1,7 @@
 package lk.swiftdrop.merchant.infrastructure.persistence;
 
 import lk.swiftdrop.common.web.error.ConflictException;
+import lk.swiftdrop.merchant.application.model.PagedResult;
 import lk.swiftdrop.merchant.application.port.out.MerchantRepository;
 import lk.swiftdrop.merchant.domain.exception.BrNumberAlreadyRegisteredException;
 import lk.swiftdrop.merchant.domain.exception.MerchantApplicationExistsException;
@@ -8,9 +9,11 @@ import lk.swiftdrop.merchant.domain.model.Merchant;
 import lk.swiftdrop.merchant.domain.model.MerchantStatus;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,6 +25,9 @@ public class MerchantJpaRepository implements MerchantRepository {
     /** Partial unique indexes from V2__create_merchant.sql. */
     static final String UNIQUE_ACTIVE_BR_NUMBER = "uq_merchant_br_number_active";
     static final String UNIQUE_ACTIVE_OWNER = "uq_merchant_owner_active";
+
+    /** The id breaks ties so a page boundary never repeats or skips an application. */
+    private static final Sort OLDEST_FIRST = Sort.by(Sort.Order.asc("createdAt"), Sort.Order.asc("id"));
 
     private final SpringDataMerchantRepository rows;
 
@@ -94,7 +100,9 @@ public class MerchantJpaRepository implements MerchantRepository {
     }
 
     @Override
-    public List<Merchant> findByStatus(MerchantStatus status) {
-        return rows.findByStatusOrderByCreatedAtAsc(status).stream().map(MerchantEntityMapper::toDomain).toList();
+    public PagedResult<Merchant> findByStatus(MerchantStatus status, int page, int size) {
+        Page<MerchantEntity> found = rows.findByStatus(status, PageRequest.of(page, size, OLDEST_FIRST));
+        return new PagedResult<>(found.map(MerchantEntityMapper::toDomain).getContent(), found.getNumber(),
+                found.getSize(), found.getTotalElements(), found.getTotalPages());
     }
 }
