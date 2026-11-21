@@ -41,8 +41,7 @@ class PricingExtensionAdapters implements PricingSettingsRepository, DistanceBan
     public Optional<PricingSettings> findInForce(LocalDate on) {
         // effective_from is unique, so the newest row in force is unambiguous.
         return settings.findInForce(on).stream().findFirst()
-                .map(row -> new PricingSettings(row.getId(), row.getFuelSurchargePct(), row.getTaxPct(),
-                        row.getMinimumCharge()));
+                .map(PricingExtensionAdapters::toDomain);
     }
 
     /**
@@ -56,8 +55,7 @@ class PricingExtensionAdapters implements PricingSettingsRepository, DistanceBan
         for (PricingExtensionEntities.Band row : bands.findInForce(on)) {
             // BigDecimal equality is scale-sensitive; compare on a normalised start.
             if (seenStarts.add(row.getMinKm().stripTrailingZeros())) {
-                result.add(new DistanceBand(row.getId(), row.getMinKm(), row.getMaxKm(), row.getLineHaulFee(),
-                        row.getStandardTransitDays(), row.getExpressTransitDays()));
+                result.add(toDomain(row));
             }
         }
         return List.copyOf(result);
@@ -80,7 +78,17 @@ class PricingExtensionAdapters implements PricingSettingsRepository, DistanceBan
         return vehicles.findByActiveTrueOrderByCodeAsc().stream().map(PricingExtensionAdapters::toDomain).toList();
     }
 
-    private static SameDayVehicle toDomain(PricingExtensionEntities.Vehicle row) {
+    static PricingSettings toDomain(PricingExtensionEntities.Setting row) {
+        return new PricingSettings(row.getId(), row.getFuelSurchargePct(), row.getTaxPct(), row.getMinimumCharge(),
+                row.getSameDayCutoff());
+    }
+
+    static DistanceBand toDomain(PricingExtensionEntities.Band row) {
+        return new DistanceBand(row.getId(), row.getMinKm(), row.getMaxKm(), row.getLineHaulFee(),
+                row.getStandardTransitDays(), row.getExpressTransitDays());
+    }
+
+    static SameDayVehicle toDomain(PricingExtensionEntities.Vehicle row) {
         return new SameDayVehicle(VehicleType.valueOf(row.getCode()), row.getMaxWeightKg(), row.getMaxDistanceKm(),
                 row.getRateMultiplier());
     }

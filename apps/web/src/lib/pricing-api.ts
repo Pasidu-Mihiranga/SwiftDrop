@@ -1,12 +1,16 @@
 import "server-only";
 import { gatewayFetch } from "@/lib/gateway";
 import type {
+  DistanceBandVersion,
   DistrictAssignment,
   MerchantAgreement,
+  PricingSettingsVersion,
   Quote,
   RateCard,
   RemoteAreaCharge,
+  SameDayVehicleConfig,
   SizeClassRate,
+  SpecialHandlingConfig,
   SpecialHandlingOption,
   Zone,
 } from "@/lib/pricing";
@@ -80,6 +84,22 @@ export async function fetchRateCardsInForce(on: string): Promise<RateCard[]> {
 
 export async function fetchRemoteAreas(): Promise<RemoteAreaCharge[]> {
   return readJson<RemoteAreaCharge[]>("/api/v1/admin/pricing/remote-areas", "remote-area charges");
+}
+
+export async function fetchPricingSettings(): Promise<PricingSettingsVersion[]> {
+  return readJson<PricingSettingsVersion[]>("/api/v1/admin/pricing/settings", "fee settings");
+}
+
+export async function fetchDistanceBands(): Promise<DistanceBandVersion[]> {
+  return readJson<DistanceBandVersion[]>("/api/v1/admin/pricing/distance-bands", "distance bands");
+}
+
+export async function fetchSpecialHandlingConfig(): Promise<SpecialHandlingConfig[]> {
+  return readJson<SpecialHandlingConfig[]>("/api/v1/admin/pricing/special-handling", "handling options");
+}
+
+export async function fetchSameDayVehicles(): Promise<SameDayVehicleConfig[]> {
+  return readJson<SameDayVehicleConfig[]>("/api/v1/admin/pricing/vehicles", "same-day vehicles");
 }
 
 export async function fetchAgreementsInForce(): Promise<MerchantAgreement[]> {
