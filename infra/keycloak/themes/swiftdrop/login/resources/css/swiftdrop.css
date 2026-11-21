@@ -1,29 +1,97 @@
-/* SwiftDrop brand on top of keycloak.v2 (PatternFly 5). Colours match apps/web globals.css. */
+/*
+ * SwiftDrop brand on top of keycloak.v2 (PatternFly 5). Colours match apps/web/src/app/globals.css:
+ * magenta for the main action, warm neutral ground, pill buttons, 16 px surfaces.
+ */
 :root {
-    --swiftdrop-brand-600: #0b5ed7;
-    --swiftdrop-brand-700: #0a4aa8;
-    --swiftdrop-brand-50: #eef7ff;
-    --keycloak-card-top-color: var(--swiftdrop-brand-600);
+    --swiftdrop-brand-600: #be185d;
+    --swiftdrop-brand-700: #9d174d;
+    --swiftdrop-brand-100: #f4c9db;
+    --swiftdrop-ground: #fdf1f3;
+    --swiftdrop-ink: #000000;
+    --swiftdrop-ink-2: #373737;
+    --swiftdrop-hairline: #ded2d4;
+    --keycloak-card-top-color: transparent;
     --pf-v5-global--primary-color--100: var(--swiftdrop-brand-600);
     --pf-v5-global--primary-color--200: var(--swiftdrop-brand-700);
-    --pf-v5-global--link--Color: var(--swiftdrop-brand-600);
-    --pf-v5-global--link--Color--hover: var(--swiftdrop-brand-700);
+    --pf-v5-global--link--Color: var(--swiftdrop-brand-700);
+    --pf-v5-global--link--Color--hover: var(--swiftdrop-brand-600);
+    --pf-v5-global--BorderRadius--sm: 12px;
+    --pf-v5-global--BorderColor--100: var(--swiftdrop-hairline);
 }
 
-/* Plain light background instead of the Keycloak artwork. */
-.login-pf body {
-    background: var(--swiftdrop-brand-50);
+/* The page ground, in place of Keycloak's dark artwork. */
+html,
+body,
+.login-pf body,
+.pf-v5-c-login,
+.pf-v5-c-login__container {
+    background: var(--swiftdrop-ground) !important;
+    background-image: none !important;
+    color: var(--swiftdrop-ink);
 }
 
-/* The realm display name ("SwiftDrop") above the card, in the brand colour. */
+/* The logo above the card, standing in for the realm name (still read out by screen readers). */
 #kc-header-wrapper {
-    color: var(--swiftdrop-brand-700) !important; /* keycloak.v2 sets white with !important */
-    text-transform: none;
-    letter-spacing: -0.02em;
-    font-size: 2rem;
-    font-weight: 600;
+    display: block;
+    width: 200px;
+    height: 101px;
+    margin: 0 auto 8px;
+    background: url("../img/swiftdrop-logo-light.avif") center / contain no-repeat;
+    color: transparent !important; /* keycloak.v2 sets white with !important */
+    font-size: 0 !important;
+    overflow: hidden;
 }
 
 .pf-v5-c-login__main {
+    border-radius: 16px;
+    border: 1px solid var(--swiftdrop-hairline);
+    box-shadow: none;
+}
+
+.pf-v5-c-login__main-header h1,
+#kc-page-title {
+    color: var(--swiftdrop-ink);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
+/* Pill buttons: the main action in magenta, the rest outlined in ink. */
+.pf-v5-c-button {
+    border-radius: 9999px !important;
+    font-weight: 600;
+}
+
+.pf-v5-c-button.pf-m-primary {
+    background-color: var(--swiftdrop-brand-600) !important;
+    color: #fcfcfd !important;
+}
+
+.pf-v5-c-button.pf-m-primary:hover,
+.pf-v5-c-button.pf-m-primary:focus {
+    background-color: var(--swiftdrop-brand-700) !important;
+}
+
+.pf-v5-c-button.pf-m-secondary {
+    --pf-v5-c-button--after--BorderColor: var(--swiftdrop-ink);
+    color: var(--swiftdrop-ink) !important;
+}
+
+.pf-v5-c-form-control {
     border-radius: 12px;
+    --pf-v5-c-form-control--after--BorderBottomColor: var(--swiftdrop-hairline);
+    --pf-v5-c-form-control--hover--after--BorderBottomColor: var(--swiftdrop-ink-2);
+    --pf-v5-c-form-control--focus--after--BorderBottomColor: var(--swiftdrop-brand-600);
+    --pf-v5-c-form-control--m-expanded--after--BorderBottomColor: var(--swiftdrop-brand-600);
+}
+
+/* The show-password toggle sits flush with its field, on the same hairline. */
+.pf-v5-c-input-group .pf-v5-c-button.pf-m-control {
+    border-radius: 0 12px 12px 0 !important;
+    --pf-v5-c-button--after--BorderColor: var(--swiftdrop-hairline);
+    color: var(--swiftdrop-ink-2);
+}
+
+:focus-visible {
+    outline: 2px solid var(--swiftdrop-brand-600);
+    outline-offset: 2px;
 }
