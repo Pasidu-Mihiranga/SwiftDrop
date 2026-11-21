@@ -25,8 +25,10 @@ import java.util.List;
  * them the quote is priced exactly as it was before, on weight and the declared class.
  */
 public record QuoteRequest(
+        @Size(max = 200) String fromAddress,
         @Size(max = 60) String fromCity,
         @NotBlank @Size(max = 100) String fromDistrict,
+        @Size(max = 200) String toAddress,
         @Size(max = 60) String toCity,
         @NotBlank @Size(max = 100) String toDistrict,
         @NotNull @DecimalMin(value = "0", inclusive = false) @DecimalMax("100") BigDecimal weightKg,
@@ -64,8 +66,9 @@ public record QuoteRequest(
                         BigDecimal lengthCm, BigDecimal widthCm, BigDecimal heightCm, BigDecimal declaredValue,
                         BigDecimal fromLatitude, BigDecimal fromLongitude, BigDecimal toLatitude,
                         BigDecimal toLongitude) {
-        this(fromCity, fromDistrict, toCity, toDistrict, weightKg, sizeClass, serviceLevel, codAmount, lengthCm,
-                widthCm, heightCm, declaredValue, fromLatitude, fromLongitude, toLatitude, toLongitude, null, null);
+        this(null, fromCity, fromDistrict, null, toCity, toDistrict, weightKg, sizeClass, serviceLevel, codAmount,
+                lengthCm, widthCm, heightCm, declaredValue, fromLatitude, fromLongitude, toLatitude, toLongitude,
+                null, null);
     }
 
     @AssertTrue(message = "give both a latitude and a longitude for a point, or neither")
@@ -104,6 +107,8 @@ public record QuoteRequest(
                 lengthCm == null ? null : new Dimensions(lengthCm, widthCm, heightCm),
                 declaredValue, merchantId, point(fromLatitude, fromLongitude),
                 point(toLatitude, toLongitude), vehicleType,
-                specialHandling == null ? List.of() : specialHandling);
+                specialHandling == null ? List.of() : specialHandling,
+                fromAddress == null || fromAddress.isBlank() ? null : fromAddress.strip(),
+                toAddress == null || toAddress.isBlank() ? null : toAddress.strip());
     }
 }
