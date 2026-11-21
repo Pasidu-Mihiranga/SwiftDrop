@@ -81,15 +81,19 @@ cluster's secret manager or a CI-created Secret; `values-prod.yaml` only names t
 | kubectl 1.29+ | |
 | Helm 3.14+ | Helm 4 works as well. |
 
-Two things the architecture needs but this chart deliberately does not install, because
-they are operators with their own lifecycle:
+The event-driven services need Kafka, MongoDB, S3 storage and an SMTP sink. For dev clusters
+the chart templates all four, each off by default and turned on by `values-full.yaml`:
 
-- **Kafka** through the [Strimzi](https://strimzi.io) operator. `global.commonConfig`
-  already points at the bootstrap Service a default Strimzi cluster named `kafka` creates
-  (`kafka-kafka-bootstrap:9092`). Every Kafka consumer service is disabled in
-  `values-dev.yaml` until Strimzi is installed.
-- **RustFS** (S3-compatible storage for proof-of-delivery photos), needed by
-  parcel-service. `parcel-service` expects it at `http://object-storage:9000`.
+| Template | What | Production instead |
+|---|---|---|
+| `kafka.yaml` | Single-node Kafka (KRaft), same image and settings as compose, Service `kafka:9092`; a Job runs `infra/kafka/create-topics.sh` | The [Strimzi](https://strimzi.io) operator or a managed Kafka; `values.yaml` points at Strimzi's `kafka-kafka-bootstrap:9092` |
+| `mongodb.yaml` | MongoDB 7 for tracking, notification and webhook (each with its own database and `MONGO_URI` Secret) | Managed MongoDB |
+| `object-storage.yaml` | RustFS at `http://object-storage:9000` for proof-of-delivery photos | A managed S3 bucket |
+| `mailpit.yaml` | SMTP sink at `mailpit:1025` (UI on 8025) | A real SMTP relay |
+
+The observability stack (Prometheus, Loki, Tempo, Grafana, Alloy) is the one thing left to the
+official Grafana Helm charts, because they have their own lifecycle; `grafana.enabled` only
+publishes the Ingress host for them.
 
 OSRM, the routing engine behind same-day pricing, is templated but optional. Set
 `osrm.enabled=true` and `pricing-service.config.OSRM_URL=http://osrm:5000`, as
@@ -97,9 +101,6 @@ OSRM, the routing engine behind same-day pricing, is templated but optional. Set
 graph in init containers, which takes about 2 minutes, 1.3 GB of memory and 1 GB of disk.
 It stays off in dev to keep a kind cluster small. pricing-service does not wait for it:
 until it answers, and whenever it fails, distances are estimated and labelled `ESTIMATED`.
-
-MongoDB is likewise not templated here; the three Nest services need it and stay disabled
-in dev until it is provided.
 
 ## Install on kind
 
@@ -129,6 +130,19 @@ and Keycloak. The remaining nine services are present as charts but disabled, ea
 reason stated inline in `swiftdrop/values-dev.yaml` (Kafka, MongoDB, S3 or an LLM key).
 Enable one by adding it to `values-dev.yaml` and to the `services` array in
 `scripts/kind-deploy.sh` so its image is built and loaded.
+
+### Full stack
+
+```sh
+SWIFTDROP_PROFILE=full ./scripts/kind-deploy.sh
+```
+
+Installs `values-dev.yaml` plus `values-full.yaml`: every service except the AI assistant
+(which needs an LLM key), with the in-chart Kafka, MongoDB, RustFS and Mailpit. The script also
+builds and loads every image, creates the topic ConfigMap from `infra/kafka/create-topics.sh`
+and one `MONGO_URI` Secret per Node service. Give the kind node about 8 GB of memory. The same
+install runs in CI from **Actions, CI · Kubernetes end to end, Run workflow** with
+`profile = full`; pull requests run the dev slice.
 
 ### Verify
 

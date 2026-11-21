@@ -103,13 +103,14 @@ pricing-service:
   replicaCount: 2
 
 # ---------------------------------------------------------------- off in dev
-# Each of these runs fine under this chart; they are off because their milestone's
-# prerequisites are not part of a pricing-focused dev install.
+# Each of these runs fine under this chart; they are off to keep the pricing slice small.
+# values-full.yaml (SWIFTDROP_PROFILE=full ./scripts/kind-deploy.sh) turns them on together with
+# the in-chart Kafka, MongoDB, RustFS and Mailpit.
 user-service:
   # No external prerequisite. Enable when M1's flows are being worked on.
   enabled: false
 merchant-service:
-  # Needs Kafka: Strimzi is a documented prerequisite, not a subchart.
+  # Needs Kafka.
   enabled: false
 parcel-service:
   # Needs Kafka and RustFS (S3) for proof-of-delivery photos.
@@ -121,7 +122,7 @@ reporting-service:
   # Needs Kafka.
   enabled: false
 tracking-service:
-  # Needs Kafka and MongoDB; MongoDB is not templated by this chart.
+  # Needs Kafka and MongoDB.
   enabled: false
 notification-service:
   # Needs Kafka, MongoDB and an SMTP sink (Mailpit).
