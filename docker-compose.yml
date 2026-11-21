@@ -33,12 +33,19 @@ x-java-env: &java-env
   REDIS_HOST: redis
   REDIS_PORT: "6379"
   REDIS_PASSWORD: ${REDIS_PASSWORD}
+  # Distributed tracing (M9): every request is traced and sent to Alloy, which forwards to Tempo.
+  # Kafka listeners continue the trace from the traceparent header the outbox relay sets.
+  MANAGEMENT_TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1.0}
+  MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT: http://alloy:4318/v1/traces
+  SPRING_KAFKA_LISTENER_OBSERVATION_ENABLED: "true"
 
 x-node-env: &node-env
   <<: *keycloak-env
   NODE_ENV: production
   KAFKA_BROKERS: kafka:19092
   REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+  # Distributed tracing (M9), see libs/node/swiftdrop-common/src/tracing
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
 
 x-app: &app
   profiles: ["apps"]
@@ -335,6 +342,9 @@ services:
       <<: *keycloak-env
       SPRING_PROFILES_ACTIVE: docker
       WEB_ORIGIN: http://localhost:3000
+      # Distributed tracing (M9): the gateway starts the trace and passes traceparent downstream.
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1.0}
+      MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT: http://alloy:4318/v1/traces
       # The web container (Docker network) passes on the visitor IP for the anonymous rate limit.
       GATEWAY_TRUSTED_PROXIES: "172.,10.,192.168.,127.0.0.1"
       USER_SERVICE_URL: http://user-service:8081
@@ -409,6 +419,7 @@ services:
     build: { context: ., dockerfile: services/tracking-service/Dockerfile }
     environment:
       <<: *node-env
+      OTEL_SERVICE_NAME: tracking-service
       MONGO_URI: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@mongo:27017/tracking?authSource=admin
 
   notification-service:
@@ -419,6 +430,7 @@ services:
     build: { context: ., dockerfile: services/notification-service/Dockerfile }
     environment:
       <<: *node-env
+      OTEL_SERVICE_NAME: notification-service
       MONGO_URI: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@mongo:27017/notifications?authSource=admin
       SMTP_HOST: mailpit
       SMTP_PORT: "1025"
@@ -429,6 +441,7 @@ services:
     build: { context: ., dockerfile: services/webhook-service/Dockerfile }
     environment:
       <<: *node-env
+      OTEL_SERVICE_NAME: webhook-service
       MONGO_URI: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@mongo:27017/webhooks?authSource=admin
       # encrypts signing secrets at rest (base64 32-byte key)
       WEBHOOK_SECRET_KEY: ${PII_ENCRYPTION_KEY}
@@ -457,6 +470,8 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       ASSISTANT_VAULT_SECRET: ${ASSISTANT_VAULT_SECRET:-}
       MCP_MASK_PII: ${MCP_MASK_PII:-true}
+      # Distributed tracing (M9)
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
     volumes:
       - ./secrets:/run/secrets/swiftdrop:ro
 

@@ -172,10 +172,25 @@ Open Grafana at [http://localhost:3001](http://localhost:3001) using credentials
 
 ### 3. Distributed Tracing with Tempo
 
-Every incoming request receives an OpenTelemetry trace context at `api-gateway` and propagates through Kafka headers across downstream microservices:
-1. Open **Explore** in Grafana and choose **Tempo** as the data source.
-2. Search for traces by service (`api-gateway`, `parcel-service`, `notification-service`) or operation name.
-3. Drill down into individual spans to inspect span attributes, Kafka topic partition offsets, and execution timings.
+One trace follows a request from `api-gateway` through the service that handles it, across Kafka and into
+every consumer:
+
+- **Java services** use Spring Boot's OpenTelemetry starter (from `swiftdrop-common-logging`); compose sets
+  `MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT=http://alloy:4318/v1/traces` and samples every request
+  (`TRACING_SAMPLING_PROBABILITY`, default `1.0`).
+- **Across Kafka**: the outbox stores the request's W3C `traceparent` with each event and the relay sends it as a
+  Kafka header, so consumers continue the same trace even though the event is published later.
+- **Node services** (tracking, notification, webhook) import `@swiftdrop/common/tracing` first; it instruments
+  HTTP and kafkajs. **ai-assistant-service** instruments FastAPI and its httpx calls to the gateway.
+- Without an OTLP endpoint nothing is exported, so tests and local runs are unaffected.
+
+Follow one booking end to end:
+1. Book a parcel (web app or `POST /api/v1/parcels`).
+2. Open **Explore**, choose **Tempo**, search with `{ resource.service.name = "parcel-service" }` (or
+   `api-gateway`) and open the newest `POST /api/v1/parcels` trace.
+3. The trace shows the gateway span, parcel-service with its pricing call, and, after the outbox relay
+   publishes, the Kafka consumers: tracking-service, notification-service, webhook-service, dispatch-service and
+   reporting-service.
 
 ### 4. Trace-to-Log Correlation
 

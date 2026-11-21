@@ -102,4 +102,22 @@ class OutboxRelayTest {
         assertThat(e.getLastError()).isEqualTo("unknown");
         assertThat(e.getAttempts()).isEqualTo(2);
     }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void sendsTheStoredTraceContextSoConsumersContinueTheTrace() {
+        OutboxEvent traced = event("parcel-1", "corr-1");
+        traced.setTraceParent("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
+        OutboxEvent untraced = event("parcel-2", null);
+        when(repository.lockNextBatch(100)).thenReturn(List.of(traced, untraced));
+        when(kafka.send(any(ProducerRecord.class))).thenReturn(ok());
+
+        relay.publishPending();
+
+        org.mockito.ArgumentCaptor<ProducerRecord<String, String>> sent = org.mockito.ArgumentCaptor.forClass(ProducerRecord.class);
+        verify(kafka, times(2)).send(sent.capture());
+        assertThat(new String(sent.getAllValues().get(0).headers().lastHeader("traceparent").value()))
+                .isEqualTo("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
+        assertThat(sent.getAllValues().get(1).headers().lastHeader("traceparent")).isNull();
+    }
 }
