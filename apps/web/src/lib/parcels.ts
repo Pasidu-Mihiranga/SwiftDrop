@@ -38,7 +38,7 @@ export type District = (typeof SRI_LANKA_DISTRICTS)[number];
 export const SIZE_CLASSES = ["S", "M", "L", "XL"] as const;
 export type SizeClass = (typeof SIZE_CLASSES)[number];
 
-export const SERVICE_LEVELS = ["STANDARD", "EXPRESS"] as const;
+export const SERVICE_LEVELS = ["STANDARD", "EXPRESS", "SAME_DAY"] as const;
 export type ServiceLevel = (typeof SERVICE_LEVELS)[number];
 
 export const PARCEL_STATUSES = [
@@ -47,6 +47,7 @@ export const PARCEL_STATUSES = [
   "IN_TRANSIT",
   "OUT_FOR_DELIVERY",
   "DELIVERED",
+  "FAILED",
   "CANCELLED",
 ] as const;
 export type ParcelStatus = (typeof PARCEL_STATUSES)[number];
@@ -99,12 +100,36 @@ export interface ParcelResponse {
   createdAt: string;
 }
 
-export interface ParcelPageResponse {
-  content: ParcelResponse[];
+export interface ParcelPageMeta {
   page: number;
   size: number;
   totalElements: number;
   totalPages: number;
+}
+
+export interface ParcelPageResponse {
+  content: ParcelResponse[];
+  page?: ParcelPageMeta | number;
+  size?: number;
+  totalElements?: number;
+  totalPages?: number;
+}
+
+export function extractParcelPageMeta(data: ParcelPageResponse, fallbackCount = 0): ParcelPageMeta {
+  if (data.page && typeof data.page === "object") {
+    return {
+      page: data.page.page ?? 0,
+      size: data.page.size ?? 10,
+      totalElements: data.page.totalElements ?? fallbackCount,
+      totalPages: Math.max(1, data.page.totalPages ?? 1),
+    };
+  }
+  return {
+    page: typeof data.page === "number" ? data.page : 0,
+    size: data.size ?? 10,
+    totalElements: data.totalElements ?? fallbackCount,
+    totalPages: Math.max(1, data.totalPages ?? 1),
+  };
 }
 
 export interface CreateParcelRequest {
@@ -162,6 +187,8 @@ export function statusBadgeClass(status: ParcelStatus): string {
       return "bg-amber-50 text-amber-700 border-amber-200";
     case "DELIVERED":
       return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    case "FAILED":
+      return "bg-rose-50 text-rose-700 border-rose-200";
     case "CANCELLED":
       return "bg-rose-50 text-rose-700 border-rose-200";
     default:
@@ -181,6 +208,8 @@ export function statusLabel(status: ParcelStatus): string {
       return "Out for Delivery";
     case "DELIVERED":
       return "Delivered";
+    case "FAILED":
+      return "Delivery Failed";
     case "CANCELLED":
       return "Cancelled";
     default:
@@ -208,7 +237,9 @@ export function serviceLevelDescription(level: ServiceLevel): string {
     case "STANDARD":
       return "Standard delivery (1-2 business days)";
     case "EXPRESS":
-      return "Express delivery (Priority same-day or next-day)";
+      return "Express delivery (Priority next-day)";
+    case "SAME_DAY":
+      return "Same-day delivery (Direct road-routed courier)";
     default:
       return level;
   }

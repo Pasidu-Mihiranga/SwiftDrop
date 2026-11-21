@@ -310,6 +310,7 @@ public class ReceiptPdfGenerator {
         };
 
         String svcDesc = switch (d.serviceLevel()) {
+            case SAME_DAY -> "Same-Day Delivery";
             case EXPRESS -> "Express Delivery (Same/Next Day)";
             case STANDARD -> "Standard Delivery (1-2 Days)";
         };
@@ -475,6 +476,7 @@ public class ReceiptPdfGenerator {
         };
 
         String serviceLabel = switch (details.serviceLevel()) {
+            case SAME_DAY -> "Same-Day Delivery";
             case EXPRESS -> "Express Delivery";
             case STANDARD -> "Standard Delivery";
         };
