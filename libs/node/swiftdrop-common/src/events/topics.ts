@@ -9,6 +9,7 @@ export const Topics = {
   MERCHANT_LIFECYCLE: "swiftdrop.merchant.lifecycle.v1",
   WEBHOOK_DEAD_LETTER: "swiftdrop.webhook.dead-letter.v1",
   NOTIFICATION_DEAD_LETTER: "swiftdrop.notification.dead-letter.v1",
+  TRACKING_DEAD_LETTER: "swiftdrop.tracking.dead-letter.v1",
 } as const;
 
 export type Topic = (typeof Topics)[keyof typeof Topics];
