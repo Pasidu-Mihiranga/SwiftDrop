@@ -88,6 +88,8 @@ swiftdrop:
       - /api/v1/tracking/public/**   # public tracking page (PII-masked)
       - /api/v1/pricing/quotes       # fee estimate before signing up
       - /api/v1/pricing/zones
+      - /api/v1/pricing/special-handling   # options shown on the public quote form
+      - /api/v1/pricing/locate             # map point to district for the quote form
       - /api/v1/assistant/**         # assistant serves anonymous users with public tools only
       - /mcp/**                      # MCP server authenticates its own clients
       - /ws/tracking/**              # Socket.IO authenticates in its handshake
