@@ -6,6 +6,7 @@ import lk.swiftdrop.merchant.application.port.out.IdentityProvisioner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.util.LinkedMultiValueMap;
@@ -77,7 +78,9 @@ public class KeycloakAdminAdapter implements IdentityProvisioner {
             String merchantClientId = CLIENT_PREFIX + merchantId;
             String clientUuid = findClient(merchantClientId).orElseGet(() -> createClient(merchantClientId, merchantId));
             Map<String, Object> serviceAccount = get("/admin/realms/{realm}/clients/{id}/service-account-user", clientUuid);
-            addRealmRole(String.valueOf(serviceAccount.get("id")), MERCHANT_API_ROLE);
+            String serviceAccountId = String.valueOf(serviceAccount.get("id"));
+            addRealmRole(serviceAccountId, MERCHANT_API_ROLE);
+            removeRealmRole(serviceAccountId, defaultRolesName());
             return merchantClientId;
         });
     }
@@ -198,6 +201,27 @@ public class KeycloakAdminAdapter implements IdentityProvisioner {
                 .body(List.of(Map.of("id", role.get("id"), "name", role.get("name"))))
                 .retrieve()
                 .toBodilessEntity();
+    }
+
+    /**
+     * Keycloak gives every new user, service accounts included, the realm's default roles, which make
+     * a person a CUSTOMER. A merchant's machine client must hold MERCHANT_API only, or its token
+     * could act as a customer. Removing a role the user does not hold changes nothing, so this is
+     * safe to repeat.
+     */
+    private void removeRealmRole(String userId, String roleName) {
+        Map<String, Object> role = get("/admin/realms/{realm}/roles/{name}", roleName);
+        keycloak.method(HttpMethod.DELETE).uri("/admin/realms/{realm}/users/{id}/role-mappings/realm", realm, userId)
+                .headers(h -> h.setBearerAuth(serviceAccountToken()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(List.of(Map.of("id", role.get("id"), "name", role.get("name"))))
+                .retrieve()
+                .toBodilessEntity();
+    }
+
+    /** Keycloak's name for the composite of roles every new user in the realm receives. */
+    private String defaultRolesName() {
+        return "default-roles-" + realm;
     }
 
     private Map<String, Object> get(String path, String id) {

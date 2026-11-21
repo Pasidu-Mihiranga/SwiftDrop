@@ -84,7 +84,8 @@ class KeycloakAdminAdapterIT {
                 "client_secret", clientSecret(clientId))));
         assertThat(claims.get("merchant_id").asString()).isEqualTo(merchantId.toString());
         assertThat(audiences(claims)).contains("swiftdrop-api");
-        assertThat(realmRoles(claims)).contains("MERCHANT_API").doesNotContain("MERCHANT", "ADMIN");
+        // Not CUSTOMER either: the realm's default roles are taken off the machine client.
+        assertThat(realmRoles(claims)).contains("MERCHANT_API").doesNotContain("MERCHANT", "ADMIN", "CUSTOMER");
     }
 
     @Test
