@@ -7,6 +7,7 @@ import lk.swiftdrop.merchant.MerchantFixtures;
 import lk.swiftdrop.merchant.application.exception.IdentityProviderUnavailableException;
 import lk.swiftdrop.merchant.application.port.out.ApiCredentialRepository;
 import lk.swiftdrop.merchant.application.port.out.IdentityProvisioner;
+import lk.swiftdrop.merchant.application.port.out.MerchantMetrics;
 import lk.swiftdrop.merchant.application.port.out.MerchantRepository;
 import lk.swiftdrop.merchant.domain.model.ApiCredential;
 import org.mockito.InOrder;
@@ -35,6 +36,7 @@ import static lk.swiftdrop.merchant.MerchantFixtures.OWNER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -57,12 +59,14 @@ class MerchantOnboardingServiceTest {
     private IdentityProvisioner identity;
     @Mock
     private OutboxWriter outbox;
+    @Mock
+    private MerchantMetrics metrics;
 
     private MerchantOnboardingService service;
 
     @BeforeEach
     void setUp() {
-        service = new MerchantOnboardingService(merchants, credentials, identity, outbox,
+        service = new MerchantOnboardingService(merchants, credentials, identity, outbox, metrics,
                 TransactionOperations.withoutTransaction(), CLOCK);
         // the stored copy comes back with a version, as the JPA adapter returns it
         lenient().when(merchants.save(any())).thenAnswer(call -> MerchantFixtures.stored(call.getArgument(0)));
@@ -266,5 +270,58 @@ class MerchantOnboardingServiceTest {
 
         assertThatThrownBy(() -> service.approve(ADMIN, unknown)).isInstanceOf(MerchantNotFoundException.class);
         verifyNoInteractions(outbox);
+    }
+
+    @Test
+    void aNewApplicationIsCountedOnceItIsStored() {
+        service.register(APPLICANT, MerchantFixtures.lankaBooks());
+
+        verify(metrics).statusChanged(null, MerchantStatus.PENDING);
+    }
+
+    @Test
+    void eachDecisionIsCountedWithTheStatusItReplaced() {
+        Merchant pending = MerchantFixtures.stored(MerchantFixtures.pending());
+        Merchant approved = MerchantFixtures.stored(MerchantFixtures.pending().approve("admin-1", NOW));
+        Merchant other = MerchantFixtures.stored(MerchantFixtures.pending());
+        when(merchants.findById(pending.id())).thenReturn(Optional.of(pending));
+        when(merchants.findById(approved.id())).thenReturn(Optional.of(approved));
+        when(merchants.findById(other.id())).thenReturn(Optional.of(other));
+
+        service.approve(ADMIN, pending.id());
+        service.suspend(ADMIN, approved.id());
+        service.reject(ADMIN, other.id(), "Incomplete");
+
+        verify(metrics).statusChanged(MerchantStatus.PENDING, MerchantStatus.APPROVED);
+        verify(metrics).statusChanged(MerchantStatus.APPROVED, MerchantStatus.SUSPENDED);
+        verify(metrics).statusChanged(MerchantStatus.PENDING, MerchantStatus.REJECTED);
+    }
+
+    @Test
+    void aChangeThatDoesNotHappenIsNeverCounted() {
+        Merchant pending = MerchantFixtures.stored(MerchantFixtures.pending());
+        when(merchants.findById(pending.id())).thenReturn(Optional.of(pending));
+        when(merchants.existsActiveByBrNumber("PV12345")).thenReturn(true);
+        when(identity.provisionClient(pending.id()))
+                .thenThrow(new IdentityProviderUnavailableException("The identity provider is not reachable right now"));
+
+        assertThatThrownBy(() -> service.register(APPLICANT, MerchantFixtures.lankaBooks()))
+                .isInstanceOf(BrNumberAlreadyRegisteredException.class);
+        assertThatThrownBy(() -> service.approve(ADMIN, pending.id()))
+                .isInstanceOf(IdentityProviderUnavailableException.class);
+        assertThatThrownBy(() -> service.suspend(ADMIN, pending.id()))
+                .isInstanceOf(InvalidMerchantTransitionException.class);
+        verifyNoInteractions(metrics);
+    }
+
+    @Test
+    void aChangeWhoseTransactionFailsIsNotCounted() {
+        Merchant pending = MerchantFixtures.stored(MerchantFixtures.pending());
+        when(merchants.findById(pending.id())).thenReturn(Optional.of(pending));
+        doThrow(new IllegalStateException("commit failed")).when(outbox).publish(any());
+
+        assertThatThrownBy(() -> service.reject(ADMIN, pending.id(), "Incomplete"))
+                .isInstanceOf(IllegalStateException.class);
+        verifyNoInteractions(metrics);
     }
 }
