@@ -408,6 +408,8 @@ services:
   notification-service:
     <<: *app
     mem_limit: 256m
+    ports:
+      - "8091:8091"
     build: { context: ., dockerfile: services/notification-service/Dockerfile }
     environment:
       <<: *node-env

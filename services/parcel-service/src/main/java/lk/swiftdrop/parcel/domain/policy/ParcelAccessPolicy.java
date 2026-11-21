@@ -21,6 +21,13 @@ public final class ParcelAccessPolicy {
                 || caller.isStaff();
     }
 
+    /** The owning customer, the owning merchant, or staff (couriers cannot download customer receipts). */
+    public static boolean canViewReceipt(Parcel parcel, AuthenticatedUser caller) {
+        return isOwningCustomer(parcel, caller)
+                || isOwningMerchant(parcel, caller)
+                || caller.isStaff();
+    }
+
     /** Only the customer who booked it. */
     public static boolean canCancel(Parcel parcel, AuthenticatedUser caller) {
         return isOwningCustomer(parcel, caller);
