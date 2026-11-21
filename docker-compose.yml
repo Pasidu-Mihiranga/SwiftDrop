@@ -362,7 +362,11 @@ services:
   merchant-service:
     <<: *app
     build: { context: ., dockerfile: services/merchant-service/Dockerfile }
-    environment: { <<: *java-env, DB_NAME: merchants_db, DB_USER: merchant_svc }
+    environment:
+      <<: *java-env
+      DB_NAME: merchants_db
+      DB_USER: merchant_svc
+      PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY}
 
   pricing-service:
     <<: *app
