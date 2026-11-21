@@ -156,6 +156,8 @@ pnpm new-service --type nest --name chat-service --port 8093 --route chat --mong
 ## Observability and Debugging with Grafana
 
 SwiftDrop provides a complete LGTM (Loki, Grafana, Tempo, Prometheus) observability stack orchestrated with Grafana Alloy.
+How the signals flow is drawn in [`doc/diagrams/m9/architecture-m9-observability.png`](doc/diagrams/m9/architecture-m9-observability.png)
+(source: `architecture-m9-observability.mmd`).
 
 ### 1. Starting the Observability Stack
 
