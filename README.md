@@ -69,18 +69,18 @@ pnpm stack:down
 
 Host ports are configurable in `.env` (defaults avoid clashing with other local stacks).
 
-### Demo users (Keycloak realm `swiftdrop`)
+### Demo users (Keycloak realm `swiftdrop` & `users_db`)
 
-Password for all: value of `KC_SEED_USER_PASSWORD` in `.env` (default `Swift@2026`).
+Password for all demo accounts: **`Swift@2026`** (configurable via `KC_SEED_USER_PASSWORD` in `.env`).
 
-| User | Role | User id (JWT `sub`) |
-|---|---|---|
-| admin@swiftdrop.lk | ADMIN | `10000000-0000-4000-8000-000000000001` |
-| dispatcher@swiftdrop.lk | DISPATCHER | `10000000-0000-4000-8000-000000000002` |
-| courier1@swiftdrop.lk | COURIER | `10000000-0000-4000-8000-000000000003` |
-| courier2@swiftdrop.lk | COURIER | `10000000-0000-4000-8000-000000000004` |
-| customer@swiftdrop.lk | CUSTOMER | `10000000-0000-4000-8000-000000000005` |
-| merchant@swiftdrop.lk | MERCHANT (merchant_id `00000000-0000-4000-8000-000000000001`) | `10000000-0000-4000-8000-000000000006` |
+| Email | Password | Roles | Default Web Portal | Fixed User ID (JWT `sub`) | Seeded Profile / Notes |
+|---|---|---|---|---|---|
+| `admin@swiftdrop.lk` | `Swift@2026` | `ADMIN`, `CUSTOMER` | `/admin` | `10000000-0000-4000-8000-000000000001` | Full Operations, Pricing, Reports, Couriers, Webhooks DLQ & SMS Inbox access |
+| `dispatcher@swiftdrop.lk` | `Swift@2026` | `DISPATCHER`, `CUSTOMER` | `/admin/dispatch` | `10000000-0000-4000-8000-000000000002` | Dispatch board, courier directory (`read`), and delivery reports |
+| `courier1@swiftdrop.lk` | `Swift@2026` | `COURIER`, `CUSTOMER` | `/courier` | `10000000-0000-4000-8000-000000000003` | Vehicle: `BIKE`, Home zone: `WP` (Western), Capacity: `25/day`, `assignable: true` |
+| `courier2@swiftdrop.lk` | `Swift@2026` | `COURIER`, `CUSTOMER` | `/courier` | `10000000-0000-4000-8000-000000000004` | Vehicle: `VAN`, Home zone: `CP` (Central), Capacity: `40/day`, `assignable: true` |
+| `customer@swiftdrop.lk` | `Swift@2026` | `CUSTOMER` | `/customer` | `10000000-0000-4000-8000-000000000005` | Saved default pickup address (`45 Galle Road, Colombo 03`), bookings & PDF receipts |
+| `merchant@swiftdrop.lk` | `Swift@2026` | `MERCHANT`, `CUSTOMER` | `/merchant` | `10000000-0000-4000-8000-000000000006` | Claim `merchant_id: 00000000-0000-4000-8000-000000000001`, webhook endpoints & logs |
 
 The ids are fixed in the realm file, so `pnpm keycloak:reimport` keeps them and data that refers to a demo user
 (profiles, addresses, courier assignments) stays valid. Users created by hand or through Google get a new id on
@@ -88,9 +88,15 @@ every re-import.
 
 Machine client for the merchant API: `merchant-demo` (client credentials, secret `KC_DEMO_MERCHANT_CLIENT_SECRET`).
 
-**Google login:** create an OAuth client in Google Cloud Console with redirect URI
-`http://localhost:8180/realms/swiftdrop/broker/google/endpoint`, put `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
-in `.env`, then re-import the realm: `pnpm keycloak:reimport`.
+### Optional manual setup (external keys & road routing)
+
+Everything else works out of the box after `pnpm env:init` and `pnpm infra:up`. The following three integrations are optional:
+
+1. **AI Delivery Assistant (`ai-assistant-service`):** set `GEMINI_API_KEY` (when `LLM_PROVIDER=gemini`) or `OPENAI_API_KEY` (when `LLM_PROVIDER=openai`) in `.env` and restart `ai-assistant-service` to enable live LLM tool-calling answers in the chat widget. Without a key, the service still starts and `/mcp` tools work directly.
+2. **Google OAuth login:** create an OAuth client in Google Cloud Console with redirect URI
+   `http://localhost:8180/realms/swiftdrop/broker/google/endpoint`, put `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
+   in `.env`, then re-import the realm: `pnpm keycloak:reimport`.
+3. **OSRM road-routed same-day distances:** run `pnpm routing:up` and set `OSRM_URL=http://localhost:15000` (or `http://osrm:5000` in Compose) in `.env`. When `OSRM_URL` is blank, `pricing-service` automatically falls back to Haversine road-distance estimation.
 
 Get a token for API testing (dev-only `swiftdrop-test` client):
 
