@@ -1,7 +1,7 @@
 import NextAuth from "next-auth";
 import Keycloak from "next-auth/providers/keycloak";
 import { type Role, rolesFromAccessToken } from "@/lib/roles";
-import { keycloakConfig } from "@/lib/keycloak";
+import { keycloakConfig, refreshKeycloakToken } from "@/lib/keycloak";
 
 const kc = keycloakConfig();
 
@@ -56,36 +56,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
 async function refreshAccessToken(token: import("next-auth/jwt").JWT): Promise<import("next-auth/jwt").JWT> {
   if (!token.refreshToken) return { ...token, error: "RefreshTokenMissing" };
-  try {
-    const response = await fetch(`${kc.internalUrl}/protocol/openid-connect/token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "refresh_token",
-        refresh_token: token.refreshToken,
-        client_id: kc.clientId,
-        client_secret: kc.clientSecret,
-      }),
-    });
-    const refreshed = (await response.json()) as {
-      access_token?: string;
-      refresh_token?: string;
-      id_token?: string;
-      expires_in?: number;
-    };
-    if (!response.ok || !refreshed.access_token) throw new Error("refresh rejected");
-    return {
-      ...token,
-      accessToken: refreshed.access_token,
-      refreshToken: refreshed.refresh_token ?? token.refreshToken,
-      // Keep the newest ID token: sign-out hands it to Keycloak to end the right session.
-      idToken: refreshed.id_token ?? token.idToken,
-      expiresAt: Math.floor(Date.now() / 1000) + (refreshed.expires_in ?? 300),
-      roles: rolesFromAccessToken(refreshed.access_token),
-      error: undefined,
-    };
-  } catch {
+  const refreshed = await refreshKeycloakToken(kc, token.refreshToken);
+  if (!refreshed) {
     // Session expired in Keycloak (logout elsewhere, idle timeout): the UI sends the user to sign in again.
     return { ...token, error: "RefreshAccessTokenError" };
   }
+  return {
+    ...token,
+    accessToken: refreshed.accessToken,
+    refreshToken: refreshed.refreshToken,
+    // Keep the newest ID token: sign-out hands it to Keycloak to end the right session.
+    idToken: refreshed.idToken ?? token.idToken,
+    expiresAt: refreshed.expiresAt,
+    roles: rolesFromAccessToken(refreshed.accessToken),
+    error: undefined,
+  };
 }

@@ -162,3 +162,5 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md) first. In short:
 - `main` is protected: changes only through pull requests with one approving review and a green `no-emoji` check.
 - Branch per feature: `feat/m<N>-<topic>`; Conventional Commits (`feat:`, `fix:`, `test:` …).
 - **No emojis** anywhere in the repository, commits, pull requests or issues (`python scripts/check-no-emoji.py`).
+
+See [Demo users](#demo-users-keycloak-realm-swiftdrop) above for the roles and credentials to log in with.
