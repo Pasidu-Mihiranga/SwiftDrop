@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import type { Problem } from "@/lib/bff";
 import { gatewayFetch } from "@/lib/gateway";
-import { MAX_REASON_LENGTH, registrationBody } from "@/lib/merchant";
+import { MAX_REASON_LENGTH, registrationBody, type ApiCredentials, type CredentialsState } from "@/lib/merchant";
 import type { ActionState } from "@/lib/pricing-actions";
 
 /**
@@ -92,6 +92,53 @@ const INVALID_ID: ActionState = { status: "error", message: "That is not a valid
 function readMerchantId(formData: FormData): string | null {
   const id = String(formData.get("merchantId") ?? "").trim();
   return UUID.test(id) ? id : null;
+}
+
+/** Problem codes from the credential rotation, in words a merchant can act on. */
+const CREDENTIAL_MESSAGES: Record<string, string> = {
+  MERCHANT_NOT_APPROVED: "Your merchant account is not active (for example, it is suspended), so no new secret was issued.",
+  MERCHANT_NOT_FOUND: "No approved merchant belongs to your account. Sign out and in again after your approval.",
+  API_CREDENTIAL_NOT_FOUND: "Your API client is not set up yet. Contact SwiftDrop support.",
+  IDENTITY_PROVIDER_UNAVAILABLE:
+    "The sign-in service did not confirm the change, so no secret is shown. Generate one again: it is safe to retry.",
+};
+
+/**
+ * Issues a new client secret for the caller's merchant (merchant-service rotates it in Keycloak).
+ * The secret is handed to the page once, in this response only: it is not stored, logged or cached
+ * by the web app, and the previous secret stops working at once.
+ */
+export async function rotateCredentials(_previous: CredentialsState, formData: FormData): Promise<CredentialsState> {
+  const session = await auth();
+  if (!session || session.error || !session.user.roles.includes("MERCHANT")) {
+    return { status: "error", message: "Sign in as a merchant to manage API credentials." };
+  }
+  if (formData.get("confirm") !== "on") {
+    return { status: "error", message: "Tick the box to confirm that the current secret will stop working." };
+  }
+
+  let response: Response;
+  try {
+    response = await gatewayFetch("/api/v1/merchants/me/credentials/rotate", { method: "POST" });
+  } catch {
+    return { status: "error", message: "The merchant service is unreachable. Please try again." };
+  }
+  if (!response.ok) {
+    const problem = await readProblem(response);
+    return {
+      status: "error",
+      message: CREDENTIAL_MESSAGES[problem.code] ?? problem.detail ?? `No secret was issued (${problem.code}).`,
+    };
+  }
+
+  const body = (await response.json()) as Partial<ApiCredentials>;
+  if (!body.clientId || !body.clientSecret || !body.tokenUrl) {
+    return { status: "error", message: "The merchant service gave an incomplete answer. Generate the secret again." };
+  }
+  return {
+    status: "ok",
+    credentials: { clientId: body.clientId, clientSecret: body.clientSecret, tokenUrl: body.tokenUrl },
+  };
 }
 
 async function requireAdmin(): Promise<ActionState | null> {
