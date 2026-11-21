@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 const WEBHOOK_EVENTS = [
@@ -95,7 +95,7 @@ export default function MerchantWebhooksPage() {
     setSelectedEvents((prev) => (prev.includes(code) ? prev.filter((e) => e !== code) : [...prev, code]));
   }
 
-  async function handleRegister(e: React.FormEvent) {
+  async function handleRegister(e: FormEvent) {
     e.preventDefault();
     if (!url.trim() || selectedEvents.length === 0) return;
     setSubmitting(true);

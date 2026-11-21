@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { type FormEvent, useState, useRef, useEffect } from "react";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -28,7 +28,7 @@ export function AiAssistantWidget() {
     }
   }, [messages, open]);
 
-  async function handleSend(e: React.FormEvent) {
+  async function handleSend(e: FormEvent) {
     e.preventDefault();
     const prompt = input.trim();
     if (!prompt || streaming) return;

@@ -81,7 +81,6 @@ export function NotificationBell() {
   const [notifications, setNotifications] = useState<InAppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [isOpen, setIsOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const fetchNotifications = async () => {
