@@ -12,6 +12,16 @@ for (const file of [".env", "../../.env"]) {
 
 const keycloakPort = process.env.KEYCLOAK_HOST_PORT ?? "8180";
 const kafkaPort = process.env.KAFKA_HOST_PORT ?? "9092";
+const mongoPort = process.env.MONGO_HOST_PORT ?? "27018";
+const mongoUser = process.env.MONGO_ROOT_USER;
+const mongoPass = process.env.MONGO_ROOT_PASSWORD;
+const mongoDefault =
+  mongoUser && mongoPass
+    ? `mongodb://${mongoUser}:${mongoPass}@localhost:${mongoPort}/webhooks?authSource=admin`
+    : `mongodb://localhost:${mongoPort}/webhooks`;
+const redisPort = process.env.REDIS_HOST_PORT ?? "6380";
+const redisPass = process.env.REDIS_PASSWORD;
+const redisDefault = redisPass ? `redis://:${redisPass}@localhost:${redisPort}` : `redis://localhost:${redisPort}`;
 
 /** "true"/"false" from the environment; z.coerce.boolean would read "false" as true. */
 function flag(defaultValue: boolean) {
@@ -24,10 +34,10 @@ const schema = z.object({
   KEYCLOAK_ISSUER: z.url().default(`http://localhost:${keycloakPort}/realms/swiftdrop`),
   KEYCLOAK_JWKS_URI: z.url().default(`http://localhost:${keycloakPort}/realms/swiftdrop/protocol/openid-connect/certs`),
   KAFKA_BROKERS: z.string().min(1).default(`localhost:${kafkaPort}`),
-  MONGO_URI: z.string().min(1).default(`mongodb://localhost:${process.env.MONGO_HOST_PORT ?? "27017"}/webhooks`),
-  REDIS_URL: z.string().min(1).default(`redis://localhost:${process.env.REDIS_HOST_PORT ?? "6379"}`),
-  /** base64 32-byte AES key that encrypts signing secrets at rest; start-up fails without it */
-  WEBHOOK_SECRET_KEY: z.string().min(1),
+  MONGO_URI: z.string().min(1).default(mongoDefault),
+  REDIS_URL: z.string().min(1).default(redisDefault),
+  /** base64 32-byte AES key that encrypts signing secrets at rest; falls back to PII_ENCRYPTION_KEY in local .env */
+  WEBHOOK_SECRET_KEY: z.string().min(1).default(process.env.PII_ENCRYPTION_KEY ?? ""),
   /** Retry delays in seconds; shorten them for the demo, e.g. "5,10,20,40,60,90" */
   WEBHOOK_BACKOFF_SECONDS: z.string().default("30,120,600,1800,7200,21600")
     .transform((value) => value.split(",").map((part) => Number(part.trim())))
