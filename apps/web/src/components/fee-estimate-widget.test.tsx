@@ -499,7 +499,7 @@ describe("FeeEstimateWidget", () => {
   it("offers no map when no tile server is configured", () => {
     render(<FeeEstimateWidget zones={ZONES} />);
 
-    expect(screen.queryByText(/Pin the exact collection point/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pick on map" })).not.toBeInTheDocument();
   });
 
   it("loads the map only when it is opened", async () => {
@@ -507,9 +507,23 @@ describe("FeeEstimateWidget", () => {
     render(<FeeEstimateWidget zones={ZONES} map={MAP} />);
 
     expect(screen.queryByRole("button", { name: /stub map/ })).not.toBeInTheDocument();
-    await user.click(screen.getByText("Pin the exact collection point on a map"));
+    await user.click(screen.getByRole("button", { name: "Pick on map" }));
 
     expect(await screen.findByRole("button", { name: "Pick collection on the stub map" })).toBeInTheDocument();
+  });
+
+  it("toggles maximized map view", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<FeeEstimateWidget zones={ZONES} map={MAP} />);
+
+    await user.click(screen.getByRole("button", { name: "Pick on map" }));
+    expect(screen.getByRole("button", { name: "Maximize" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Maximize" }));
+    expect(screen.getByRole("button", { name: "Minimize" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Minimize" }));
+    expect(screen.getByRole("button", { name: "Maximize" })).toBeInTheDocument();
   });
 
   it("fills the district from the point picked and sends the point with the quote", async () => {
@@ -520,7 +534,7 @@ describe("FeeEstimateWidget", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<FeeEstimateWidget zones={ZONES} map={MAP} />);
 
-    await user.click(screen.getByText("Pin the exact collection point on a map"));
+    await user.click(screen.getByRole("button", { name: "Pick on map" }));
     await user.click(await screen.findByRole("button", { name: "Pick collection on the stub map" }));
     expect(screen.getByLabelText("Collect from")).toHaveValue("Colombo");
 
@@ -544,7 +558,7 @@ describe("FeeEstimateWidget", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<FeeEstimateWidget zones={ZONES} map={MAP} />);
 
-    await user.click(screen.getByText("Pin the exact collection point on a map"));
+    await user.click(screen.getByRole("button", { name: "Pick on map" }));
     await user.click(await screen.findByRole("button", { name: "Pick collection on the stub map" }));
     await user.selectOptions(screen.getByLabelText("Collect from"), "Gampaha");
     await user.selectOptions(screen.getByLabelText("Deliver to"), "Kandy");

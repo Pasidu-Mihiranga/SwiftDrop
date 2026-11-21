@@ -79,6 +79,7 @@ export function FeeEstimateWidget({
   const [message, setMessage] = useState<string>();
   const [now, setNow] = useState(() => new Date());
   const [showMapSection, setShowMapSection] = useState(false);
+  const [isMapMaximized, setIsMapMaximized] = useState(false);
   const [activeMapSide, setActiveMapSide] = useState<"from" | "to">("from");
   const [openSections, setOpenSections] = useState({
     step1: true,
@@ -279,58 +280,173 @@ export function FeeEstimateWidget({
               <div className="space-y-4">
                 {/* Unified Map Selector Panel */}
                 {showMapSection && map ? (
-                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setActiveMapSide("from")}
-                          className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                            activeMapSide === "from"
-                              ? "bg-brand-600 text-white shadow-xs"
-                              : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
-                          }`}
-                        >
-                          <span className="h-2 w-2 rounded-full bg-blue-300" />
-                          <span>Pickup (From)</span>
-                          {values.fromPoint ? <span className="text-[10px]">&#10003;</span> : null}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setActiveMapSide("to")}
-                          className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                            activeMapSide === "to"
-                              ? "bg-brand-600 text-white shadow-xs"
-                              : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
-                          }`}
-                        >
-                          <span className="h-2 w-2 rounded-full bg-red-400" />
-                          <span>Delivery (To)</span>
-                          {values.toPoint ? <span className="text-[10px]">&#10003;</span> : null}
-                        </button>
+                  isMapMaximized ? (
+                    <div
+                      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3 sm:p-6 backdrop-blur-xs animate-in fade-in duration-200"
+                      role="dialog"
+                      aria-modal="true"
+                      aria-labelledby="maximized-map-title"
+                    >
+                      <div className="flex h-[92vh] w-full max-w-5xl flex-col rounded-2xl bg-white p-4 sm:p-6 shadow-2xl ring-1 ring-slate-900/10">
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                            </span>
+                            <div>
+                              <h3 id="maximized-map-title" className="text-sm font-bold text-slate-900">
+                                Select location on map
+                              </h3>
+                              <p className="text-xs text-slate-500">
+                                Tap anywhere in Sri Lanka to auto-detect the district.
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setIsMapMaximized(false)}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 transition"
+                              aria-label="Minimize"
+                            >
+                              <svg className="h-3.5 w-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 14h6m0 0v6m0-6L3 21m17-7h-6m0 0v6m0-6l7 7M4 10h6m0 0V4m0 6L3 3m17 7h-6m0 0V4m0 6l7-7" />
+                              </svg>
+                              <span>Minimize</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsMapMaximized(false);
+                                setShowMapSection(false);
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-brand-700 transition"
+                            >
+                              Done
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Tabs for Pickup / Delivery */}
+                        <div className="flex items-center gap-2 pt-3">
+                          <button
+                            type="button"
+                            onClick={() => setActiveMapSide("from")}
+                            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                              activeMapSide === "from"
+                                ? "bg-brand-600 text-white shadow-xs"
+                                : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+                            }`}
+                          >
+                            <span className="h-2 w-2 rounded-full bg-blue-300" />
+                            <span>Pickup (From)</span>
+                            {values.fromPoint ? <span className="text-[10px]">&#10003;</span> : null}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setActiveMapSide("to")}
+                            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                              activeMapSide === "to"
+                                ? "bg-brand-600 text-white shadow-xs"
+                                : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+                            }`}
+                          >
+                            <span className="h-2 w-2 rounded-full bg-red-400" />
+                            <span>Delivery (To)</span>
+                            {values.toPoint ? <span className="text-[10px]">&#10003;</span> : null}
+                          </button>
+                          <span className="ml-auto text-xs text-slate-500 hidden sm:inline">
+                            {activeMapSide === "from"
+                              ? values.fromDistrict ? `District: ${values.fromDistrict}` : "Click map to set pickup"
+                              : values.toDistrict ? `District: ${values.toDistrict}` : "Click map to set delivery"}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 flex-1 overflow-hidden">
+                          <LocationPicker
+                            id={activeMapSide === "from" ? "fromMapMax" : "toMapMax"}
+                            purpose={activeMapSide === "from" ? "collection" : "delivery"}
+                            tileUrl={map.tileUrl}
+                            attribution={map.attribution}
+                            point={activeMapSide === "from" ? values.fromPoint : values.toPoint}
+                            onPick={(point, located) => pickPoint(activeMapSide, point, located)}
+                            heightClass="h-full min-h-[50vh]"
+                          />
+                        </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowMapSection(false)}
-                        className="text-xs text-slate-500 hover:text-slate-800"
-                      >
-                        Close map
-                      </button>
                     </div>
-                    <p className="text-xs text-slate-600">
-                      {activeMapSide === "from"
-                        ? "Tap the map to set your pickup location. The district is filled in automatically."
-                        : "Tap the map to set your delivery location. The district is filled in automatically."}
-                    </p>
-                    <LocationPicker
-                      id={activeMapSide === "from" ? "fromMapUnified" : "toMapUnified"}
-                      purpose={activeMapSide === "from" ? "collection" : "delivery"}
-                      tileUrl={map.tileUrl}
-                      attribution={map.attribution}
-                      point={activeMapSide === "from" ? values.fromPoint : values.toPoint}
-                      onPick={(point, located) => pickPoint(activeMapSide, point, located)}
-                    />
-                  </div>
+                  ) : (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setActiveMapSide("from")}
+                            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                              activeMapSide === "from"
+                                ? "bg-brand-600 text-white shadow-xs"
+                                : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+                            }`}
+                          >
+                            <span className="h-2 w-2 rounded-full bg-blue-300" />
+                            <span>Pickup (From)</span>
+                            {values.fromPoint ? <span className="text-[10px]">&#10003;</span> : null}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setActiveMapSide("to")}
+                            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                              activeMapSide === "to"
+                                ? "bg-brand-600 text-white shadow-xs"
+                                : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+                            }`}
+                          >
+                            <span className="h-2 w-2 rounded-full bg-red-400" />
+                            <span>Delivery (To)</span>
+                            {values.toPoint ? <span className="text-[10px]">&#10003;</span> : null}
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setIsMapMaximized(true)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 transition shadow-2xs"
+                            title="Maximize map view"
+                            aria-label="Maximize"
+                          >
+                            <svg className="h-3.5 w-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                            </svg>
+                            <span>Maximize</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowMapSection(false)}
+                            className="text-xs text-slate-500 hover:text-slate-800"
+                          >
+                            Close map
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-600">
+                        {activeMapSide === "from"
+                          ? "Tap the map to set your pickup location. The district is filled in automatically."
+                          : "Tap the map to set your delivery location. The district is filled in automatically."}
+                      </p>
+                      <LocationPicker
+                        id={activeMapSide === "from" ? "fromMapUnified" : "toMapUnified"}
+                        purpose={activeMapSide === "from" ? "collection" : "delivery"}
+                        tileUrl={map.tileUrl}
+                        attribution={map.attribution}
+                        point={activeMapSide === "from" ? values.fromPoint : values.toPoint}
+                        onPick={(point, located) => pickPoint(activeMapSide, point, located)}
+                      />
+                    </div>
+                  )
                 ) : null}
 
                 {/* Address & District Grid with Center Swap Button */}
@@ -372,19 +488,6 @@ export function FeeEstimateWidget({
                       error={errors.fromDistrict}
                       onChange={(value) => chooseDistrict("from", value)}
                     />
-
-                    {map ? (
-                      <MapToggle id="fromMap" purpose="collection">
-                        <LocationPicker
-                          id="fromMap"
-                          purpose="collection"
-                          tileUrl={map.tileUrl}
-                          attribution={map.attribution}
-                          point={values.fromPoint}
-                          onPick={(point, located) => pickPoint("from", point, located)}
-                        />
-                      </MapToggle>
-                    ) : null}
                   </div>
 
                   {/* Swap Button in Center */}
@@ -443,19 +546,6 @@ export function FeeEstimateWidget({
                       error={errors.toDistrict}
                       onChange={(value) => chooseDistrict("to", value)}
                     />
-
-                    {map ? (
-                      <MapToggle id="toMap" purpose="delivery">
-                        <LocationPicker
-                          id="toMap"
-                          purpose="delivery"
-                          tileUrl={map.tileUrl}
-                          attribution={map.attribution}
-                          point={values.toPoint}
-                          onPick={(point, located) => pickPoint("to", point, located)}
-                        />
-                      </MapToggle>
-                    ) : null}
                   </div>
                 </div>
               </div>
@@ -1227,20 +1317,6 @@ function DistrictField({
         ))}
       </select>
     </Field>
-  );
-}
-
-function MapToggle({ id, purpose, children }: { id: string; purpose: string; children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <details
-      className="text-sm"
-      id={`${id}-toggle`}
-      onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)}
-    >
-      <summary className="cursor-pointer text-brand-700">Pin the exact {purpose} point on a map</summary>
-      {open ? <div className="mt-2">{children}</div> : null}
-    </details>
   );
 }
 
