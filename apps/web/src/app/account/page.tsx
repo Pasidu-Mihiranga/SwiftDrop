@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { gatewayFetch } from "@/lib/gateway";
 import { districtsFromZones, type SavedAddress } from "@/lib/addresses";
 import type { Profile } from "@/lib/profile";
@@ -46,11 +47,22 @@ export default async function AccountPage() {
   const [addresses, districts] = "profile" in result ? await Promise.all([loadAddresses(), loadDistricts()]) : [null, []];
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">My profile</h1>
-        <p className="text-slate-600">Your name, phone number and saved addresses, used on deliveries and notifications.</p>
-      </div>
+    <div className="mx-auto max-w-3xl space-y-5">
+      <header>
+        <nav aria-label="Breadcrumb" className="text-xs text-slate-500">
+          <Link href="/" className="hover:text-slate-800">
+            SwiftDrop
+          </Link>
+          <span className="mx-1.5 text-slate-300">/</span>
+          <span className="text-slate-700">Account</span>
+        </nav>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
+          My profile &amp; address book
+        </h1>
+        <p className="mt-1 text-sm text-slate-600">
+          Your name, phone number and saved addresses, used on deliveries and notifications.
+        </p>
+      </header>
 
       {"profile" in result ? (
         <>

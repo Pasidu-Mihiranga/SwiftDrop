@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { AiAssistantWidget } from "@/components/ai-assistant-widget";
 import { SiteHeader } from "@/components/site-header";
 import "./globals.css";
 
@@ -16,6 +17,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body className="min-h-screen" suppressHydrationWarning>
         <SiteHeader />
         <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">{children}</main>
+        <AiAssistantWidget />
       </body>
     </html>
   );

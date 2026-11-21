@@ -73,13 +73,17 @@ export function adminNavigationFor(roles: readonly string[]): { href: string; la
   const items: { href: string; label: string }[] = [];
   if (roles.includes("DISPATCHER") || roles.includes("ADMIN")) {
     items.push({ href: "/admin", label: "Overview" });
+    items.push({ href: "/admin/reports", label: "Reports" });
     items.push({ href: "/admin/dispatch", label: "Dispatch" });
+    items.push({ href: "/admin/couriers", label: "Couriers" });
   }
   if (roles.includes("ADMIN")) {
     items.push({ href: "/admin/pricing/zones", label: "Zones & districts" });
     items.push({ href: "/admin/pricing/rate-cards", label: "Rate cards" });
     items.push({ href: "/admin/pricing/remote-areas", label: "Remote areas" });
     items.push({ href: "/admin/pricing/merchants", label: "Merchant rates" });
+    items.push({ href: "/admin/webhooks", label: "Webhooks DLQ" });
+    items.push({ href: "/admin/notifications/sms-inbox", label: "SMS inbox" });
   }
   return items;
 }

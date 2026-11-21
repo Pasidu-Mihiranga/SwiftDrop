@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  extractParcelPageMeta,
   formatMoney,
   isValidSriLankanPhone,
   serviceLevelDescription,
@@ -51,12 +52,14 @@ describe("parcels helper library", () => {
       expect(statusLabel("IN_TRANSIT")).toBe("In Transit");
       expect(statusLabel("OUT_FOR_DELIVERY")).toBe("Out for Delivery");
       expect(statusLabel("DELIVERED")).toBe("Delivered");
+      expect(statusLabel("FAILED")).toBe("Delivery Failed");
       expect(statusLabel("CANCELLED")).toBe("Cancelled");
     });
 
     it("returns appropriate badge CSS classes", () => {
       expect(statusBadgeClass("CREATED")).toContain("text-blue-700");
       expect(statusBadgeClass("DELIVERED")).toContain("text-emerald-700");
+      expect(statusBadgeClass("FAILED")).toContain("text-rose-700");
       expect(statusBadgeClass("CANCELLED")).toContain("text-rose-700");
     });
   });
@@ -70,6 +73,24 @@ describe("parcels helper library", () => {
     it("describes service levels", () => {
       expect(serviceLevelDescription("STANDARD")).toContain("Standard");
       expect(serviceLevelDescription("EXPRESS")).toContain("Express");
+      expect(serviceLevelDescription("SAME_DAY")).toContain("Same-day");
+    });
+  });
+
+  describe("extractParcelPageMeta", () => {
+    it("extracts nested page metadata from parcel-service responses", () => {
+      expect(
+        extractParcelPageMeta({
+          content: [],
+          page: { page: 1, size: 10, totalElements: 24, totalPages: 3 },
+        }),
+      ).toEqual({ page: 1, size: 10, totalElements: 24, totalPages: 3 });
+    });
+
+    it("supports flat fallback metadata", () => {
+      expect(
+        extractParcelPageMeta({ content: [], page: 0, size: 10, totalElements: 5, totalPages: 1 }),
+      ).toEqual({ page: 0, size: 10, totalElements: 5, totalPages: 1 });
     });
   });
 });
