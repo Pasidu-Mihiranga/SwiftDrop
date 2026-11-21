@@ -2,6 +2,7 @@ package lk.swiftdrop.parcel.infrastructure.persistence;
 
 import lk.swiftdrop.common.web.error.ConflictException;
 import lk.swiftdrop.events.common.Types.ParcelStatus;
+import lk.swiftdrop.parcel.application.model.MerchantOrderFilter;
 import lk.swiftdrop.parcel.application.model.PagedResult;
 import lk.swiftdrop.parcel.application.port.out.ParcelRepository;
 import lk.swiftdrop.parcel.domain.model.Parcel;
@@ -11,8 +12,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,6 +25,8 @@ import java.util.UUID;
 public class ParcelJpaRepository implements ParcelRepository {
 
     private static final Sort NEWEST_FIRST = Sort.by(Sort.Direction.DESC, "createdAt");
+    /** The id breaks ties so a page boundary never repeats or skips an order. */
+    private static final Sort NEWEST_FIRST_STABLE = NEWEST_FIRST.and(Sort.by(Sort.Direction.DESC, "id"));
 
     private final SpringDataParcelRepository rows;
 
@@ -71,6 +76,24 @@ public class ParcelJpaRepository implements ParcelRepository {
         Page<ParcelEntity> found = status == null
                 ? rows.findByCustomerId(customerId, pageable)
                 : rows.findByCustomerIdAndStatus(customerId, status, pageable);
+        return new PagedResult<>(found.map(entity -> ParcelEntityMapper.toDomain(entity, false)).getContent(),
+                found.getNumber(), found.getSize(), found.getTotalElements(), found.getTotalPages());
+    }
+
+    @Override
+    public PagedResult<Parcel> findByMerchant(String merchantId, MerchantOrderFilter filter, int page, int size) {
+        Objects.requireNonNull(merchantId, "merchantId");
+        Specification<ParcelEntity> query = (root, q, cb) -> cb.equal(root.get("merchantId"), merchantId);
+        if (filter.status() != null) {
+            query = query.and((root, q, cb) -> cb.equal(root.get("status"), filter.status()));
+        }
+        if (filter.from() != null) {
+            query = query.and((root, q, cb) -> cb.greaterThanOrEqualTo(root.<Instant>get("createdAt"), filter.from()));
+        }
+        if (filter.to() != null) {
+            query = query.and((root, q, cb) -> cb.lessThan(root.<Instant>get("createdAt"), filter.to()));
+        }
+        Page<ParcelEntity> found = rows.findAll(query, PageRequest.of(page, size, NEWEST_FIRST_STABLE));
         return new PagedResult<>(found.map(entity -> ParcelEntityMapper.toDomain(entity, false)).getContent(),
                 found.getNumber(), found.getSize(), found.getTotalElements(), found.getTotalPages());
     }
