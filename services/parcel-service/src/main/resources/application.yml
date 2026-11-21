@@ -54,6 +54,17 @@ swiftdrop:
     base-url: ${PRICING_SERVICE_URL:http://localhost:8083}
     connect-timeout: 1s
     read-timeout: 2s
+  s3:
+    # Proof-of-delivery photos (M4). RustFS locally, any S3 in production.
+    endpoint: ${S3_ENDPOINT:http://localhost:9010}
+    # Presigned links are signed for the host browsers use (the courier's phone uploads directly).
+    public-endpoint: ${S3_PUBLIC_ENDPOINT:}
+    region: ${S3_REGION:us-east-1}
+    access-key: ${S3_ACCESS_KEY:}
+    secret-key: ${S3_SECRET_KEY:}
+    proof-bucket: ${S3_BUCKET_PROOFS:swiftdrop-proofs}
+    upload-expiry: ${S3_UPLOAD_EXPIRY:PT10M}
+    download-expiry: ${S3_DOWNLOAD_EXPIRY:PT5M}
 
 server:
   port: ${PORT:8084}

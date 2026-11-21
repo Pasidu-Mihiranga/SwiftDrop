@@ -19,6 +19,9 @@ public interface ParcelRepository {
 
     PagedResult<Parcel> findByCustomer(String customerId, ParcelStatus status, int page, int size);
 
+    /** The parcels assigned to one courier, newest first, optionally in one status. */
+    PagedResult<Parcel> findByCourier(String courierId, ParcelStatus status, int page, int size);
+
     /** One merchant's orders matching the filter, newest first. Other merchants' orders are never included. */
     PagedResult<Parcel> findByMerchant(String merchantId, MerchantOrderFilter filter, int page, int size);
 }
