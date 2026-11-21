@@ -37,11 +37,17 @@ export default async function AdminHome() {
         title="Operations"
         subtitle="Dispatch, couriers, merchants, zones & pricing, reports."
         check={{ service: "pricing-service", path: "/api/v1/pricing/zones" }}
+        available={[
+          {
+            feature: "Delivery reports",
+            description: "Deliveries per day, success rate, and outcomes by zone and courier.",
+            href: "/admin/reports",
+          },
+        ]}
         upcoming={[
           { feature: "Dispatch board & courier workload", owner: "M5" },
           { feature: "Merchant approvals", owner: "M7" },
           { feature: "Users & couriers", owner: "M1" },
-          { feature: "Reports (deliveries/day, success rate)", owner: "M10" },
           { feature: "Webhook dead-letter replay", owner: "M8" },
         ]}
       />

@@ -76,7 +76,7 @@ including how a user's login (OAuth 2.0 / OIDC through Keycloak) carries through
 <tr><td>Strategy</td><td><code>LLMProvider</code>: OpenAI and Gemini are interchangeable; <code>LLM_PROVIDER</code> selects one at start-up.</td></tr>
 <tr><td>Factory</td><td><code>provider_config(settings)</code> builds the provider from environment variables.</td></tr>
 <tr><td>Adapter</td><td><code>SwiftDropApi</code> wraps gateway HTTP calls as typed tool functions; Kafka consumer and REST controller adapt the outside world to application services.</td></tr>
-<tr><td>Facade</td><td><code>AgentOrchestrator</code> hides the model loop, tools, memory and guardrails behind one <code>chat()</code> call.</td></tr>
+<tr><td>Facade</td><td><code>AgentOrchestrator</code> hides the model loop, tools, memory and guardrails behind two calls: <code>begin()</code> (rate limit, load the conversation) and <code>run()</code> (one streamed turn).</td></tr>
 <tr><td>Observer / pub-sub</td><td>reporting-service reacts to parcel events it subscribes to.</td></tr>
 <tr><td>Repository and ports</td><td><code>ProjectionStore</code> and <code>ReportStore</code> ports with JDBC adapters for reports; <code>ConversationStore</code> for Redis chat memory and the PII vault.</td></tr>
 <tr><td>Proxy (privacy)</td><td><code>PiiRedactor</code> stands between the agent and the model: it pseudonymizes every outgoing message and tool result and restores the placeholders in the answer; for MCP clients it masks irreversibly.</td></tr>
@@ -100,6 +100,62 @@ including how a user's login (OAuth 2.0 / OIDC through Keycloak) carries through
   and expires with the conversation, and logs are masked.</li>
   <li><strong>Twelve-factor configuration:</strong> provider, model and keys come from environment variables; no
   secret is stored in code.</li>
+</ul>"""),
+    ("assistant-safety", "AI assistant design and safety", [], """
+<p>The assistant is a language model that may only <em>speak</em>; everything it knows comes from five tools, and
+everything a tool may do is decided by the gateway and the user's token. The prompt is the first guardrail, but
+every control that protects a user or the business is enforced in code, so a model that ignores its instructions
+still cannot leak data or invent permissions.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Risk</th><th>Control</th><th>Enforced by</th><th>Verified by</th></tr></thead>
+<tbody>
+<tr><td>Seeing another user's parcels</td><td>The user's JWT is relayed on every tool call; guests are offered the three
+public tools only, and the registry re-checks sign-in when a tool runs, in case a model names a tool it was not
+given. MCP clients' bearer tokens are verified the same way.</td><td>Gateway, parcel-service access policy,
+<code>ToolRegistry.call</code></td><td><code>test_tools.py</code>, <code>test_mcp.py</code>, E2E 03 and 05</td></tr>
+<tr><td>Invented statuses, fees or delivery times</td><td>The prompt requires facts to come from tool results; tools
+return only the fields an answer needs; a failed tool becomes an error the model must explain, never an empty
+success. Fees are always real pricing-service quotes.</td><td>Prompt rules 2 and 3, tool result shapes</td>
+<td><code>test_agent.py</code>, E2E 02</td></tr>
+<tr><td>Off-topic use</td><td>The model answers off-topic requests with a sentinel; <code>ScopeGate</code> holds back the first
+characters of every reply and swaps the sentinel for a fixed answer before anything reaches the user.</td>
+<td><code>ScopeGate</code></td><td><code>test_agent.py</code></td></tr>
+<tr><td>Personal data reaching the LLM provider</td><td>Names, phones, emails, NIC numbers, cards and addresses become
+placeholders before a request leaves SwiftDrop and are restored only in the answer to the user who owns them. Chat
+memory stores placeholders; the vault that maps them back is Fernet-encrypted and expires with the conversation
+(24 h). MCP results are masked irreversibly.</td><td><code>PiiRedactor</code>, <code>PseudonymVault</code></td>
+<td><code>test_privacy.py</code>, <code>test_agent.py</code> leak check</td></tr>
+<tr><td>Prompt injection through data</td><td>Tool results are data, not instructions: an injected "ignore your rules"
+cannot widen access, because authorization lives in the token and the gateway, not in the prompt.</td>
+<td>Token relay, registry</td><td><code>test_tools.py</code></td></tr>
+<tr><td>Abuse and runaway cost</td><td>20 messages a minute per user, or per client address for guests (the BFF forwards
+the browser's address); messages up to 2,000 characters; at most five tool rounds per message.</td>
+<td><code>RateLimiter</code> (Redis), request validation, orchestrator</td><td><code>test_agent.py</code>, <code>test_app.py</code></td></tr>
+<tr><td>Bad tool arguments</td><td>Every tool has a strict schema (unknown fields rejected, tracking-number format,
+weight limits). Places are resolved to districts against pricing-service's live zones; a place it cannot resolve is
+reported without echoing what the user typed.</td><td>Pydantic models, <code>DistrictResolver</code></td>
+<td><code>test_tools.py</code>, <code>test_places.py</code></td></tr>
+<tr><td>Outages</td><td>No API key: chat answers 503 <code>ASSISTANT_NOT_CONFIGURED</code> and the widget says so, while MCP
+keeps working. Model down: a fixed apology instead of a stack trace. Redis down: the rate limiter fails open so
+the assistant stays usable.</td><td>App wiring, orchestrator, <code>RateLimiter</code></td>
+<td><code>test_app.py</code>, <code>chat-assistant.test.tsx</code></td></tr>
+<tr><td>Logs as a leak</td><td>Logs carry metadata only (conversation id, tools used, outcome, duration); the shared
+JSON logger masks anything else. Metrics labels are closed sets with no ids or text.</td>
+<td><code>swiftdrop_common</code> logger, <code>AssistantMetrics</code></td><td><code>swiftdrop_common/tests/test_pii_and_logging.py</code></td></tr>
+</tbody></table></div>
+<h4>Transparency for the user</h4>
+<ul>
+  <li>The chat widget shows each lookup as a chip ("Checked tracking SD...", "Estimated the delivery fee"), so the
+  reader can see where an answer came from; a failed lookup shows in amber.</li>
+  <li>Answers stream as they are written, and the reader can stop one or start a new conversation at any time.</li>
+  <li>Tracking numbers in an answer link to the public tracking page, the source of truth.</li>
+</ul>
+<h4>Known limits</h4>
+<ul>
+  <li>A person's name typed by the user that SwiftDrop has never returned cannot be recognised by a pattern, so it
+  reaches the model as typed. Phones, emails, NIC and card numbers are always caught.</li>
+  <li>Grounding is instructed and checked in tests with scripted models, not proven for every real model reply;
+  the code-enforced controls above are the ones that do not depend on the model behaving.</li>
 </ul>"""),
 ]
 
@@ -228,6 +284,9 @@ th, td {{ text-align: left; padding: 0.65rem 0.9rem; border-bottom: 1px solid va
 th {{ font: 600 0.78rem/1.2 var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }}
 tbody tr:last-child td {{ border-bottom: 0; }}
 td:first-child {{ font-family: var(--font-mono); color: var(--muted); white-space: nowrap; }}
+/* The safety table leads with a risk in words, not a short code, so its first column wraps. */
+#assistant-safety td:first-child {{ font-family: var(--font-body); color: var(--ink); font-weight: 600; white-space: normal; width: 17%; }}
+#assistant-safety td:nth-child(2) {{ width: 43%; }}
 footer {{ color: var(--muted); font-size: 0.9rem; border-top: 1px solid var(--line); padding-top: 1rem; }}
 @media (prefers-reduced-motion: reduce) {{ html {{ scroll-behavior: auto; }} }}
 </style>
