@@ -140,6 +140,11 @@
                 <directory>${project.basedir}/../../contracts/events</directory>
                 <targetPath>contracts/events</targetPath>
             </testResource>
+            <!-- API responses are validated against the OpenAPI contract -->
+            <testResource>
+                <directory>${project.basedir}/../../contracts/openapi</directory>
+                <targetPath>contracts/openapi</targetPath>
+            </testResource>
         </testResources>
         <plugins>
             <plugin>
