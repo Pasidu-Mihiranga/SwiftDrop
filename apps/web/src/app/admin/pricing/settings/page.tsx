@@ -157,6 +157,12 @@ export default async function PricingSettingsAdminPage() {
             blank so every longer trip is priced. Blank rows are ignored.
           </p>
           <div className="space-y-2">
+            <div aria-hidden="true" className="hidden gap-2 text-xs font-medium text-slate-500 sm:grid sm:grid-cols-4">
+              <span>Ends at (km)</span>
+              <span>Line-haul fee (LKR)</span>
+              <span>Standard days</span>
+              <span>Express days</span>
+            </div>
             {BAND_ROWS.map((row) => {
               const band: DistanceBandVersion | undefined = currentSet?.bands[row - 1];
               return (
