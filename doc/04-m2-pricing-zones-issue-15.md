@@ -309,8 +309,7 @@ exercised. TLS was not exercised either, since dev runs over plain http by desig
       snapshot lookup, quote expiry, and (when `parcel-service` is running) M3's
       `POST /api/v1/parcels` consuming a valid quote (`201`) and rejecting an expired/unknown
       quote (`422 QUOTE_EXPIRED`). Run against the compose stack with `parcel-service` on
-      2026-11-23: 16 passed, 0 failed. On Windows, run it from a Linux shell or container: it
-      shares `/tmp` files between curl and python3.
+      2026-11-23: 16 passed, 0 failed, both in Git Bash on Windows and in a Linux container.
 - [x] Complete the M2 row in `doc/03-team-contribution.md` with delivered work.
       Backend, frontend, tests and diagrams filled from the real work; the member name
       comes from the repository's git identity and the Student ID is left as a marked
