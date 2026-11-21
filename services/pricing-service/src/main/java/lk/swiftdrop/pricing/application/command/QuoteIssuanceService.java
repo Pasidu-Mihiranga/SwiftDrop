@@ -72,7 +72,8 @@ public class QuoteIssuanceService {
                 prepared.distance() == null ? null : prepared.distance().kilometres(),
                 prepared.distance() == null ? null : prepared.distance().source(),
                 prepared.estimatedTransitDays(), prepared.vehicleType(), prepared.specialHandling(),
-                prepared.pricingVersion());
+                prepared.pricingVersion(),
+                input.fromAddress(), input.toAddress());
         Duration remaining = Duration.between(clock.instant(), snapshot.expiresAt());
         if (remaining.isZero() || remaining.isNegative()) {
             throw new IllegalStateException("Quote expired before it could be stored");

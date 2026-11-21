@@ -29,6 +29,7 @@ public final class QuoteApiMapper {
                 snapshot.distanceSource(), snapshot.estimatedTransitDays(), snapshot.vehicleType(),
                 // Absent rather than an empty list, like every other field that does not apply.
                 snapshot.specialHandling().isEmpty() ? null : snapshot.specialHandling(),
-                snapshot.pricingVersion());
+                snapshot.pricingVersion(),
+                snapshot.fromAddress(), snapshot.toAddress());
     }
 }
