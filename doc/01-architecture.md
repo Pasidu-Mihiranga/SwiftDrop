@@ -132,6 +132,7 @@ Event envelope (JSON, schemas in `contracts/events/*.schema.json`):
 | `swiftdrop.merchant.lifecycle.v1` (3) | merchantId | merchant | notification (approval email), webhook (pause deliveries to suspended merchants), parcel (merchant status cache) |
 | `swiftdrop.webhook.dead-letter.v1` (3) | deliveryId | webhook | monitoring / admin |
 | `swiftdrop.notification.dead-letter.v1` (3) | eventId | notification | monitoring |
+| `swiftdrop.tracking.dead-letter.v1` (3) | eventId | tracking | monitoring / admin |
 
 Topic names carry the version (`.v1`) so a breaking change creates `.v2`, which can run alongside `.v1`.
 
