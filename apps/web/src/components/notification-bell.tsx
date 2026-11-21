@@ -217,7 +217,7 @@ export function NotificationBell() {
                   <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
                     {n.trackingNumber ? (
                       <Link
-                        href={`/track?trackingNumber=${n.trackingNumber}`}
+                        href={`/track/${n.trackingNumber}`}
                         onClick={() => setIsOpen(false)}
                         className="text-brand-600 hover:underline font-mono"
                       >

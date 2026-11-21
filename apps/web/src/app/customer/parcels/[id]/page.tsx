@@ -154,7 +154,7 @@ export default function ParcelDetailPage() {
 
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-2">
-          <Link href={`/track?q=${parcel.trackingNumber}`} className="btn-secondary text-xs">
+          <Link href={`/track/${parcel.trackingNumber}`} className="btn-secondary text-xs">
             Live Timeline &rarr;
           </Link>
           <a

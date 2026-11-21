@@ -43,6 +43,7 @@ interface FormState {
   weightKg: string;
   sizeClass: SizeClass;
   serviceLevel: ServiceLevel;
+  vehicleType: "BIKE" | "THREE_WHEELER" | "VAN";
 }
 
 const INITIAL_FORM: FormState = {
@@ -66,6 +67,7 @@ const INITIAL_FORM: FormState = {
   weightKg: "1.5",
   sizeClass: "S",
   serviceLevel: "STANDARD",
+  vehicleType: "BIKE",
 };
 
 export default function BookDeliveryPage() {
@@ -215,6 +217,7 @@ export default function BookDeliveryPage() {
           weightKg: parseFloat(form.weightKg),
           sizeClass: form.sizeClass,
           serviceLevel: form.serviceLevel,
+          ...(form.serviceLevel === "SAME_DAY" ? { vehicleType: form.vehicleType } : {}),
         }),
       });
 
@@ -742,7 +745,7 @@ export default function BookDeliveryPage() {
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 Service Level *
               </label>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 {SERVICE_LEVELS.map((level) => (
                   <label
                     key={level}
@@ -762,7 +765,11 @@ export default function BookDeliveryPage() {
                     />
                     <div>
                       <span className="font-bold text-sm block">
-                        {level === "STANDARD" ? "Standard Delivery" : "Express Priority"}
+                        {level === "STANDARD"
+                          ? "Standard Delivery"
+                          : level === "EXPRESS"
+                          ? "Express Priority"
+                          : "Same-Day Courier"}
                       </span>
                       <span className="text-xs text-slate-500">{serviceLevelDescription(level)}</span>
                     </div>
@@ -770,6 +777,26 @@ export default function BookDeliveryPage() {
                 ))}
               </div>
             </div>
+
+            {form.serviceLevel === "SAME_DAY" && (
+              <div>
+                <label htmlFor="vehicleType" className="block text-sm font-medium text-slate-700">
+                  Same-Day Vehicle Type
+                </label>
+                <select
+                  id="vehicleType"
+                  className="input mt-1 max-w-xs"
+                  value={form.vehicleType}
+                  onChange={(e) =>
+                    setForm({ ...form, vehicleType: e.target.value as "BIKE" | "THREE_WHEELER" | "VAN" })
+                  }
+                >
+                  <option value="BIKE">Motorbike (up to 10 kg)</option>
+                  <option value="THREE_WHEELER">Three-Wheeler (up to 25 kg)</option>
+                  <option value="VAN">Delivery Van (up to 50 kg)</option>
+                </select>
+              </div>
+            )}
           </div>
 
           {quoteError && (
@@ -784,7 +811,7 @@ export default function BookDeliveryPage() {
               &larr; Back to Recipient
             </button>
             <button type="button" className="btn-primary" onClick={handleNext} disabled={quoting}>
-              {quoting ? "Calculating Quote..." : "Get Fee Quote &rarr;"}
+              {quoting ? "Calculating Quote..." : "Get Fee Quote \u2192"}
             </button>
           </div>
         </div>
@@ -976,7 +1003,7 @@ export default function BookDeliveryPage() {
 
           {/* Action Links */}
           <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
-            <Link href={`/track?q=${bookedParcel.trackingNumber}`} className="btn-primary">
+            <Link href={`/track/${bookedParcel.trackingNumber}`} className="btn-primary">
               Track Parcel Live &rarr;
             </Link>
             <Link href={`/customer/parcels/${bookedParcel.id}`} className="btn-secondary">
