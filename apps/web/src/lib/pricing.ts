@@ -81,7 +81,9 @@ export interface Quote {
   breakdown: BreakdownLine[];
   fromZone: string;
   toZone: string;
+  fromAddress?: string;
   fromDistrict?: string;
+  toAddress?: string;
   toDistrict?: string;
   weightKg: number;
   /** What the parcel was billed as. Equals weightKg unless it is bulky. */
@@ -180,10 +182,13 @@ export interface SizeClassRate {
 }
 
 export interface QuoteFormValues {
+  fromAddress: string;
   fromDistrict: string;
+  toAddress: string;
   toDistrict: string;
   weightKg: string;
   sizeClass: string;
+  numberOfParcels: number;
   serviceLevel: string;
   codAmount: string;
   declaredValue: string;
@@ -257,10 +262,13 @@ export function withDistrict(
 }
 
 export const EMPTY_QUOTE_FORM: QuoteFormValues = {
+  fromAddress: "",
   fromDistrict: "",
+  toAddress: "",
   toDistrict: "",
   weightKg: "",
   sizeClass: "M",
+  numberOfParcels: 1,
   serviceLevel: "STANDARD",
   codAmount: "",
   declaredValue: "",
@@ -272,7 +280,9 @@ export const EMPTY_QUOTE_FORM: QuoteFormValues = {
 };
 
 export interface QuoteRequestBody {
+  fromAddress?: string;
   fromDistrict: string;
+  toAddress?: string;
   toDistrict: string;
   weightKg: number;
   sizeClass: SizeClass;
@@ -381,7 +391,9 @@ export function validateQuoteForm(values: QuoteFormValues, districts: readonly s
   return {
     ok: true,
     body: {
+      ...(values.fromAddress.trim() ? { fromAddress: values.fromAddress.trim() } : {}),
       fromDistrict: from,
+      ...(values.toAddress.trim() ? { toAddress: values.toAddress.trim() } : {}),
       toDistrict: to,
       weightKg,
       sizeClass: values.sizeClass as SizeClass,

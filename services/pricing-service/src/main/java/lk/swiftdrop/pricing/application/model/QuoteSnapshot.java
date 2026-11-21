@@ -45,7 +45,8 @@ public record QuoteSnapshot(UUID quoteId, Money fee, List<FeeBreakdown.Line> bre
                             UUID merchantId, UUID agreementId,
                             BigDecimal distanceKm, DistanceSource distanceSource,
                             Integer estimatedTransitDays, VehicleType vehicleType,
-                            List<String> specialHandling, String pricingVersion) {
+                            List<String> specialHandling, String pricingVersion,
+                            String fromAddress, String toAddress) {
 
     public QuoteSnapshot {
         breakdown = List.copyOf(breakdown);
@@ -55,6 +56,24 @@ public record QuoteSnapshot(UUID quoteId, Money fee, List<FeeBreakdown.Line> bre
         chargeableWeightKg = chargeableWeightKg == null ? weightKg : chargeableWeightKg;
         weightBasis = weightBasis == null ? WeightBasis.ACTUAL : weightBasis;
         declaredSizeClass = declaredSizeClass == null ? sizeClass : declaredSizeClass;
+    }
+
+    public QuoteSnapshot(UUID quoteId, Money fee, List<FeeBreakdown.Line> breakdown,
+                         String fromZone, String toZone, String fromDistrict, String toDistrict,
+                         BigDecimal weightKg, SizeClassCode sizeClass, ServiceLevel serviceLevel,
+                         BigDecimal codAmount, Instant issuedAt, Instant expiresAt,
+                         BigDecimal chargeableWeightKg, BigDecimal volumetricWeightKg,
+                         WeightBasis weightBasis, Dimensions dimensionsCm,
+                         SizeClassCode declaredSizeClass, BigDecimal declaredValue,
+                         UUID merchantId, UUID agreementId,
+                         BigDecimal distanceKm, DistanceSource distanceSource,
+                         Integer estimatedTransitDays, VehicleType vehicleType,
+                         List<String> specialHandling, String pricingVersion) {
+        this(quoteId, fee, breakdown, fromZone, toZone, fromDistrict, toDistrict, weightKg, sizeClass,
+                serviceLevel, codAmount, issuedAt, expiresAt, chargeableWeightKg, volumetricWeightKg,
+                weightBasis, dimensionsCm, declaredSizeClass, declaredValue, merchantId, agreementId,
+                distanceKm, distanceSource, estimatedTransitDays, vehicleType, specialHandling, pricingVersion,
+                null, null);
     }
 
     /** A quote for a parcel the customer did not measure. */

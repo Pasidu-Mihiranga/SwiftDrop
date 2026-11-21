@@ -28,10 +28,19 @@ public record QuotePricingInput(String fromDistrict, String toDistrict, BigDecim
                                 SizeClassCode sizeClass, ServiceLevel serviceLevel, BigDecimal codAmount,
                                 Dimensions dimensions, BigDecimal declaredValue, UUID merchantId,
                                 GeoPoint origin, GeoPoint destination, VehicleType vehicleType,
-                                List<String> specialHandling) {
+                                List<String> specialHandling, String fromAddress, String toAddress) {
 
     public QuotePricingInput {
         specialHandling = specialHandling == null ? List.of() : List.copyOf(specialHandling);
+    }
+
+    public QuotePricingInput(String fromDistrict, String toDistrict, BigDecimal weightKg,
+                             SizeClassCode sizeClass, ServiceLevel serviceLevel, BigDecimal codAmount,
+                             Dimensions dimensions, BigDecimal declaredValue, UUID merchantId,
+                             GeoPoint origin, GeoPoint destination, VehicleType vehicleType,
+                             List<String> specialHandling) {
+        this(fromDistrict, toDistrict, weightKg, sizeClass, serviceLevel, codAmount, dimensions, declaredValue,
+                merchantId, origin, destination, vehicleType, specialHandling, null, null);
     }
 
     /** A parcel the customer did not measure and did not insure. */

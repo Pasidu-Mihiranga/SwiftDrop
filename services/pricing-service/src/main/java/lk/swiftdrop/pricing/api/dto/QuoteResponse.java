@@ -44,7 +44,24 @@ public record QuoteResponse(UUID quoteId, Money fee, List<BreakdownLineResponse>
                             BigDecimal declaredValue, UUID agreementId,
                             BigDecimal distanceKm, DistanceSource distanceSource,
                             Integer estimatedTransitDays, VehicleType vehicleType,
-                            List<String> specialHandling, String pricingVersion) {
+                            List<String> specialHandling, String pricingVersion,
+                            String fromAddress, String toAddress) {
+
+    public QuoteResponse(UUID quoteId, Money fee, List<BreakdownLineResponse> breakdown,
+                         String fromZone, String toZone, String fromDistrict, String toDistrict,
+                         BigDecimal weightKg, SizeClassCode sizeClass, ServiceLevel serviceLevel,
+                         BigDecimal codAmount, Instant issuedAt, Instant expiresAt,
+                         BigDecimal chargeableWeightKg, BigDecimal volumetricWeightKg,
+                         WeightBasis weightBasis, SizeClassCode declaredSizeClass,
+                         BigDecimal declaredValue, UUID agreementId,
+                         BigDecimal distanceKm, DistanceSource distanceSource,
+                         Integer estimatedTransitDays, VehicleType vehicleType,
+                         List<String> specialHandling, String pricingVersion) {
+        this(quoteId, fee, breakdown, fromZone, toZone, fromDistrict, toDistrict, weightKg, sizeClass,
+                serviceLevel, codAmount, issuedAt, expiresAt, chargeableWeightKg, volumetricWeightKg,
+                weightBasis, declaredSizeClass, declaredValue, agreementId, distanceKm, distanceSource,
+                estimatedTransitDays, vehicleType, specialHandling, pricingVersion, null, null);
+    }
 
     /** An amount and its currency. Mirrors the shared Money schema in common.v1.yaml. */
     public record Money(BigDecimal amount, String currency) { }

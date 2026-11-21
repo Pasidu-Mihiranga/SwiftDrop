@@ -744,8 +744,10 @@ components:
       type: object
       required: [fromDistrict, toDistrict, weightKg, sizeClass]
       properties:
+        fromAddress: { type: string, maxLength: 200, example: "45 Galle Road, Colombo 03" }
         fromCity: { type: string, maxLength: 60, example: Colombo 03 }
         fromDistrict: { type: string, minLength: 1, maxLength: 100, example: Colombo }
+        toAddress: { type: string, maxLength: 200, example: "Peradeniya Road, Kandy" }
         toCity: { type: string, maxLength: 60, example: Kandy }
         toDistrict: { type: string, minLength: 1, maxLength: 100, example: Kandy }
         weightKg: { type: number, exclusiveMinimum: 0, maximum: 100, example: 2 }
@@ -812,7 +814,9 @@ components:
           items: { $ref: "#/components/schemas/BreakdownLine" }
         fromZone: { $ref: "#/components/schemas/ZoneCode" }
         toZone: { $ref: "#/components/schemas/ZoneCode" }
+        fromAddress: { type: string, example: "45 Galle Road, Colombo 03" }
         fromDistrict: { type: string, example: Colombo }
+        toAddress: { type: string, example: "Peradeniya Road, Kandy" }
         toDistrict: { type: string, example: Kandy }
         weightKg: { type: number, example: 2 }
         serviceLevel: { $ref: "#/components/schemas/ServiceLevel" }
