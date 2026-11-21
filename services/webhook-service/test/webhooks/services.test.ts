@@ -1,4 +1,5 @@
 import { createEnvelope, type ParcelCreated, type ParcelStatusChanged } from "@swiftdrop/common";
+import { metricsRegistry } from "@swiftdrop/common/nest";
 import { DeliveryLogService } from "../../src/modules/webhooks/application/delivery-log.service";
 import { DeliveryProcessor, RetryLaterError } from "../../src/modules/webhooks/application/delivery-processor";
 import { EndpointService } from "../../src/modules/webhooks/application/endpoint.service";
@@ -194,6 +195,29 @@ describe("delivery processor", () => {
     expect(await s.processor.process(id, 1)).toBe("dead");
     expect(s.deadLetters.published[0].lastError).toBe("The endpoint was removed");
     expect(await s.processor.process("whd_missing", 1)).toBe("skipped");
+  });
+
+  it("counts every outcome and the endpoint's answer time for Prometheus", async () => {
+    // A histogram's _count series is reported under the histogram's own name.
+    const value = async (series: string, labels: Record<string, string>) => {
+      const metric = await metricsRegistry.getSingleMetric(series.replace(/_count$/, ""))!.get();
+      return metric.values.find((v) => ((v as { metricName?: string }).metricName ?? metric.name) === series
+        && Object.entries(labels).every(([k, l]) => v.labels[k] === l))?.value ?? 0;
+    };
+    const outcome = (o: string) => value("webhook_delivery_attempts_total", { outcome: o });
+    const before = { delivered: await outcome("delivered"), retry: await outcome("retry"), dead: await outcome("dead"),
+      failures: await value("webhook_delivery_latency_seconds_count", { result: "failure" }) };
+
+    const s = setUp(new ScriptedSender([{ httpStatus: 503, latencyMs: 40 }, { httpStatus: 503, latencyMs: 40 },
+      { httpStatus: 200, latencyMs: 12 }]));
+    const { id } = await queuedDelivery(s);
+    await expect(s.processor.process(id, 1)).rejects.toBeInstanceOf(RetryLaterError);
+    expect(await s.processor.process(id, 7)).toBe("dead");
+
+    expect(await outcome("retry")).toBe(before.retry + 1);
+    expect(await outcome("dead")).toBe(before.dead + 1);
+    expect(await value("webhook_delivery_latency_seconds_count", { result: "failure" })).toBe(before.failures + 2);
+    expect(await outcome("delivered")).toBe(before.delivered);
   });
 
   it("records the status code in the dead-letter event when the merchant answered", async () => {

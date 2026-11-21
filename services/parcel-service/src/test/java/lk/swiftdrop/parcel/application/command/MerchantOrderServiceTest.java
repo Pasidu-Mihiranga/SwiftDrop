@@ -1,5 +1,7 @@
 package lk.swiftdrop.parcel.application.command;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import lk.swiftdrop.parcel.infrastructure.metrics.MicrometerParcelMetrics;
 import lk.swiftdrop.common.security.AuthenticatedUser;
 import lk.swiftdrop.common.web.error.BadRequestException;
 import lk.swiftdrop.common.web.error.ConflictException;
@@ -71,6 +73,12 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class MerchantOrderServiceTest {
+    private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
+
+    private double count(String name, String tag, String value) {
+        return registry.get(name).tag(tag, value).counter().count();
+    }
+
 
     private static final Clock CLOCK = Clock.fixed(ParcelFixtures.NOW, ZoneOffset.UTC);
     private static final String MERCHANT = "00000000-0000-4000-8000-0000000000a1";
@@ -118,7 +126,8 @@ class MerchantOrderServiceTest {
     @BeforeEach
     void setUp() {
         service = new MerchantOrderService(merchants, idempotency, pricing, parcels,
-                new TrackingNumberFactory(CLOCK, new Random(7)), outbox, metrics, transactions, CLOCK);
+                new TrackingNumberFactory(CLOCK, new Random(7)), outbox, metrics, transactions, CLOCK,
+                new MicrometerParcelMetrics(registry));
         lenient().when(merchants.find(MERCHANT)).thenReturn(Optional.of(APPROVED));
         lenient().when(merchants.findForOrder(MERCHANT)).thenReturn(Optional.of(APPROVED));
         lenient().when(idempotency.find(anyString(), any())).thenReturn(Optional.empty());
@@ -176,6 +185,7 @@ class MerchantOrderServiceTest {
         assertThat(record.getValue().key()).isEqualTo(KEY);
         assertThat(record.getValue().parcelId()).isEqualTo(parcel.id());
         assertThat(record.getValue().requestHash()).isEqualTo(RequestFingerprint.of(order()));
+        assertThat(count("parcel.bookings", "source", "merchant")).isEqualTo(1);
     }
 
     @Test
@@ -311,6 +321,7 @@ class MerchantOrderServiceTest {
         verifyNoInteractions(pricing, outbox);
         assertNothingWritten();
         assertThat(transactions.rolledBack).isZero();
+        assertThat(count("parcel.bookings", "source", "merchant")).as("a replay books nothing").isZero();
     }
 
     @Test
