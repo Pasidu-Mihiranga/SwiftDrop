@@ -21,6 +21,9 @@
     "typecheck": "pnpm -r typecheck",
     "java:verify": "mvn -B verify",
     "ai:test": "cd services/ai-assistant-service && uv run pytest",
+    "e2e": "pnpm --filter @swiftdrop/e2e e2e",
+    "e2e:install": "pnpm --filter @swiftdrop/e2e e2e:install",
+    "test:reports": "bash scripts/collect-test-reports.sh",
     "web:dev": "pnpm --filter @swiftdrop/web dev",
     "diagrams:render": "python scripts/generate-m9-diagrams.py",
     "pdf:build": "python scripts/build-m9-pdf.py"

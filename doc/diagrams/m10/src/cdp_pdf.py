@@ -9,6 +9,7 @@ usage: python cdp_pdf.py input.html output.pdf [--probe]
 
 import base64
 import json
+import os
 import subprocess
 import sys
 import time
@@ -18,7 +19,8 @@ from pathlib import Path
 import websocket
 
 EDGE = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-PORT = 9333
+# Override when Windows reserves the default (netsh interface ipv4 show excludedportrange protocol=tcp).
+PORT = int(os.environ.get("CDP_PORT", "9333"))
 
 
 def main():

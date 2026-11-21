@@ -6,16 +6,19 @@ import lk.swiftdrop.events.dispatch.ParcelAssigned;
 import lk.swiftdrop.events.parcel.ParcelCreated;
 import lk.swiftdrop.events.parcel.ParcelStatusChanged;
 import lk.swiftdrop.reporting.application.command.ProjectionService;
+import lk.swiftdrop.reporting.application.port.out.EventReplay;
 import lk.swiftdrop.reporting.infrastructure.metrics.ReportingMetrics;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.listener.AbstractConsumerSeekAware;
 import org.springframework.stereotype.Component;
 
 /**
  * Feeds the three parcel topics into the projection. The consumer group comes from
  * {@code spring.kafka.consumer.group-id}; failures are handled by {@link KafkaConsumerConfiguration}.
+ * Seek-aware, so a rebuild can send every listener back to the start of its topic.
  */
 @Component
-class ParcelEventListeners {
+class ParcelEventListeners extends AbstractConsumerSeekAware implements EventReplay {
 
     private final EventReader reader;
     private final ProjectionService projection;
@@ -44,5 +47,11 @@ class ParcelEventListeners {
     void onParcelAssigned(String value) {
         EventEnvelope<ParcelAssigned> event = reader.read(value, ParcelAssigned.class, ParcelAssigned.TYPE, ParcelAssigned.VERSION);
         metrics.processed(ParcelAssigned.TYPE, projection.onParcelAssigned(event), event.occurredAt());
+    }
+
+    /** Queued on each consumer thread and performed before its next poll. */
+    @Override
+    public void replayFromBeginning() {
+        seekToBeginning();
     }
 }

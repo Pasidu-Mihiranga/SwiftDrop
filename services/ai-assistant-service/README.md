@@ -29,10 +29,17 @@ SD..."), `token` (answer text), `error`, and finally `done` with the `conversati
 | Tool | Who | Calls |
 |---|---|---|
 | `track_parcel` | everyone | `GET /api/v1/tracking/public/{n}` |
-| `estimate_delivery_fee` | everyone | `POST /api/v1/pricing/quotes` |
+| `estimate_delivery_fee` | everyone | `GET /api/v1/pricing/zones`, then `POST /api/v1/pricing/quotes` |
 | `list_service_zones` | everyone | `GET /api/v1/pricing/zones` |
 | `list_my_parcels` | signed in | `GET /api/v1/parcels/mine` |
 | `get_parcel_details` | signed in | `GET /api/v1/parcels/{id}` |
+
+`estimate_delivery_fee(from_city, to_city, weight_kg, size_class)` takes places as people name them.
+`app/tools/places.py` resolves each one to a district: a district from pricing-service's live zone list,
+then a table of about 170 towns ("Nugegoda" to Colombo, "Peradeniya" to Kandy), then a close spelling
+when only one candidate is close. A place it cannot place is an `UNKNOWN_PLACE` error (the model asks
+for the district), and a district outside the active zones is `DISTRICT_NOT_SERVICED`. The table only
+says which district a town is in; what is served, and at what price, always comes from pricing-service.
 
 Until pricing-, parcel- and tracking-service are deployed, these tools return an "unavailable" or "not
 found" error, which the assistant explains to the user.
@@ -54,13 +61,34 @@ so it reaches the model as typed. Phones, emails, NIC and card numbers are alway
 
 | Variable | Default | |
 |---|---|---|
-| `LLM_PROVIDER`, `LLM_MODEL` | `gemini`, `gemini-2.5-flash` | `openai` also works; one OpenAI-compatible client |
-| `GEMINI_API_KEY` / `OPENAI_API_KEY` | empty | Without a key `/chat` answers 503; MCP still works |
+| `LLM_PROVIDER`, `LLM_MODEL` | `gemini`, `gemini-2.5-flash` | `openai` and `vertex` also work; one OpenAI-compatible client |
+| `GEMINI_API_KEY` / `OPENAI_API_KEY` | empty | Without credentials `/chat` answers 503; MCP still works |
+| `VERTEX_CREDENTIALS_FILE` | empty | `vertex` only: service account key file, relative to the repository root (`secrets/` is git- and docker-ignored) |
+| `VERTEX_CREDENTIALS_JSON` | empty | `vertex` only: the same key inline, for a Kubernetes Secret; wins over the file |
+| `VERTEX_PROJECT`, `VERTEX_LOCATION` | key's `project_id`, `global` | Vertex AI project and region |
 | `REDIS_URL` | built from `REDIS_HOST_PORT` and `REDIS_PASSWORD` | Memory, vault and rate limits |
 | `ASSISTANT_VAULT_SECRET` | random per process | Set it everywhere except quick local runs |
 | `ASSISTANT_RATE_LIMIT_PER_MIN` | `20` | Messages per caller per minute |
 | `ASSISTANT_MAX_TOOL_ROUNDS` | `5` | Tool rounds per message |
 | `MCP_MASK_PII` | `true` | `false` only for trusted MCP clients |
+
+### Gemini on Vertex AI
+
+With `LLM_PROVIDER=vertex` the assistant calls Gemini through Vertex AI's OpenAI-compatible endpoint,
+authenticated as a Google Cloud service account (it needs the **Vertex AI User** role). `app/llm/vertex.py`
+signs a short JWT with the account's key, exchanges it for an access token (valid one hour, refreshed five
+minutes early) and puts it on every model request. The key never leaves the process and is never logged.
+
+```bash
+mkdir -p secrets && cp ~/Downloads/<key>.json secrets/google-service-account.json
+# .env
+LLM_PROVIDER=vertex
+VERTEX_CREDENTIALS_FILE=secrets/google-service-account.json
+```
+
+Docker Compose mounts `./secrets` read-only at `/run/secrets/swiftdrop`. On kind, `scripts/kind-deploy.sh` puts the
+key into `swiftdrop-app-secrets` as `VERTEX_CREDENTIALS_JSON` when the file exists. A missing or broken key is
+logged and treated like a missing API key: `/chat` answers 503 and MCP keeps working.
 
 ## Metrics (`/metrics`)
 
@@ -76,7 +104,7 @@ app/
 ├── agent/               orchestrator (one turn), prompts, guardrails (rate limit, scope gate)
 ├── privacy/             detectors, PseudonymVault + VaultCipher, PiiRedactor + StreamingRestorer
 ├── tools/               ToolRegistry (sign-in based access) and the five SwiftDrop tools
-├── llm/                 Strategy: LLMProvider protocol, OpenAI-compatible provider, factory
+├── llm/                 Strategy: LLMProvider protocol, OpenAI-compatible provider, Vertex AI auth, factory
 ├── memory/              ConversationStore (Redis)
 ├── mcp_server/          MCP server over the same registry
 └── clients/             SwiftDropApi: gateway client that forwards the user's token

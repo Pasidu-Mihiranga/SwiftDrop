@@ -5,7 +5,9 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.clients.swiftdrop_api import SwiftDropApi
-from app.tools.registry import Tool, ToolRegistry
+from app.tools.places import DistrictResolver
+from app.tools.registry import Tool, ToolError, ToolRegistry
+from swiftdrop_common import ApiError
 
 ParcelStatus = Literal["CREATED", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED", "CANCELLED"]
 _RECENT_EVENTS = 5
@@ -28,8 +30,8 @@ class TrackParcelArgs(_Args):
 
 
 class EstimateFeeArgs(_Args):
-    from_district: str = Field(min_length=2, max_length=40, description="Pickup district, e.g. Colombo")
-    to_district: str = Field(min_length=2, max_length=40, description="Delivery district, e.g. Kandy")
+    from_city: str = Field(min_length=2, max_length=60, description="Pickup city, town or district, e.g. Nugegoda")
+    to_city: str = Field(min_length=2, max_length=60, description="Delivery city, town or district, e.g. Kandy")
     weight_kg: float = Field(gt=0, le=100, description="Parcel weight in kilograms")
     size_class: Literal["S", "M", "L", "XL"] = Field("S", description="Parcel size class")
     service_level: Literal["STANDARD", "EXPRESS"] = "STANDARD"
@@ -62,15 +64,38 @@ async def _track(args: TrackParcelArgs, api: SwiftDropApi) -> dict[str, Any]:
     }
 
 
+async def _served_districts(api: SwiftDropApi) -> list[str] | None:
+    """Districts in active zones, or None when pricing-service cannot list them right now."""
+    try:
+        zones = await api.zones()
+    except ApiError:
+        return None
+    return [d for z in zones if z.get("active", True) for d in (z.get("districts") or [])]
+
+
 async def _estimate(args: EstimateFeeArgs, api: SwiftDropApi) -> dict[str, Any]:
+    resolver = DistrictResolver(await _served_districts(api))
+    districts = []
+    for end, place in (("pickup", args.from_city), ("delivery", args.to_city)):
+        district = resolver.resolve(place)
+        if district is None:
+            # The place is not echoed back: it is user input and could be a street address.
+            raise ToolError("UNKNOWN_PLACE", f"Could not tell which district the {end} place is in. "
+                                             "Ask the user for the district.")
+        if resolver.known_list and not resolver.is_served(district):
+            raise ToolError("DISTRICT_NOT_SERVICED", f"SwiftDrop does not deliver in {district} district yet.")
+        districts.append(district)
     quote = await api.quote({
-        "fromDistrict": args.from_district.strip().title(),
-        "toDistrict": args.to_district.strip().title(),
+        "fromCity": args.from_city.strip(),
+        "fromDistrict": districts[0],
+        "toCity": args.to_city.strip(),
+        "toDistrict": districts[1],
         "weightKg": args.weight_kg,
         "sizeClass": args.size_class,
         "serviceLevel": args.service_level,
     })
-    return {k: quote.get(k) for k in ("fee", "breakdown", "fromZone", "toZone", "expiresAt")}
+    return {"fromDistrict": districts[0], "toDistrict": districts[1],
+            **{k: quote.get(k) for k in ("fee", "breakdown", "fromZone", "toZone", "expiresAt")}}
 
 
 async def _zones(_args: NoArgs, api: SwiftDropApi) -> list[dict[str, Any]]:
@@ -112,11 +137,12 @@ def build_registry() -> ToolRegistry:
              "Current status and recent events of a parcel, from its tracking number. Works for anyone.",
              TrackParcelArgs, _track, lambda a: f"Checked tracking {a.tracking_number}", public=True),
         Tool("estimate_delivery_fee",
-             "Delivery fee quote between two Sri Lankan districts for a weight and size class. Works for anyone.",
-             EstimateFeeArgs, _estimate, lambda a: f"Estimated the fee {a.from_district} to {a.to_district}",
+             "Delivery fee quote between two Sri Lankan places (a city, town or district; the district is "
+             "resolved for you) for a weight and size class. Works for anyone.",
+             EstimateFeeArgs, _estimate, lambda _a: "Estimated the delivery fee",
              public=True),
         Tool("list_service_zones",
-             "SwiftDrop service zones and the districts in each. Use it to map a city to its district.",
+             "SwiftDrop service zones and the districts in each.",
              NoArgs, _zones, lambda _a: "Looked up the service zones", public=True),
         Tool("list_my_parcels",
              "The signed-in user's own parcels, newest first, optionally filtered by status.",

@@ -15,8 +15,10 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.kafka.config.TopicBuilder;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.kafka.KafkaContainer;
@@ -35,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -81,6 +84,8 @@ class ReportingProjectionIT {
     private KafkaTemplate<String, String> kafka;
     @Autowired
     private MeterRegistry meters;
+    @Autowired
+    private JdbcClient jdbc;
 
     @Test
     void parcelLifecycleShowsUpInEveryReport() throws Exception {
@@ -190,6 +195,32 @@ class ReportingProjectionIT {
         });
     }
 
+    @Test
+    void rebuildReplacesTheReadModelWithWhatTheEventsSay() throws Exception {
+        UUID parcel = UUID.randomUUID();
+        publish(Topics.PARCEL_CREATED, parcel, ContractEvents.created(UUID.randomUUID(), parcel, "UP-BAD",
+                Instant.parse("2026-02-01T03:00:00Z")));
+        publish(Topics.PARCEL_STATUS_CHANGED, parcel, ContractEvents.statusChanged(UUID.randomUUID(), parcel,
+                "DELIVERED", "courier-d", Instant.parse("2026-02-01T08:00:00Z")));
+        await().atMost(TIMEOUT).untilAsserted(() ->
+                assertThat(zone("2026-02-01", "UP-BAD")).isNotNull());
+
+        // A row no event supports, as a projection bug would leave behind.
+        jdbc.sql("INSERT INTO daily_delivery_stats (business_date, zone_code, delivered) VALUES ('2026-02-01', 'XX-BUG', 9)")
+                .update();
+        assertThat(zone("2026-02-01", "XX-BUG")).isNotNull();
+
+        mvc.perform(post("/api/v1/reports/rebuild").with(admin())).andExpect(status().isAccepted());
+
+        await().atMost(TIMEOUT).untilAsserted(() -> {
+            assertThat(zone("2026-02-01", "XX-BUG")).isNull();
+            JsonNode zone = zone("2026-02-01", "UP-BAD");
+            assertThat(zone).isNotNull();
+            assertThat(zone.get("created").asLong()).isEqualTo(1);
+            assertThat(zone.get("delivered").asLong()).isEqualTo(1);
+        });
+    }
+
     private void publish(String topic, UUID parcel, String value) throws Exception {
         ProducerRecord<String, String> record = new ProducerRecord<>(topic, parcel.toString(), value);
         record.headers().add(Topics.HEADER_EVENT_ID,
@@ -207,12 +238,15 @@ class ReportingProjectionIT {
     }
 
     private JsonNode report(String uri) throws Exception {
-        String body = mvc.perform(get(uri).with(jwt()
-                        .jwt(token -> token.subject("admin-1").claim("realm_access", Map.of("roles", List.of("ADMIN"))))
-                        .authorities(new KeycloakRealmRoleConverter())))
+        String body = mvc.perform(get(uri).with(admin()))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         return JSON.readTree(body);
+    }
+
+    private static RequestPostProcessor admin() {
+        return jwt().jwt(token -> token.subject("admin-1").claim("realm_access", Map.of("roles", List.of("ADMIN"))))
+                .authorities(new KeycloakRealmRoleConverter());
     }
 
     private double count(String name, String... tags) {

@@ -4,6 +4,7 @@ import lk.swiftdrop.reporting.application.port.out.ProjectionStore;
 import lk.swiftdrop.reporting.domain.model.ZoneCounts;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -172,5 +173,13 @@ class JdbcProjectionStore implements ProjectionStore {
     /** The Postgres driver binds OffsetDateTime to timestamptz; it has no mapping for Instant. */
     private static OffsetDateTime utc(Instant instant) {
         return instant == null ? null : instant.atOffset(ZoneOffset.UTC);
+    }
+
+    @Override
+    @Transactional
+    public void clear() {
+        // TRUNCATE waits for in-flight event transactions, so nothing is half-cleared.
+        jdbc.sql("TRUNCATE parcel_fact, status_transition, daily_delivery_stats, courier_daily_stats").update();
+        jdbc.sql("DELETE FROM processed_event WHERE consumer LIKE 'reporting-%'").update();
     }
 }

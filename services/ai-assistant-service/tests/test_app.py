@@ -114,3 +114,5 @@ def test_settings_derive_keycloak_and_redis_urls():
     assert settings.jwks_uri.endswith("/realms/swiftdrop/protocol/openid-connect/certs")
     assert settings.redis_dsn == "redis://:pw@localhost:6380/0"
     assert Settings(_env_file=None, redis_url="redis://redis:6379/0").redis_dsn == "redis://redis:6379/0"
+    in_cluster = Settings(_env_file=None, redis_host="redis", redis_port=6379, redis_password="pw")
+    assert in_cluster.redis_dsn == "redis://:pw@redis:6379/0"

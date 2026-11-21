@@ -25,7 +25,7 @@ def test_guests_are_offered_public_tools_only(registry):
     assert [t.name for t in registry.tools_for(None)] == ["track_parcel", "estimate_delivery_fee", "list_service_zones"]
     assert len(registry.specs_for(CUSTOMER)) == 5
     spec = next(s for s in registry.specs_for(None) if s.name == "estimate_delivery_fee")
-    assert spec.parameters["required"] == ["from_district", "to_district", "weight_kg"]
+    assert spec.parameters["required"] == ["from_city", "to_city", "weight_kg"]
     assert "title" not in spec.parameters
 
 
@@ -65,18 +65,50 @@ async def test_track_parcel_normalises_the_number_and_keeps_recent_events(regist
     assert "authorization" not in route.calls.last.request.headers
 
 
+ZONES = [{"code": "WP", "name": "Western", "districts": ["Colombo", "Gampaha"], "active": True},
+         {"code": "CP", "name": "Central", "districts": ["Kandy", "Matale"], "active": True},
+         {"code": "NP", "name": "Northern", "districts": ["Jaffna"], "active": False}]
+QUOTE = {"quoteId": "q-1", "fee": {"amount": 650.0, "currency": "LKR"}, "breakdown": [], "fromZone": "WP",
+         "toZone": "CP", "expiresAt": "2026-10-31T10:15:00Z"}
+
+
 @respx.mock
-async def test_fee_estimate_posts_a_quote_request(registry, http):
-    route = respx.post(f"{GATEWAY}/api/v1/pricing/quotes").respond(json={
-        "quoteId": "q-1", "fee": {"amount": 650.0, "currency": "LKR"}, "breakdown": [], "fromZone": "WP",
-        "toZone": "CP", "expiresAt": "2026-10-31T10:15:00Z"})
+async def test_fee_estimate_resolves_towns_to_districts_and_posts_a_quote(registry, http):
+    respx.get(f"{GATEWAY}/api/v1/pricing/zones").respond(json=ZONES)
+    route = respx.post(f"{GATEWAY}/api/v1/pricing/quotes").respond(json=QUOTE)
     result = await registry.call("estimate_delivery_fee",
-                                 {"from_district": " colombo", "to_district": "kandy", "weight_kg": 2}, None,
+                                 {"from_city": " Nugegoda", "to_city": "kandy", "weight_kg": 2}, None,
                                  SwiftDropApi(http))
-    assert result.ok and result.data["fee"]["amount"] == 650.0 and "quoteId" not in result.data
-    sent = route.calls.last.request
-    assert sent.read() == (b'{"fromDistrict":"Colombo","toDistrict":"Kandy","weightKg":2.0,'
-                           b'"sizeClass":"S","serviceLevel":"STANDARD"}')
+    assert result.ok and result.chip == "Estimated the delivery fee"
+    assert result.data["fee"]["amount"] == 650.0 and "quoteId" not in result.data
+    assert (result.data["fromDistrict"], result.data["toDistrict"]) == ("Colombo", "Kandy")
+    assert route.calls.last.request.read() == (
+        b'{"fromCity":"Nugegoda","fromDistrict":"Colombo","toCity":"kandy","toDistrict":"Kandy",'
+        b'"weightKg":2.0,"sizeClass":"S","serviceLevel":"STANDARD"}')
+
+
+@respx.mock
+@pytest.mark.parametrize("to_city, code", [
+    ("Atlantis", "UNKNOWN_PLACE"),
+    ("Point Pedro", "DISTRICT_NOT_SERVICED"),
+])
+async def test_fee_estimate_explains_places_it_cannot_price(registry, http, to_city, code):
+    respx.get(f"{GATEWAY}/api/v1/pricing/zones").respond(json=ZONES)
+    route = respx.post(f"{GATEWAY}/api/v1/pricing/quotes").respond(json=QUOTE)
+    result = await registry.call("estimate_delivery_fee", {"from_city": "Colombo", "to_city": to_city,
+                                                           "weight_kg": 1}, None, SwiftDropApi(http))
+    assert not result.ok and result.error_code == code
+    assert to_city not in result.data
+    assert not route.called
+
+
+@respx.mock
+async def test_fee_estimate_still_quotes_when_zones_cannot_be_listed(registry, http):
+    respx.get(f"{GATEWAY}/api/v1/pricing/zones").respond(503)
+    respx.post(f"{GATEWAY}/api/v1/pricing/quotes").respond(json=QUOTE)
+    result = await registry.call("estimate_delivery_fee", {"from_city": "Negombo", "to_city": "Peradeniya",
+                                                           "weight_kg": 1}, None, SwiftDropApi(http))
+    assert result.ok and (result.data["fromDistrict"], result.data["toDistrict"]) == ("Gampaha", "Kandy")
 
 
 @respx.mock
