@@ -12,6 +12,8 @@ for (const file of [".env", "../../.env"]) {
 
 const keycloakPort = process.env.KEYCLOAK_HOST_PORT ?? "8180";
 const kafkaPort = process.env.KAFKA_HOST_PORT ?? "9092";
+const mongoPort = process.env.MONGO_HOST_PORT ?? "27018";
+const redisPort = process.env.REDIS_HOST_PORT ?? "6380";
 
 /** Fail fast at startup if configuration is missing or malformed (12-factor config). */
 const schema = z.object({
@@ -19,6 +21,16 @@ const schema = z.object({
   KEYCLOAK_ISSUER: z.url().default(`http://localhost:${keycloakPort}/realms/swiftdrop`),
   KEYCLOAK_JWKS_URI: z.url().default(`http://localhost:${keycloakPort}/realms/swiftdrop/protocol/openid-connect/certs`),
   KAFKA_BROKERS: z.string().min(1).default(`localhost:${kafkaPort}`),
+  MONGO_URI: z
+    .string()
+    .regex(/^mongodb(\+srv)?:\/\//, "MONGO_URI must start with mongodb:// or mongodb+srv://")
+    .default(`mongodb://localhost:${mongoPort}/tracking`),
+  /** Public tracking lookups allowed per client IP per minute (enumeration protection). */
+  RATE_LIMIT_PUBLIC_PER_MIN: z.coerce.number().int().positive().default(60),
+  REDIS_URL: z
+    .string()
+    .regex(/^rediss?:\/\//, "REDIS_URL must start with redis:// or rediss://")
+    .default(`redis://localhost:${redisPort}`),
 });
 
 export type Env = z.infer<typeof schema>;
