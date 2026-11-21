@@ -46,7 +46,7 @@ what it did not is recorded in `doc/04-m2-pricing-zones-issue-15.md`.
 | M3 | | | | | | | | |
 | M4 | | | | | | | | |
 | M5 | | | | | | | | |
-| M6 | | | | | | | | |
+| M6 | K. W. A. Imalsha | 234086E | **Real-time Tracking** | `tracking-service`: Kafka consumers with idempotent dedupe (Mongo `processed_event`) and dead-letter topic `swiftdrop.tracking.dead-letter.v1`; Mongo timeline read model with optimistic versioning; public masked tracking API (rate limited per client IP, 429 with Retry-After); owner/courier/merchant/staff timeline API; Socket.IO gateway at `/ws/tracking` with JWT or single-use socket-ticket handshake, room rules (`tracking:`, `user:`, `merchant:`, `dispatch`) and Redis adapter for replicas; Prometheus metrics; OpenAPI contract | Public `/track/[trackingNumber]` page (server lookup, stepper, live updates, not-found and busy states); reusable live timeline for M3/M7 detail pages; live toasts on customer and merchant dashboards; socket session via BFF ticket (no access token in browser JavaScript); dispatch feed hook for M5 | Service: unit tests plus Testcontainers integration (Kafka, Mongo, Redis; two replicas sharing rooms), 97.2% lines in the last recorded run. Web: 234 tests passing, tsc clean. Reports to be collected in `doc/test-reports/` | Architecture, timeline ER, real-time tracking sequence, plus M6 diagrams in the M10 style; diagrams updated to the built design | branch `docs/m6-contracts-and-contribution` (merges the M6 feature branches); PR to be opened, `Closes #19` |
 | M7 | | | | | | | | |
 | M8 | | | | | | | | |
 | M9 | | | | | | | | |

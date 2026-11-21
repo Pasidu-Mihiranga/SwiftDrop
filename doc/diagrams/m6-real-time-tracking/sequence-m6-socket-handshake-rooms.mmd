@@ -5,21 +5,22 @@ sequenceDiagram
     actor U as Customer browser
     participant BFF as Next.js BFF
     participant SG as Socket.IO gateway
-    participant JV as JwtVerifier shared lib
-    participant KC as Keycloak JWKS
+    participant TR as tracking-service REST
+    participant TS as Socket ticket store (Redis)
     participant RP as RoomPolicy
-    U->>BFF: GET /api/bff/socket-token with session cookie
-    BFF->>BFF: read access token from session, server-side only
-    BFF-->>U: short-lived token, aud swiftdrop-api
-    U->>SG: connect with handshake auth.token
-    SG->>JV: verify token
-    JV->>KC: fetch JWKS, cached
-    KC-->>JV: public keys
-    alt signature, issuer, audience or expiry fails
-        JV-->>SG: invalid
+    U->>BFF: POST /api/bff/api/v1/tracking/socket-tickets with session cookie
+    BFF->>BFF: attach access token server-side, token never sent to browser
+    BFF->>TR: POST socket-tickets with bearer token
+    TR->>TS: store ticket with 60 s TTL
+    TR-->>BFF: single-use ticket, 60 s, and rooms for the principal
+    BFF-->>U: ticket and rooms
+    U->>SG: connect with handshake auth.ticket
+    SG->>TS: consume ticket (GETDEL, one use)
+    alt ticket unknown, used or expired
+        TS-->>SG: none
         SG-->>U: connect_error unauthorized, disconnect
     else valid
-        JV-->>SG: Principal sub, roles, merchantId
+        TS-->>SG: Principal sub, roles, merchantId
         SG-->>U: connected
         U->>SG: join user:OWN_SUB
         SG->>RP: canJoin principal, user:OWN_SUB
@@ -29,9 +30,14 @@ sequenceDiagram
         SG->>RP: canJoin principal, user:OTHER_SUB
         RP-->>SG: deny, sub differs
         SG-->>U: error forbidden, room not joined
+        U->>SG: join merchant:MERCHANT_ID (merchant claim must match)
+        SG->>RP: canJoin principal, merchant:MERCHANT_ID
+        RP-->>SG: deny, claim differs
+        SG-->>U: error forbidden, room not joined
         U->>SG: join dispatch
         SG->>RP: canJoin principal, dispatch
         RP-->>SG: deny, role CUSTOMER
         SG-->>U: error forbidden, room not joined
     end
-    Note over U,SG: Anonymous socket with no token: only public tracking rooms.
+    Note over U,SG: Anonymous socket with no ticket or token: only public tracking rooms.
+    Note over U,SG: auth.token (native apps) is verified against Keycloak JWKS.
