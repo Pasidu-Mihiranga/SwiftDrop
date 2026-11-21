@@ -44,6 +44,11 @@ swiftdrop:
   pii:
     # base64-encoded 32-byte AES key for recipient phones and addresses; start-up fails without it
     encryption-key: ${PII_ENCRYPTION_KEY:}
+  kafka:
+    # Lifecycle events that fail to process are retried with exponential backoff, without giving up
+    retry:
+      initial-interval: 1s
+      max-interval: 30s
   pricing:
     # quote validation before a booking is stored; a timeout or an open circuit becomes 503
     base-url: ${PRICING_SERVICE_URL:http://localhost:8083}
