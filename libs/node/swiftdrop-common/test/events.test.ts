@@ -52,6 +52,7 @@ describe("event contracts", () => {
   it("uses the same topic names as the Java services", () => {
     expect(Topics.PARCEL_STATUS_CHANGED).toBe("swiftdrop.parcel.status-changed.v1");
     expect(Topics.PARCEL_ASSIGNED).toBe("swiftdrop.dispatch.parcel-assigned.v1");
+    expect(Topics.TRACKING_DEAD_LETTER).toBe("swiftdrop.tracking.dead-letter.v1");
   });
 
   it("fails loudly for unknown contracts", () => {

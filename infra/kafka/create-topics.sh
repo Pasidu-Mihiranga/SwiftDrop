@@ -15,6 +15,7 @@ TOPICS=(
   "swiftdrop.merchant.lifecycle.v1|3|retention.ms=604800000"
   "swiftdrop.webhook.dead-letter.v1|3|retention.ms=2592000000"
   "swiftdrop.notification.dead-letter.v1|3|retention.ms=2592000000"
+  "swiftdrop.tracking.dead-letter.v1|3|retention.ms=2592000000"
 )
 
 echo "Waiting for Kafka at ${BOOTSTRAP} ..."

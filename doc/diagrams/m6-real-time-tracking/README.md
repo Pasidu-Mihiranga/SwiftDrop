@@ -78,11 +78,14 @@ Asynchronous patterns build the read model; synchronous patterns serve users. Nu
   and to the timeline in the same handler; a duplicate is skipped without an emit.
 - **Sequence 6:** a guest opens `/track/SD…`. The response holds the city and a masked name (`K*** P.`),
   never a phone number or street address. A missing number gets the same 404 as any other unknown number.
-- **Sequence 7:** the socket handshake checks the JWT with JwtVerifier. A customer can join their own
-  `user:<sub>` room; another user's room and `dispatch` are refused. An anonymous socket can only join
-  public rooms.
+- **Sequence 7:** the browser gets a single-use socket ticket (60 seconds) from the BFF, which keeps the
+  access token server-side. The handshake consumes the ticket once. A customer can join their own
+  `user:<sub>` room; another user's room, a `merchant:<id>` room without the matching claim, and `dispatch`
+  are refused. An anonymous socket can only join public rooms. Native clients may send a JWT in `auth.token`.
 - **Sequence 8:** the owner timeline is allowed for the owner, the assigned courier, the merchant with a
   matching `merchant_id` claim, and staff. Everyone else gets 404, so existence is not leaked.
+- **Idempotency:** processed-event markers in `processed_event` expire after 14 days (TTL index in the shared
+  `MongoIdempotencyStore`), longer than any Kafka redelivery window.
 - **Activity 9:** the consumer validates the envelope, checks `eventId`, drops events older than the
   timeline's `lastChangedAt`, upserts in one transaction, emits, and commits the offset. Errors retry with
   backoff up to three attempts, then go to the dead-letter topic.
