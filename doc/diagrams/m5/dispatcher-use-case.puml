@@ -1,0 +1,17 @@
+@startuml
+left to right direction
+actor Dispatcher
+actor Admin
+actor Courier
+Admin --|> Dispatcher
+rectangle "SwiftDrop dispatch" {
+  usecase "View unassigned parcels" as Pool
+  usecase "Assign or reassign parcel" as Allocate
+  usecase "Monitor courier workloads" as Load
+  usecase "View own daily run sheet" as Runs
+}
+Dispatcher --> Pool
+Dispatcher --> Allocate
+Dispatcher --> Load
+Courier --> Runs
+@enduml

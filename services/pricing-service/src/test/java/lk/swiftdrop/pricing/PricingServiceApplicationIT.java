@@ -288,4 +288,98 @@ class PricingServiceApplicationIT {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
     }
+
+    private String quote(String body) throws Exception {
+        return mvc.perform(post("/api/v1/pricing/quotes").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+    }
+
+    private java.math.BigDecimal lineOf(String response, String rule) {
+        return mapper.readTree(response).get("breakdown").valueStream()
+                .filter(line -> rule.equals(line.get("rule").asString()))
+                .map(line -> new java.math.BigDecimal(line.get("amount").asString()))
+                .findFirst().orElse(null);
+    }
+
+    @Test
+    void aStandardQuoteCarriesLineHaulFuelTaxATransitTimeAndAPricingVersion() throws Exception {
+        String response = quote("""
+                {"fromDistrict":"Colombo","toDistrict":"Kandy","weightKg":2,"sizeClass":"M"}""");
+        var json = mapper.readTree(response);
+
+        assertThat(lineOf(response, "LINE_HAUL")).isPositive();
+        assertThat(lineOf(response, "FUEL")).isPositive();
+        assertThat(lineOf(response, "TAX")).isPositive();
+        assertThat(json.get("estimatedTransitDays").asInt()).isPositive();
+        assertThat(json.get("pricingVersion").asString()).hasSize(12);
+        assertThat(json.has("vehicleType")).isFalse();
+        java.math.BigDecimal sum = json.get("breakdown").valueStream()
+                .map(line -> new java.math.BigDecimal(line.get("amount").asString()))
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+        assertThat(sum).isEqualByComparingTo(json.get("fee").get("amount").asString());
+    }
+
+    @Test
+    void chargesForTheHandlingOptionsAskedForAndRefusesOnesThatDoNotExist() throws Exception {
+        String response = quote("""
+                {"fromDistrict":"Colombo","toDistrict":"Gampaha","weightKg":2,"sizeClass":"M",
+                 "specialHandling":["FRAGILE","SIGNATURE"]}""");
+
+        assertThat(lineOf(response, "SPECIAL_HANDLING")).isEqualByComparingTo("350.00");
+        assertThat(mapper.readTree(response).get("specialHandling").toString()).isEqualTo("[\"FRAGILE\",\"SIGNATURE\"]");
+
+        mvc.perform(post("/api/v1/pricing/quotes").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"fromDistrict":"Colombo","toDistrict":"Gampaha","weightKg":2,"sizeClass":"M",
+                         "specialHandling":["EXPLOSIVE"]}"""))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("UNKNOWN_SPECIAL_HANDLING"));
+    }
+
+    @Test
+    void refusesAMapPointThatIsNotInTheDistrictChosen() throws Exception {
+        // Kandy town, on a quote that says the parcel is collected in Colombo.
+        mvc.perform(post("/api/v1/pricing/quotes").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"fromDistrict":"Colombo","toDistrict":"Gampaha","weightKg":2,"sizeClass":"M",
+                         "fromLatitude":7.2936,"fromLongitude":80.6413}"""))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("LOCATION_DISTRICT_MISMATCH"));
+    }
+
+    @Test
+    void refusesASameDayTripBeyondTheVehiclesRange() throws Exception {
+        mvc.perform(post("/api/v1/pricing/quotes").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"fromDistrict":"Colombo","toDistrict":"Jaffna","weightKg":2,"sizeClass":"M",
+                         "serviceLevel":"SAME_DAY","vehicleType":"VAN"}"""))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("SAME_DAY_OUT_OF_RANGE"));
+    }
+
+    @Test
+    void pricesASameDayVanAboveABikeForTheSameTrip() throws Exception {
+        String body = """
+                {"fromDistrict":"Colombo","toDistrict":"Colombo","weightKg":2,"sizeClass":"M",
+                 "serviceLevel":"SAME_DAY","vehicleType":"%s"}""";
+        String bike = quote(body.formatted("BIKE"));
+        String van = quote(body.formatted("VAN"));
+
+        assertThat(mapper.readTree(van).get("vehicleType").asString()).isEqualTo("VAN");
+        assertThat(lineOf(van, "DISTANCE")).isGreaterThan(lineOf(bike, "DISTANCE"));
+        assertThat(lineOf(bike, "LINE_HAUL")).isNull();
+    }
+
+    @Test
+    void servesTheQuoteFormsCoverageReadsAnonymously() throws Exception {
+        mvc.perform(get("/api/v1/pricing/special-handling"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].code").value("FRAGILE"))
+                .andExpect(jsonPath("$[0].fee").doesNotExist());
+        mvc.perform(get("/api/v1/pricing/locate").param("latitude", "7.2936").param("longitude", "80.6413"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.district").value("Kandy"))
+                .andExpect(jsonPath("$.zoneCode").value("CP"));
+        mvc.perform(get("/api/v1/pricing/locate").param("latitude", "6.9").param("longitude", "79.5"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("OUTSIDE_COVERAGE"));
+    }
 }

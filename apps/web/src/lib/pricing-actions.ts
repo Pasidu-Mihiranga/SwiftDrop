@@ -25,43 +25,6 @@ export interface ActionState {
 const WEIGHT_BAND_ROWS = [1, 2, 3, 4];
 const LANE_ROWS = [1, 2, 3];
 
-export async function assignDistrict(_previous: ActionState, formData: FormData): Promise<ActionState> {
-  const district = String(formData.get("district") ?? "").trim();
-  const zoneCode = String(formData.get("zoneCode") ?? "").trim();
-  if (!district || !zoneCode) {
-    return { status: "error", message: "Pick a district and a zone." };
-  }
-
-  const result = await send(`/api/v1/admin/pricing/districts/${encodeURIComponent(district)}`, "PUT", { zoneCode });
-  if (result.status === "ok") {
-    return { status: "ok", message: `${district} now belongs to ${zoneCode}.` };
-  }
-  return result;
-}
-
-export async function createZone(_previous: ActionState, formData: FormData): Promise<ActionState> {
-  const code = String(formData.get("code") ?? "").trim().toUpperCase();
-  const name = String(formData.get("name") ?? "").trim();
-  if (!code || !name) {
-    return { status: "error", message: "A zone needs a code and a name." };
-  }
-
-  const result = await send("/api/v1/admin/pricing/zones", "POST", { code, name, active: true });
-  return result.status === "ok" ? { status: "ok", message: `Zone ${code} created.` } : result;
-}
-
-export async function updateZone(_previous: ActionState, formData: FormData): Promise<ActionState> {
-  const zoneId = String(formData.get("zoneId") ?? "");
-  const name = String(formData.get("name") ?? "").trim();
-  const active = formData.get("active") === "on";
-  if (!zoneId || !name) {
-    return { status: "error", message: "A zone needs a name." };
-  }
-
-  const result = await send(`/api/v1/admin/pricing/zones/${encodeURIComponent(zoneId)}`, "PUT", { name, active });
-  return result.status === "ok" ? { status: "ok", message: `Zone ${name} updated.` } : result;
-}
-
 export async function createRateCard(_previous: ActionState, formData: FormData): Promise<ActionState> {
   const requiredAmounts = ["baseFee", "perKgFee", "expressMultiplier", "codFeePct"];
   for (const field of requiredAmounts) {

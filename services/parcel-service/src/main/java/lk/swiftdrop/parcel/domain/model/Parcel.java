@@ -23,6 +23,9 @@ public record Parcel(UUID id, TrackingNumber trackingNumber, ParcelSource source
                      String courierId, List<StatusChange> history, Instant createdAt, Instant updatedAt,
                      Long version) {
 
+    /** Same limit as the parcel.merchant_order_ref column and the merchant-order contract. */
+    public static final int MAX_ORDER_REF_LENGTH = 100;
+
     public Parcel {
         history = List.copyOf(history);
     }
@@ -33,6 +36,29 @@ public record Parcel(UUID id, TrackingNumber trackingNumber, ParcelSource source
         StatusChange created = new StatusChange(null, ParcelStatus.CREATED, customerId, ActorRole.CUSTOMER, null, now);
         return new Parcel(UUID.randomUUID(), trackingNumber, ParcelSource.CUSTOMER, customerId, null, null,
                 details, ParcelStatus.CREATED, null, List.of(created), now, now, null);
+    }
+
+    /**
+     * An order placed by a merchant's system through the merchant API, in status CREATED. The
+     * merchant comes from the caller's token; {@code merchantOrderRef} is the merchant's own order
+     * number. The first history entry names the merchant's API client as the actor.
+     *
+     * @throws IllegalArgumentException when the merchant id or order reference is blank, or the
+     *                                  reference is longer than {@value #MAX_ORDER_REF_LENGTH}
+     */
+    public static Parcel bookForMerchant(TrackingNumber trackingNumber, String merchantId, String merchantOrderRef,
+                                         String apiClientId, BookingDetails details, Instant now) {
+        if (merchantId == null || merchantId.isBlank()) {
+            throw new IllegalArgumentException("A merchant order needs the merchant id");
+        }
+        if (merchantOrderRef == null || merchantOrderRef.isBlank() || merchantOrderRef.length() > MAX_ORDER_REF_LENGTH) {
+            throw new IllegalArgumentException("A merchant order needs a reference of 1 to " + MAX_ORDER_REF_LENGTH
+                    + " characters");
+        }
+        StatusChange created = new StatusChange(null, ParcelStatus.CREATED, apiClientId, ActorRole.MERCHANT_API, null,
+                now);
+        return new Parcel(UUID.randomUUID(), trackingNumber, ParcelSource.MERCHANT, null, merchantId,
+                merchantOrderRef, details, ParcelStatus.CREATED, null, List.of(created), now, now, null);
     }
 
     public boolean isCancellable() {

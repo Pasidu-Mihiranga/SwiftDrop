@@ -9,6 +9,10 @@ info:
     - Errors: RFC 9457 application/problem+json with `code`, `traceId`, `timestamp` (and `errors` for validation).
     - Every response carries X-Correlation-Id. Lists use `page`/`size` query params and the Page envelope.
     - Money is LKR with two decimals. Timestamps are ISO-8601 UTC.
+    - Every service also serves GET /api/v1/<service prefix>/meta/whoami (bearer token, WhoAmI schema), a smoke
+      test of gateway -> service -> JWT.
+    - Request bodies are required wherever an operation takes one; a missing or malformed body is 400.
+    - A 201 Created answer carries a Location header with the new resource's path.
 paths: {}
 components:
   securitySchemes:
@@ -116,4 +120,7 @@ components:
       content: { application/problem+json: { schema: { $ref: "#/components/schemas/ProblemDetail" } } }
     UnprocessableContent:
       description: Breaks a business rule
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/ProblemDetail" } } }
+    ServiceUnavailable:
+      description: A dependency (e.g. Keycloak or another service) could not be reached; retrying is safe
       content: { application/problem+json: { schema: { $ref: "#/components/schemas/ProblemDetail" } } }
