@@ -8,6 +8,8 @@ info:
     Lifecycle: PENDING -> APPROVED or REJECTED, APPROVED -> SUSPENDED. REJECTED and SUSPENDED are final.
     Every change publishes MerchantLifecycleChanged (contracts/events/merchant-lifecycle.v1.schema.json).
     A user whose application was rejected may apply again; the rejected application is kept.
+    On approve, reject and suspend, 422 means the current status does not allow that decision, and 409
+    MERCHANT_MODIFIED means someone else changed the application at the same time (reload and decide again).
 servers: [{ url: http://localhost:8080 }]
 security: [{ bearerAuth: [] }]
 paths:
@@ -69,6 +71,7 @@ paths:
           description: The new credentials. Store the secret now; it cannot be shown again.
           headers:
             Cache-Control: { description: no-store, schema: { type: string } }
+            Pragma: { description: no-cache (for HTTP/1.0 caches), schema: { type: string } }
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ApiCredentialSecret" }
@@ -171,6 +174,12 @@ paths:
         "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
         "409": { $ref: "common.v1.yaml#/components/responses/Conflict" }
         "422": { $ref: "common.v1.yaml#/components/responses/UnprocessableContent" }
+  /api/v1/merchants/meta/whoami:
+    get:
+      summary: Smoke test (gateway → service → JWT)
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "common.v1.yaml#/components/schemas/WhoAmI" } } } }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
 components:
   securitySchemes:
     bearerAuth: { $ref: "common.v1.yaml#/components/securitySchemes/bearerAuth" }
