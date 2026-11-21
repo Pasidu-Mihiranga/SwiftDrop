@@ -27,7 +27,8 @@ public class AdminZoneController {
     }
 
     @GetMapping("/zones")
-    @Operation(summary = "List zones including deactivated ones (ADMIN)")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DISPATCHER')")
+    @Operation(summary = "List zones including deactivated ones (ADMIN, DISPATCHER)")
     public List<ZoneResponse> listZones() {
         return queries.allZones().stream().map(ZoneApiMapper::toAdminResponse).toList();
     }

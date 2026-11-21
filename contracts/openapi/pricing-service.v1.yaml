@@ -200,7 +200,7 @@ paths:
     get:
       tags: [admin-zones]
       operationId: listZones
-      summary: List zones (ADMIN)
+      summary: List zones (ADMIN, DISPATCHER)
       description: >-
         Read-only. Zones, districts and the district-to-zone mapping are fixed master data
         (9 provinces, 25 districts); there are no write endpoints.
