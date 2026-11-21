@@ -118,6 +118,9 @@ spring:
 
 swiftdrop:
   gateway:
+    # How long a service's address is cached. Short, so a recreated or rescheduled service is
+    # reachable again within seconds rather than after Docker DNS's long TTL.
+    upstream-dns-cache-ttl: ${GATEWAY_UPSTREAM_DNS_CACHE_TTL:PT5S}
     # Everything else requires a valid Keycloak access token.
     public-paths:
       - /actuator/health/**
