@@ -16,32 +16,61 @@ paths:
       parameters: [{ name: trackingNumber, in: path, required: true, schema: { type: string, pattern: "^SD[0-9A-Z]{8,20}$" } }]
       responses:
         "200":
-          description: Timeline
+          description: Public view. Contains no phone number and no street address.
           content:
             application/json:
-              schema:
-                type: object
-                properties:
-                  trackingNumber: { type: string }
-                  currentStatus: { $ref: "common.v1.yaml#/components/schemas/ParcelStatus" }
-                  from: { type: string, example: Colombo }
-                  to: { type: string, example: Kandy }
-                  recipient: { type: string, example: K*** P. }
-                  events:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        status: { $ref: "common.v1.yaml#/components/schemas/ParcelStatus" }
-                        city: { type: string }
-                        at: { type: string, format: date-time }
+              schema: { $ref: "#/components/schemas/TrackingView" }
         "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
   /api/v1/tracking/parcels/{parcelId}/timeline:
     get:
       summary: Full timeline for the owner / courier / staff
       security: [{ bearerAuth: [] }]
       parameters: [{ name: parcelId, in: path, required: true, schema: { type: string, format: uuid } }]
-      responses: { "200": { description: Timeline }, "404": { $ref: "common.v1.yaml#/components/responses/NotFound" } }
+      description: >-
+        Visible to the customer and the assigned courier (ownerIds), the merchant with the matching merchant_id
+        claim, and DISPATCHER or ADMIN. Anyone else gets 404, the same answer as for an unknown parcel.
+      responses:
+        "200":
+          description: Timeline of the parcel (same fields as the public view).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrackingView" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
 components:
   securitySchemes:
     bearerAuth: { $ref: "common.v1.yaml#/components/securitySchemes/bearerAuth" }
+  responses:
+    RateLimited:
+      description: Too many public lookups from this client address in the current minute.
+      headers:
+        Retry-After:
+          description: Seconds to wait before the next lookup (60).
+          schema: { type: integer, example: 60 }
+      content:
+        application/problem+json:
+          schema: { type: object, properties: { code: { type: string, example: RATE_LIMITED } } }
+  schemas:
+    TrackingView:
+      type: object
+      required: [trackingNumber, currentStatus, events]
+      properties:
+        trackingNumber: { type: string, example: SD261020K7Q2M9X }
+        currentStatus:
+          oneOf:
+            - { $ref: "common.v1.yaml#/components/schemas/ParcelStatus" }
+            - { type: "null" }
+        from: { type: [string, "null"], example: Colombo }
+        to: { type: [string, "null"], example: Kandy }
+        recipient: { type: [string, "null"], description: Masked recipient name, example: K*** P. }
+        events:
+          type: array
+          description: Status changes, oldest first. City only, never a street address.
+          items:
+            type: object
+            required: [status, at]
+            properties:
+              status: { $ref: "common.v1.yaml#/components/schemas/ParcelStatus" }
+              city: { type: [string, "null"] }
+              at: { type: string, format: date-time }
