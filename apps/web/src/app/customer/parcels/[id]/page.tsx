@@ -1,5 +1,6 @@
 "use client";
 
+import { ParcelTimeline } from "@/components/tracking/parcel-timeline";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -271,6 +272,12 @@ export default function ParcelDetailPage() {
                 <span className="font-mono text-xs text-slate-700">{parcel.courierId}</span>
               </div>
             )}
+          </div>
+
+          {/* Live timeline (M6): follows status changes as they happen */}
+          <div className="card space-y-4">
+            <h2 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2">Live tracking</h2>
+            <ParcelTimeline parcelId={parcel.id} />
           </div>
 
           {/* Status History Timeline */}

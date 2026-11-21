@@ -77,3 +77,4 @@ doc/test-reports/e2e/
 
 # --- Google OAuth client secrets (keep local, never commit) ---
 client_secret_*.json
+build/

@@ -171,7 +171,7 @@ def test_fig3():
 
     return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 560" width="1100" height="560">\n<defs><marker id="a" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#111111"/></marker></defs>\n' + '\n'.join(c) + '\n</svg>'
 
-with open('doc/diagrams/m9/fig3-architecture.svg', 'w', encoding='utf-8') as f:
+with open('doc/diagrams/m9-notifications-receipts/fig3-architecture.svg', 'w', encoding='utf-8') as f:
     f.write(test_fig3())
 print('Wrote new fig3-architecture.svg')
 

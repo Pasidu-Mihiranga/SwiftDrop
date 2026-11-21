@@ -3,9 +3,10 @@ import { expect, test } from "@playwright/test";
 test.describe("Public pages", () => {
   test("home page loads with tracking and prices in the menu", async ({ page }) => {
     await page.goto("/");
-    const nav = page.getByRole("navigation");
-    await expect(nav.getByRole("link", { name: "Track" })).toBeVisible();
-    await expect(nav.getByRole("link", { name: "Get a price" })).toBeVisible();
+    // The landing page also has footer link groups, so name the header's navigation.
+    const nav = page.getByRole("navigation", { name: "Primary" });
+    await expect(nav.getByRole("link", { name: "Track a parcel" })).toBeVisible();
+    await expect(nav.getByRole("link", { name: "Prices" })).toBeVisible();
   });
 
   test("a guest gets a real fee estimate from pricing-service", async ({ page }) => {

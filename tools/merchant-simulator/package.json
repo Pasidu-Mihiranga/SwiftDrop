@@ -1,0 +1,15 @@
+{
+  "name": "@swiftdrop/merchant-simulator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Demo online store: creates SwiftDrop orders through the merchant API and receives signed webhooks (M8).",
+  "type": "module",
+  "main": "src/main.js",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "start": "node src/main.js",
+    "test": "node --test --experimental-test-coverage --test-coverage-lines=70 --test-coverage-include=\"src/**\" \"test/**/*.test.js\""
+  }
+}

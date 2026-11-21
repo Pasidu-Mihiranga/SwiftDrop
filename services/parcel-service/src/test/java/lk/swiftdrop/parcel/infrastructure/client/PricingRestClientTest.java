@@ -1,5 +1,6 @@
 package lk.swiftdrop.parcel.infrastructure.client;
 
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import lk.swiftdrop.parcel.PricingStub;
 import lk.swiftdrop.events.common.Types.ServiceLevel;
 import lk.swiftdrop.events.common.Types.SizeClass;
@@ -121,6 +122,7 @@ class PricingRestClientTest {
     @Test
     void afterRepeatedFailuresTheCircuitOpensAndStopsCalling() {
         PricingRestClient fragile = new PricingRestClient(properties(pricing.baseUrl(), 2, 2));
+        assertThat(fragile.circuitState()).isEqualTo(CircuitBreaker.State.CLOSED);
         pricing.answer(quoteId, 500, "{}");
         assertThatThrownBy(() -> fragile.findQuote(quoteId)).isInstanceOf(PricingUnavailableException.class);
         assertThatThrownBy(() -> fragile.findQuote(quoteId)).isInstanceOf(PricingUnavailableException.class);
@@ -130,6 +132,7 @@ class PricingRestClientTest {
 
         assertThat(callsBeforeOpen).isEqualTo(2);
         assertThat(pricing.calls()).hasSize(callsBeforeOpen);
+        assertThat(fragile.circuitState()).isEqualTo(CircuitBreaker.State.OPEN);
     }
 
     @Test

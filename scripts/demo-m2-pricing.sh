@@ -7,8 +7,9 @@
 #   3. a quote already issued keeping its fee after that change
 #   4. quote expiry answering 404, indistinguishable from an unknown id
 #
-# It also exercises GET /api/v1/pricing/quotes/{id} exactly the way parcel-service
-# will, which is as far as this can go until M3 ships a booking endpoint.
+# It also exercises GET /api/v1/pricing/quotes/{id} and, when parcel-service is up,
+# confirms M3 POST /api/v1/parcels consumes a valid quote (201) and rejects an
+# expired or unknown quote (422 QUOTE_EXPIRED).
 #
 # Works against either deployment:
 #   ./scripts/demo-m2-pricing.sh                                  # kind, the defaults
@@ -31,6 +32,16 @@ BASE_URL="${DEMO_BASE_URL:-http://127.0.0.1/api/v1}"
 HOST_HEADER="${DEMO_HOST_HEADER-api.swiftdrop.local}"
 KC_BASE_URL="${DEMO_AUTH_URL:-http://127.0.0.1}"
 KC_HOST="${DEMO_AUTH_HOST-auth.swiftdrop.local}"
+
+# Scratch files live in a private directory, removed on exit. Python gets the same directory as a
+# native path, because on Windows (Git Bash) it does not see the shell's /tmp.
+WORK="$(mktemp -d)"
+trap 'rm -rf "${WORK}"' EXIT
+M2_WORK="${WORK}"
+command -v cygpath >/dev/null 2>&1 && M2_WORK="$(cygpath -m "${WORK}")"
+export M2_WORK
+# Windows ships a python3 that only opens the Store; fall back to python there.
+if ! python3 -c "" >/dev/null 2>&1; then python3() { python "$@"; }; fi
 
 pass=0; fail=0
 step()  { printf "\n\033[1m== %s\033[0m\n" "$1"; }
@@ -66,16 +77,16 @@ CUSTOMER_TOKEN="$(get_token customer@swiftdrop.lk)"
 
 # ---------------------------------------------------------------- 1. estimate
 step "1. Anonymous fee estimate (no token at all)"
-api "${BASE_URL}/pricing/zones" -o /tmp/m2-zones.json -w "" 
-ZONES="$(python3 -I -c "import json;print(len(json.load(open('/tmp/m2-zones.json'))))")"
+api "${BASE_URL}/pricing/zones" -o "$WORK/m2-zones.json" -w "" 
+ZONES="$(python3 -I -c "import json,os;print(len(json.load(open(os.environ['M2_WORK']+'/m2-zones.json'))))")"
 check "${ZONES}" "9" "active zones listed anonymously"
 
 api -X POST "${BASE_URL}/pricing/quotes" -H 'content-type: application/json' \
   -d '{"fromDistrict":"Colombo","toDistrict":"Kandy","weightKg":2,"sizeClass":"M","serviceLevel":"STANDARD"}' \
-  -o /tmp/m2-q1.json
+  -o "$WORK/m2-q1.json"
 python3 -I - <<'PY'
-import json
-d = json.load(open('/tmp/m2-q1.json'))
+import json, os
+d = json.load(open(os.environ['M2_WORK']+'/m2-q1.json'))
 lines = d['breakdown']
 total = round(sum(l['amount'] for l in lines), 2)
 print(f"   quote {d['quoteId']}")
@@ -84,18 +95,18 @@ for l in lines:
     print(f"     {l['rule']:<8} {l['amount']:>10.2f}")
 print(f"     {'TOTAL':<8} {d['fee']['amount']:>10.2f} {d['fee']['currency']}")
 print(f"   issued {d['issuedAt']}  expires {d['expiresAt']}")
-open('/tmp/m2-q1-id','w').write(d['quoteId'])
-open('/tmp/m2-q1-fee','w').write(str(d['fee']['amount']))
+open(os.environ['M2_WORK']+'/m2-q1-id','w').write(d['quoteId'])
+open(os.environ['M2_WORK']+'/m2-q1-fee','w').write(str(d['fee']['amount']))
 assert total == d['fee']['amount'], f"breakdown {total} != fee {d['fee']['amount']}"
 PY
 ok "breakdown lines reconcile exactly with the total"
 
 step "1b. Distance matters: the same parcel on a longer lane"
-NEAR="$(cat /tmp/m2-q1-fee)"
+NEAR="$(cat "$WORK/m2-q1-fee")"
 api -X POST "${BASE_URL}/pricing/quotes" -H 'content-type: application/json' \
   -d '{"fromDistrict":"Colombo","toDistrict":"Jaffna","weightKg":2,"sizeClass":"M","serviceLevel":"STANDARD"}' \
-  -o /tmp/m2-q2.json
-FAR="$(jq_get "['fee']['amount']" < /tmp/m2-q2.json)"
+  -o "$WORK/m2-q2.json"
+FAR="$(jq_get "['fee']['amount']" < "$WORK/m2-q2.json")"
 printf "   Colombo->Kandy %s   Colombo->Jaffna %s\n" "${NEAR}" "${FAR}"
 python3 -I -c "import sys;sys.exit(0 if float('${FAR}')>float('${NEAR}') else 1)" \
   && ok "a lane crossing more province borders costs more" \
@@ -104,7 +115,7 @@ python3 -I -c "import sys;sys.exit(0 if float('${FAR}')>float('${NEAR}') else 1)
 # ---------------------------------------------------------------- 2. admin rate change
 step "2. Admin rate change: the card in force is closed, a new one is added"
 api "${BASE_URL}/admin/pricing/rate-cards?fromZone=WP&toZone=CP" \
-  -H "Authorization: Bearer ${ADMIN_TOKEN}" -o /tmp/m2-cards.json
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" -o "$WORK/m2-cards.json"
 
 # The admin list uses the project's shared pagination envelope, { content, page }, and
 # includes closed cards as well as the one in force.
@@ -114,8 +125,8 @@ api "${BASE_URL}/admin/pricing/rate-cards?fromZone=WP&toZone=CP" \
 # versions a new one after it. That accumulation is the designed behaviour, because a rate
 # card is never edited or deleted in place.
 read -r CARD_ID OLD_BASE CHANGE_DATE <<<"$(python3 -I -c "
-import datetime, json
-d = json.load(open('/tmp/m2-cards.json'))
+import datetime, json, os
+d = json.load(open(os.environ['M2_WORK']+'/m2-cards.json'))
 cards = d['content'] if isinstance(d, dict) else d
 if not cards:
     raise SystemExit('no WP->CP rate card exists; is the seed migration applied?')
@@ -131,38 +142,43 @@ printf "   the change takes effect %s\n" "${CHANGE_DATE}"
 
 # Effective periods are half-open, so a card starting the day another ends leaves neither
 # a gap nor an overlap.
-CODE="$(api -o /tmp/m2-close.json -w '%{http_code}' -X PUT \
+CODE="$(api -o "$WORK/m2-close.json" -w '%{http_code}' -X PUT \
   "${BASE_URL}/admin/pricing/rate-cards/${CARD_ID}/closure" \
   -H "Authorization: Bearer ${ADMIN_TOKEN}" -H 'content-type: application/json' \
   -d "{\"effectiveTo\":\"${CHANGE_DATE}\"}")"
 check "${CODE}" "200" "closing the card in force"
 
 NEW_BASE="$(python3 -I -c "print(float('${OLD_BASE}')+200)")"
-CODE="$(api -o /tmp/m2-new.json -w '%{http_code}' -X POST "${BASE_URL}/admin/pricing/rate-cards" \
+CODE="$(api -o "$WORK/m2-new.json" -w '%{http_code}' -X POST "${BASE_URL}/admin/pricing/rate-cards" \
   -H "Authorization: Bearer ${ADMIN_TOKEN}" -H 'content-type: application/json' \
   -d "{\"fromZone\":\"WP\",\"toZone\":\"CP\",\"baseFee\":${NEW_BASE},\"perKgFee\":78,\"expressMultiplier\":1.5,\"codFeePct\":0.015,\"effectiveFrom\":\"${CHANGE_DATE}\"}")"
 check "${CODE}" "201" "adding the replacement card from ${CHANGE_DATE}"
 printf "   baseFee %s -> %s. The old row is closed, not deleted.\n" "${OLD_BASE}" "${NEW_BASE}"
 
 step "2b. Overlapping periods for the same lane are rejected"
-CODE="$(api -o /tmp/m2-dup.json -w '%{http_code}' -X POST "${BASE_URL}/admin/pricing/rate-cards" \
+CODE="$(api -o "$WORK/m2-dup.json" -w '%{http_code}' -X POST "${BASE_URL}/admin/pricing/rate-cards" \
   -H "Authorization: Bearer ${ADMIN_TOKEN}" -H 'content-type: application/json' \
   -d "{\"fromZone\":\"WP\",\"toZone\":\"CP\",\"baseFee\":999,\"perKgFee\":78,\"expressMultiplier\":1.5,\"codFeePct\":0.015,\"effectiveFrom\":\"${CHANGE_DATE}\"}")"
 check "${CODE}" "409" "a second card starting the same day is refused"
-printf "   code=%s\n" "$(jq_get "['code']" < /tmp/m2-dup.json 2>/dev/null || echo '-')"
+printf "   code=%s\n" "$(jq_get "['code']" < "$WORK/m2-dup.json" 2>/dev/null || echo '-')"
 
 step "3. The quote issued in step 1 still has its original fee"
-QID="$(cat /tmp/m2-q1-id)"
-api "${BASE_URL}/pricing/quotes/${QID}" -H "Authorization: Bearer ${CUSTOMER_TOKEN}" -o /tmp/m2-look.json
-LOOKED_UP="$(jq_get "['fee']['amount']" < /tmp/m2-look.json)"
-check "${LOOKED_UP}" "$(cat /tmp/m2-q1-fee)" "the stored snapshot is returned verbatim"
+QID="$(cat "$WORK/m2-q1-id")"
+api "${BASE_URL}/pricing/quotes/${QID}" -H "Authorization: Bearer ${CUSTOMER_TOKEN}" -o "$WORK/m2-look.json"
+LOOKED_UP="$(jq_get "['fee']['amount']" < "$WORK/m2-look.json")"
+check "${LOOKED_UP}" "$(cat "$WORK/m2-q1-fee")" "the stored snapshot is returned verbatim"
 printf "   Redis holds the computed snapshot, so lookup never recalculates.\n"
 
-step "3b. This is exactly the call parcel-service will make"
+parcel_payload() {
+  local quote_id="$1"
+  printf '{"quoteId":"%s","pickup":{"line1":"45 Galle Road","city":"Colombo 03","district":"Colombo","postalCode":"00300"},"dropoff":{"line1":"12 Temple Road","city":"Kandy","district":"Kandy","postalCode":"20000"},"recipient":{"name":"Sunimal Perera","phone":"0771234567"}}' "${quote_id}"
+}
+
+step "3b. Valid quote handoff to parcel-service (M2 -> M3)"
 printf "   GET %s/pricing/quotes/{quoteId} with a bearer token\n" "${BASE_URL}"
 python3 -I - <<'PY'
-import json
-d = json.load(open('/tmp/m2-look.json'))
+import json, os
+d = json.load(open(os.environ['M2_WORK']+'/m2-look.json'))
 need = ["quoteId","fee","breakdown","fromZone","toZone","fromDistrict","toDistrict",
         "weightKg","sizeClass","serviceLevel","codAmount","issuedAt","expiresAt"]
 missing = [k for k in need if k not in d]
@@ -170,21 +186,30 @@ print("   fields parcel-service can validate:", ", ".join(need))
 assert not missing, f"missing {missing}"
 PY
 ok "every field in the agreed M3 contract is present"
-printf "   NOTE: parcel-service has no create-parcel endpoint yet, so the consuming\n"
-printf "         side of this handoff cannot be demonstrated. See Issue #15 Phase 3.\n"
+
+PARCEL_CODE="$(api -o "$WORK/m2-parcel-ok.json" -w '%{http_code}' -X POST "${BASE_URL}/parcels" \
+  -H "Authorization: Bearer ${CUSTOMER_TOKEN}" -H 'content-type: application/json' \
+  -d "$(parcel_payload "${QID}")" || echo "000")"
+if [ "${PARCEL_CODE}" = "502" ] || [ "${PARCEL_CODE}" = "503" ] || [ "${PARCEL_CODE}" = "504" ] || [ "${PARCEL_CODE}" = "000" ]; then
+  printf "   NOTE: parcel-service is offline (HTTP %s); skipping live M3 booking check.\n" "${PARCEL_CODE}"
+else
+  check "${PARCEL_CODE}" "201" "parcel-service consumes the valid quote"
+  TRACKING_NUM="$(jq_get "['trackingNumber']" < "$WORK/m2-parcel-ok.json" 2>/dev/null || echo '-')"
+  printf "   booked trackingNumber=%s\n" "${TRACKING_NUM}"
+fi
 
 # ---------------------------------------------------------------- 4. authorization and expiry
 step "4. Authorization"
 CODE="$(api -o /dev/null -w '%{http_code}' "${BASE_URL}/pricing/quotes/${QID}")"
 check "${CODE}" "401" "lookup without a token"
-CODE="$(api -o /tmp/m2-403.json -w '%{http_code}' "${BASE_URL}/admin/pricing/rate-cards" \
+CODE="$(api -o "$WORK/m2-403.json" -w '%{http_code}' "${BASE_URL}/admin/pricing/rate-cards" \
   -H "Authorization: Bearer ${CUSTOMER_TOKEN}")"
 check "${CODE}" "403" "admin rate-cards with a CUSTOMER token"
-CODE="$(api -o /tmp/m2-404.json -w '%{http_code}' \
+CODE="$(api -o "$WORK/m2-404.json" -w '%{http_code}' \
   "${BASE_URL}/pricing/quotes/00000000-0000-0000-0000-000000000000" \
   -H "Authorization: Bearer ${CUSTOMER_TOKEN}")"
 check "${CODE}" "404" "an unknown quote id"
-printf "   code=%s\n" "$(jq_get "['code']" < /tmp/m2-404.json 2>/dev/null || echo '-')"
+printf "   code=%s\n" "$(jq_get "['code']" < "$WORK/m2-404.json" 2>/dev/null || echo '-')"
 
 step "4b. Quote expiry"
 printf "   A quote lives for PRICING_QUOTE_TTL (PT15M by default). An expired id answers\n"
@@ -208,13 +233,30 @@ else
   printf "   QuoteExpiryIT rather than by waiting.\n"
 fi
 
+step "4c. Expired/unknown quote rejected at booking (422 QUOTE_EXPIRED)"
+if [ "${DEMO_WAIT_FOR_EXPIRY:-0}" = "1" ]; then
+  EXPIRED_QID="${QID}"
+else
+  EXPIRED_QID="00000000-0000-0000-0000-000000000000"
+fi
+EXP_CODE="$(api -o "$WORK/m2-parcel-exp.json" -w '%{http_code}' -X POST "${BASE_URL}/parcels" \
+  -H "Authorization: Bearer ${CUSTOMER_TOKEN}" -H 'content-type: application/json' \
+  -d "$(parcel_payload "${EXPIRED_QID}")" || echo "000")"
+if [ "${EXP_CODE}" = "502" ] || [ "${EXP_CODE}" = "503" ] || [ "${EXP_CODE}" = "504" ] || [ "${EXP_CODE}" = "000" ]; then
+  printf "   NOTE: parcel-service is offline (HTTP %s); skipping live expired-quote booking check.\n" "${EXP_CODE}"
+else
+  check "${EXP_CODE}" "422" "parcel-service rejects expired/unknown quote"
+  EXP_ERR_CODE="$(jq_get "['code']" < "$WORK/m2-parcel-exp.json" 2>/dev/null || echo '-')"
+  check "${EXP_ERR_CODE}" "QUOTE_EXPIRED" "booking rejection returns QUOTE_EXPIRED"
+fi
+
 # ---------------------------------------------------------------- restore
 step "The rate-card history after this run"
 api "${BASE_URL}/admin/pricing/rate-cards?fromZone=WP&toZone=CP" \
-  -H "Authorization: Bearer ${ADMIN_TOKEN}" -o /tmp/m2-history.json
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" -o "$WORK/m2-history.json"
 python3 -I - <<'PY'
-import json
-d = json.load(open("/tmp/m2-history.json"))
+import json, os
+d = json.load(open(os.environ['M2_WORK']+'/m2-history.json'))
 for c in sorted(d["content"], key=lambda c: c["effectiveFrom"]):
     until = c["effectiveTo"] or "open"
     print(f"   {c['effectiveFrom']} .. {until:<12} baseFee {c['baseFee']:>8.2f}")

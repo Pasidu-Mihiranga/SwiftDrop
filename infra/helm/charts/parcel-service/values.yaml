@@ -30,3 +30,5 @@ config:
   DB_USER: parcel_svc
   S3_ENDPOINT: http://object-storage:9000
   S3_BUCKET_PROOFS: swiftdrop-proofs
+  # Quotes are validated against pricing-service inside the cluster.
+  PRICING_SERVICE_URL: http://pricing-service:8083

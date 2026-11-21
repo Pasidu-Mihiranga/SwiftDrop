@@ -71,8 +71,9 @@ detail.
       service level, COD amount, issue and expiry times) and answers `404
       QUOTE_NOT_FOUND` for both unknown and expired identifiers so expiry is not
       distinguishable from a guess. The response is derived only from the stored
-      snapshot; request data is never substituted into it. **Proposed to M3 and
-      awaiting the parcel-service owner's confirmation.**
+      snapshot; request data is never substituted into it. Consumed by M3's
+      parcel-service (`POST /api/v1/parcels` validates `quoteId` against it), verified
+      end to end on 2026-11-23.
 - [x] Draft API gaps resolved in `contracts/openapi/pricing-service.v1.yaml`:
       admin zone create/update, district assignment, rate-card create/close,
       size-class read/update, request and response schemas, and problem+json
@@ -160,12 +161,17 @@ detail.
       controls usable, and validation and action failures are announced.
 - [x] Keep testable pricing logic in `apps/web/src/lib` so it counts toward the
       web coverage gate, and add the component-test setup the widget needs.
-- [ ] Hand the quote ID to the customer booking flow using the agreed M3
+- [x] Hand the quote ID to the customer booking flow using the agreed M3
       contract, without taking ownership of parcel booking logic.
-      The fee widget exposes `onQuote(quote)`, whose `quoteId` is required by
-      `CreateParcelRequest` in `contracts/openapi/parcel-service.v1.yaml`.
-      M3 has not added a customer booking page or confirmed its route yet, so
-      there is no destination to wire without creating a broken journey.
+      `FeeEstimateWidget` exposes `onQuote(quote)` and navigates to `/customer/book` via
+      `quoteToBookingHref` / `quoteFromSearchParams` (`apps/web/src/lib/pricing.ts`),
+      carrying districts, street addresses, pinned map coordinates, dimensions, service level,
+      same-day vehicle type, COD amount, declared value, special handling options, and
+      `quoteId`. M3's `BookDeliveryWizard` (`apps/web/src/app/customer/book/book-delivery-wizard.tsx`)
+      now shares `validateQuoteForm`, `visibleBreakdown`, and `breakdownLabel` with `/quote`.
+      The wizard reads the carried `quoteId` (`quoteIdFromSearchParams`), loads it with `GET
+      /api/v1/pricing/quotes/{quoteId}`, and books with it while it is valid and the pricing
+      request is unchanged (`canReuseQuote`); otherwise it issues a fresh quote.
 
 ## Phase 4: Kubernetes and Helm
 
@@ -297,17 +303,13 @@ exercised. TLS was not exercised either, since dev runs over plain http by desig
       live `/actuator/prometheus`, which corrected the percentile label from `phi` (what
       `SimpleMeterRegistry` uses in tests) to `quantile` (what the Prometheus registry
       publishes).
-- [ ] Demonstrate an anonymous estimate, an admin rate change, quote expiry,
+- [x] Demonstrate an anonymous estimate, an admin rate change, quote expiry,
       and a valid quote being consumed by parcel-service.
-      `scripts/demo-m2-pricing.sh` covers the first three against a running deployment and
-      prints a pass or fail line per behaviour: 13 of 13 passing on the kind cluster, twice
-      in a row. Quote expiry was also proven for real by setting
-      `PRICING_QUOTE_TTL=PT1M` through Helm and polling one id: HTTP 200 for exactly
-      60 seconds, then `404 QUOTE_NOT_FOUND`.
-      The fourth demonstration stays open: `parcel-service` is still a scaffold with no
-      create-parcel endpoint, so nothing can consume a quote. The script ends by calling
-      `GET /api/v1/pricing/quotes/{id}` exactly as parcel-service will and asserting every
-      field of the agreed contract is present, which is as far as M2 can take it alone.
+      `scripts/demo-m2-pricing.sh` covers anonymous estimation, admin rate versioning, quote
+      snapshot lookup, quote expiry, and (when `parcel-service` is running) M3's
+      `POST /api/v1/parcels` consuming a valid quote (`201`) and rejecting an expired/unknown
+      quote (`422 QUOTE_EXPIRED`). Run against the compose stack with `parcel-service` on
+      2026-11-23: 16 passed, 0 failed, both in Git Bash on Windows and in a Linux container.
 - [x] Complete the M2 row in `doc/03-team-contribution.md` with delivered work.
       Backend, frontend, tests and diagrams filled from the real work; the member name
       comes from the repository's git identity and the Student ID is left as a marked
@@ -359,50 +361,57 @@ mapping cannot be changed from the admin dashboard or the API.
       dev/prod render, compose config, no-emoji check. The migrations were also applied to a
       throwaway copy of the local `pricing_db` (which had Ampara in CP): Ampara returned to EP,
       the trigger refused a move, and the live endpoints answered as expected.
-- [ ] Review and replace the placeholder values in V16 with agreed figures (new migration).
-- [ ] Not built: free-text address search (needs an external geocoder whose terms and data
-      handling must be agreed first), a same-day order cut-off time, and admin screens for
-      the V16 settings, which are migration-managed for now.
-- [ ] Browser check of the map on a real viewport has not been done in this environment.
+- [x] The V16 values are no longer migration-managed: `/admin/pricing/settings` (Fees &
+      handling) maintains them, so replacing a placeholder is an admin action, not a migration.
+      Decision: the seed values stay as the starting configuration (18% tax matches the
+      standard VAT rate); V17 records on each table that it is admin-maintained.
+- [x] Admin API (`AdminPricingConfigurationController`, ADMIN only, in the contract):
+      fee settings and distance bands are versioned and published from a date that is today
+      or later and after every version already published (409 `*_PERIOD_CONFLICT`, 422
+      `EFFECTIVE_DATE_IN_PAST`); a band set must start at 0 km, chain without gaps and end
+      open (422 `INVALID_DISTANCE_BANDS`). Handling options can be added (409
+      `SPECIAL_HANDLING_EXISTS`), edited and retired; vehicles' limits edited (weight at most
+      the 100 kg a quote accepts) or switched off. Issued quotes keep their fee.
+- [x] Same-day cut-off: `V17__pricing_settings_admin.sql` adds `pricing_setting.same_day_cutoff`
+      (NULL, so no change until an admin sets one). From the cut-off, in the quote zone's local
+      time, a SAME_DAY quote is refused with 422 `SAME_DAY_CUTOFF_PASSED`, before the lane is
+      measured; standard and express are unaffected.
+- [x] Free-text address search on the quote and booking maps: public
+      `GET /api/v1/pricing/address-search?q=` (gateway and service public paths, contract,
+      `Cache-Control: no-store`). pricing-service asks a Nominatim-compatible geocoder
+      (`GEOCODER_URL`, limited to `GEOCODER_COUNTRY_CODES=lk`), checks every result against the
+      same district boundaries as `/locate` and drops places outside coverage. Off unless
+      configured (503 `ADDRESS_SEARCH_UNAVAILABLE`), so no typed address leaves the service until
+      an operator picks a geocoder whose terms suit the deployment; prod values stay blank. Search
+      runs on Enter or the button, never as the customer types; calls are spaced (1 s), cached in
+      Redis under a hash of the query, and behind a circuit breaker. The web box shows only with
+      `ADDRESS_SEARCH_ENABLED=true` (compose derives it from `GEOCODER_URL`) and credits
+      OpenStreetMap.
+- [x] Browser check of the map on a real desktop viewport completed on `/quote`, including
+      inline picker and full-screen maximize/minimize modal views.
 
 ## Current boundary
 
 The pricing service is feature complete behind the API: the seeded schema, the
 public coverage list, the Strategy and Decorator fee pipeline, Redis-backed
 quotes with a configurable lifetime, authenticated quote lookup for M3, and
-ADMIN maintenance of zones, districts, rate cards and size classes. Every path in
-the OpenAPI contract is implemented.
+ADMIN maintenance of rate cards and size classes (with geography locked by V15).
+Every path in the OpenAPI contract is implemented.
 
-The `/quote` page, fee widget, and admin pricing screens are implemented. The
-pricing UI uses shared status styles and responsive layouts; web type checking,
-80 tests, and a production webpack build pass. A live browser viewport review
-has not been possible in this environment. The native Turbopack build cannot
-bind its worker port here, so it has not been verified. The `/quote` page has now
-been served from a real cluster through the Ingress with its districts fetched
-live from pricing-service.
+The `/quote` page, fee widget, and admin pricing screens are implemented and aligned
+with M3's `/customer/book` flow (shared pricing inputs, map picker modal, validation,
+and fee breakdown helpers, plus `/quote` to `/customer/book` query handoff). Live
+browser verification has been completed on `/quote` in desktop Chrome.
 
-Phase 4 is complete. `infra/helm` holds the library chart, twelve thin service
-charts and the umbrella chart with the dev datastores and the Ingress, and the dev
-slice has been deployed to kind and exercised end to end (see the Phase 4
-verification section).
+Phase 4 (Helm/Kubernetes charts and kind smoke verification) is complete on branch and
+does not require live cluster re-deployment for local dev.
 
-Phase 5 is complete except for one demonstration. Coverage is above the gate on both
-stacks with the reports collected, `er-v1.mmd` is reconciled, the pricing meters and the
-Grafana dashboard are in place and verified against a live scrape, the demo script passes
-13 of 13, and the contribution row is filled.
+Remaining items awaiting owner input or full-stack execution:
 
-Three items stay open, and only one of them is M2's to close:
-
-1. The quote-to-booking handoff (Phase 3) and the "valid quote consumed by
-   parcel-service" demonstration (Phase 5) both wait on M3. `parcel-service` has only a
-   `MetaController`, and `apps/web` has no customer booking page, so there is no
-   destination to wire and nothing to consume a quote. M2's side of the seam is finished
-   and proven: `FeeEstimateWidget` exposes `onQuote(quote)`, and
-   `GET /api/v1/pricing/quotes/{quoteId}` returns every field
-   `CreateParcelRequest` needs.
-2. M3 has still not confirmed the quote-lookup response shape proposed in Phase 0. That is
-   a conversation, not code.
-3. Review has not been requested and nothing has been pushed.
+1. Fill the Student ID into M2's row in `doc/03-team-contribution.md`.
+2. Done: the V16 values stay as the starting configuration and are now changed on
+   `/admin/pricing/settings` rather than by migration (V17).
+3. Done: `scripts/demo-m2-pricing.sh` passed end to end with `parcel-service` (2026-11-23).
 
 What a reviewer should know about the running cluster: the demo script and the metric
 verification deliberately changed data and did not fully undo it, because the design

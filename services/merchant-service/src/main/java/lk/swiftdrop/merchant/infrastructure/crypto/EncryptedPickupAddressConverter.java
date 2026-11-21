@@ -1,6 +1,7 @@
 package lk.swiftdrop.merchant.infrastructure.crypto;
 
 import jakarta.persistence.AttributeConverter;
+import lk.swiftdrop.common.pii.PiiCipher;
 import jakarta.persistence.Converter;
 import lk.swiftdrop.merchant.domain.model.PickupAddress;
 import org.springframework.stereotype.Component;

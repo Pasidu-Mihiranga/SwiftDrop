@@ -10,6 +10,10 @@ import lk.swiftdrop.pricing.domain.model.DistanceRate;
 import lk.swiftdrop.pricing.domain.model.LaneDistance;
 import lk.swiftdrop.pricing.domain.model.ServiceLevel;
 import lk.swiftdrop.pricing.application.query.QuotePricingService;
+import lk.swiftdrop.common.web.error.BusinessRuleViolationException;
+import lk.swiftdrop.pricing.application.port.out.PricingSettingsRepository;
+import lk.swiftdrop.pricing.domain.model.PricingSettings;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -17,6 +21,8 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.Optional;
 import java.util.UUID;
 
 /** Issues a quote only after its exact response snapshot has been stored. */
@@ -29,10 +35,13 @@ public class QuoteIssuanceService {
     private final PricingMetrics metrics;
     private final Duration ttl;
     private final Clock clock;
+    private final PricingSettingsRepository settings;
 
+    @Autowired
     public QuoteIssuanceService(QuotePricingService pricing, LaneDistanceService laneDistances,
                                 QuoteStore store, PricingMetrics metrics,
-                                @Value("${swiftdrop.pricing.quote-ttl}") Duration ttl, Clock clock) {
+                                @Value("${swiftdrop.pricing.quote-ttl}") Duration ttl, Clock clock,
+                                PricingSettingsRepository settings) {
         if (ttl.isZero() || ttl.isNegative()) {
             throw new IllegalArgumentException("Quote TTL must be positive");
         }
@@ -42,18 +51,28 @@ public class QuoteIssuanceService {
         this.metrics = metrics;
         this.ttl = ttl;
         this.clock = clock;
+        this.settings = settings;
+    }
+
+    /** Without fee settings, so with no same-day cut-off. */
+    public QuoteIssuanceService(QuotePricingService pricing, LaneDistanceService laneDistances,
+                                QuoteStore store, PricingMetrics metrics, Duration ttl, Clock clock) {
+        this(pricing, laneDistances, store, metrics, ttl, clock, on -> Optional.empty());
     }
 
     public QuoteSnapshot issue(QuotePricingInput input) {
         Instant issuedAt = clock.instant();
         LocalDate quoteDate = LocalDate.ofInstant(issuedAt, clock.getZone());
+        boolean sameDay = input.serviceLevel() == ServiceLevel.SAME_DAY;
+        if (sameDay) {
+            requireSameDayOpen(quoteDate, LocalTime.ofInstant(issuedAt, clock.getZone()));
+        }
         // Measured first, outside the pricing transaction: this may call a routing engine, and
         // a read transaction must not be held open across a network round trip.
         LaneDistance distance = laneDistances.measure(input.serviceLevel(), input.fromDistrict(),
                 input.toDistrict(), input.origin(), input.destination(), quoteDate).orElse(null);
         // Every lane is measured now (line haul needs it), but only same-day work is priced per
         // kilometre, so only it needs the distance rate and only it feeds the same-day meter.
-        boolean sameDay = input.serviceLevel() == ServiceLevel.SAME_DAY;
         DistanceRate distanceRate = distance == null || !sameDay ? null
                 : laneDistances.rateInForce(quoteDate).orElse(null);
         if (distance != null && sameDay) {
@@ -82,5 +101,19 @@ public class QuoteIssuanceService {
         // Counted only now, so the meter reflects quotes a customer can actually use.
         metrics.quoteIssued(snapshot.serviceLevel(), snapshot.sizeClass(), snapshot.fee().amount());
         return snapshot;
+    }
+
+    /**
+     * Same-day work is only taken before the cut-off in the settings in force, in the quote zone's
+     * local time. Checked before the lane is measured, so a refused order costs no routing call.
+     */
+    private void requireSameDayOpen(LocalDate quoteDate, LocalTime localTime) {
+        Optional<PricingSettings> inForce = settings.findInForce(quoteDate);
+        if (inForce.isPresent() && !inForce.get().acceptsSameDayAt(localTime)) {
+            throw new BusinessRuleViolationException("SAME_DAY_CUTOFF_PASSED",
+                    "Same-day orders close at " + inForce.get().sameDayCutoff()
+                            + " (" + clock.getZone().getId() + "). Choose express or standard, or book same-day"
+                            + " tomorrow.");
+        }
     }
 }

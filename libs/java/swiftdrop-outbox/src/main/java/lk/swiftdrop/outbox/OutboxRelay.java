@@ -83,6 +83,10 @@ public class OutboxRelay {
         if (event.getCorrelationId() != null) {
             record.headers().add(Topics.HEADER_CORRELATION_ID, event.getCorrelationId().getBytes(StandardCharsets.UTF_8));
         }
+        if (event.getTraceParent() != null) {
+            // Consumers continue the trace of the request that wrote the event (W3C trace context).
+            record.headers().add(TraceContext.TRACEPARENT_HEADER, event.getTraceParent().getBytes(StandardCharsets.UTF_8));
+        }
         kafkaTemplate.send(record).get(properties.sendTimeoutMs(), TimeUnit.MILLISECONDS);
     }
 }

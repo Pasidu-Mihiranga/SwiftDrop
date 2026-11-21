@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { TimelineDisclosure } from "@/components/tracking/parcel-timeline";
 import { MerchantNav } from "@/components/merchant-nav";
 import { formatDateTime } from "@/lib/merchant";
 import { fetchMyOrders } from "@/lib/merchant-api";
@@ -164,7 +165,8 @@ function OrderTable({ orders }: { orders: MerchantOrder[] }) {
             <th scope="col" className="py-2 pr-4">Route</th>
             <th scope="col" className="py-2 pr-4">Parcel</th>
             <th scope="col" className="py-2 pr-4 text-right">Fee</th>
-            <th scope="col" className="py-2">Created</th>
+            <th scope="col" className="py-2 pr-4">Created</th>
+            <th scope="col" className="py-2"><span className="sr-only">Timeline</span></th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -187,7 +189,10 @@ function OrderTable({ orders }: { orders: MerchantOrder[] }) {
                 {order.sizeClass}, {order.weightKg} kg
               </td>
               <td className="py-2 pr-4 text-right whitespace-nowrap">{formatFee(order.fee)}</td>
-              <td className="py-2 whitespace-nowrap text-slate-600">{formatDateTime(order.createdAt)}</td>
+              <td className="py-2 pr-4 whitespace-nowrap text-slate-600">{formatDateTime(order.createdAt)}</td>
+              <td className="py-2 align-top">
+                <TimelineDisclosure parcelId={order.id} />
+              </td>
             </tr>
           ))}
         </tbody>

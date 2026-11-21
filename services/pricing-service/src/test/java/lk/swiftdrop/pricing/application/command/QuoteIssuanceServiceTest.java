@@ -23,9 +23,14 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.Optional;
 import java.util.List;
+import java.util.UUID;
+
+import lk.swiftdrop.common.web.error.BusinessRuleViolationException;
+import lk.swiftdrop.pricing.domain.model.PricingSettings;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -132,5 +137,39 @@ class QuoteIssuanceServiceTest {
 
         // A quote nobody can use must not inflate the business meter.
         verify(metrics, never()).quoteIssued(any(), any(), any());
+    }
+
+    // NOW is 01:30 on 25 October in Colombo.
+    private static final QuotePricingInput SAME_DAY = new QuotePricingInput("Colombo", "Colombo",
+            new BigDecimal("2"), SizeClassCode.M, ServiceLevel.SAME_DAY, BigDecimal.ZERO);
+
+    private QuoteIssuanceService withCutoff(LocalTime cutoff) {
+        PricingSettings settings = new PricingSettings(UUID.randomUUID(), BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, cutoff);
+        return new QuoteIssuanceService(pricing, laneDistances, store, metrics, TTL, CLOCK,
+                on -> on.equals(LocalDate.of(2026, 10, 25)) ? Optional.of(settings) : Optional.empty());
+    }
+
+    @Test
+    void refusesSameDayFromTheLocalCutoffWithoutMeasuringTheLane() {
+        assertThatThrownBy(() -> withCutoff(LocalTime.of(1, 30)).issue(SAME_DAY))
+                .isInstanceOfSatisfying(BusinessRuleViolationException.class, error -> {
+                    assertThat(error.code()).isEqualTo("SAME_DAY_CUTOFF_PASSED");
+                    assertThat(error.getMessage()).contains("01:30").contains("Asia/Colombo");
+                });
+
+        verify(laneDistances, never()).measure(any(), any(), any(), any(), any(), any());
+        verify(store, never()).save(any(), any());
+    }
+
+    @Test
+    void takesSameDayBeforeTheCutoffAndOtherServicesAfterIt() {
+        FeeBreakdown breakdown = new FeeBreakdown(List.of(), new BigDecimal("0.00"));
+        when(pricing.prepare(any(), any(), any(), any())).thenAnswer(call -> new PreparedQuote(
+                call.getArgument(0), ZoneCode.of("WP"), ZoneCode.of("WP"), breakdown, MEDIUM));
+
+        assertThat(withCutoff(LocalTime.of(1, 31)).issue(SAME_DAY).serviceLevel()).isEqualTo(ServiceLevel.SAME_DAY);
+        assertThat(withCutoff(LocalTime.of(1, 0)).issue(INPUT).serviceLevel()).isEqualTo(ServiceLevel.STANDARD);
+        assertThat(withCutoff(null).issue(SAME_DAY).serviceLevel()).isEqualTo(ServiceLevel.SAME_DAY);
     }
 }

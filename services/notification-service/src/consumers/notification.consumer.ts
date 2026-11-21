@@ -115,7 +115,11 @@ export class NotificationConsumer implements OnModuleInit, OnModuleDestroy {
       this.producer = handles.producer;
       this.logger.log("Notification Kafka consumer initialized");
     } catch (err) {
+      // Fail start-up, as tracking-service and webhook-service do: a service that keeps running
+      // without its consumer sends nothing until someone restarts it, while a failed start is
+      // restarted by the orchestrator once Kafka is reachable.
       this.logger.error(`Failed to connect Kafka consumer: ${err}`);
+      throw err;
     }
   }
 

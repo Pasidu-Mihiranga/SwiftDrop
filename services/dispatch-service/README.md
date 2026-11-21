@@ -96,7 +96,7 @@ fallback when a restricted environment prevents Turbopack worker ports.
 
 See [the API contract](../../contracts/openapi/dispatch-service.v1.yaml),
 [Kafka operations](../../infra/kafka/README.md), and
-[the design PDF](../../doc/m5-dispatch-design.pdf).
-Editable SVG and PlantUML diagrams live in `doc/diagrams/m5`.
+[the design PDF](../../doc/design/m5-dispatch-workload-design.pdf).
+Editable SVG and PlantUML diagrams live in `doc/diagrams/m5-dispatch-workload`.
 Regenerate the PDF/SVG with `python scripts/build-m5-design.py` (reportlab required).
 The M5 Grafana consumer-lag dashboard reuses M9's Kafka Exporter/Prometheus configuration.

@@ -20,6 +20,12 @@
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
         </dependency>
+        <!-- Distributed tracing (M9): Micrometer Tracing with the OpenTelemetry bridge and the OTLP exporter.
+             Every service gets it through this library; traces go to Alloy, then Tempo. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-opentelemetry</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>

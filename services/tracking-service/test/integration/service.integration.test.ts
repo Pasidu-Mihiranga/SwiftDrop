@@ -4,6 +4,7 @@ import { Test } from "@nestjs/testing";
 import {
   contractExample,
   createJwtVerifier,
+  createTopicsWhenReady,
   type EventEnvelope,
   Topics,
   publishEvent,
@@ -95,7 +96,7 @@ describe("tracking-service on real Kafka, MongoDB and Redis (two replicas)", () 
     const kafka = new Kafka({ clientId: "service-test", brokers: [process.env.KAFKA_BROKERS], logLevel: logLevel.NOTHING });
     const admin = kafka.admin();
     await admin.connect();
-    await admin.createTopics({ topics: [{ topic: Topics.TRACKING_DEAD_LETTER }] });
+    await createTopicsWhenReady(admin, { topics: [{ topic: Topics.TRACKING_DEAD_LETTER }] });
     await admin.disconnect();
 
     // Replica A: the real application module, consumer included. Only the token verifier is swapped for the local key.

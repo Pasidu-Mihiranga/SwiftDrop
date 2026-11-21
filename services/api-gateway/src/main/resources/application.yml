@@ -14,6 +14,12 @@ spring:
           issuer-uri: ${KEYCLOAK_ISSUER:http://localhost:${KEYCLOAK_HOST_PORT:8180}/realms/swiftdrop}
           jwk-set-uri: ${KEYCLOAK_JWKS_URI:http://localhost:${KEYCLOAK_HOST_PORT:8180}/realms/swiftdrop/protocol/openid-connect/certs}
           audiences: swiftdrop-api
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:${REDIS_HOST_PORT:6380}}
+      password: ${REDIS_PASSWORD:}
+      timeout: 500ms
   cloud:
     gateway:
       server:
@@ -23,6 +29,12 @@ spring:
             response-timeout: 30s
           default-filters:
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials X-Correlation-Id, RETAIN_FIRST
+            # Redis token buckets per caller (see RateLimitConfiguration); 429 when a bucket is empty.
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@callerKeyResolver}"
+                rate-limiter: "#{@tieredRedisRateLimiter}"
+                deny-empty-key: false
           globalcors:
             cors-configurations:
               "[/**]":
@@ -106,6 +118,9 @@ spring:
 
 swiftdrop:
   gateway:
+    # How long a service's address is cached. Short, so a recreated or rescheduled service is
+    # reachable again within seconds rather than after Docker DNS's long TTL.
+    upstream-dns-cache-ttl: ${GATEWAY_UPSTREAM_DNS_CACHE_TTL:PT5S}
     # Everything else requires a valid Keycloak access token.
     public-paths:
       - /actuator/health/**
@@ -116,6 +131,7 @@ swiftdrop:
       - /api/v1/pricing/zones
       - /api/v1/pricing/special-handling   # options shown on the public quote form
       - /api/v1/pricing/locate             # map point to district for the quote form
+      - /api/v1/pricing/address-search     # address search on the quote form's map (503 if off)
       - /api/v1/assistant/**         # assistant serves anonymous users with public tools only
       - /mcp/**                      # MCP server authenticates its own clients
       - /ws/tracking/**              # Socket.IO authenticates in its handshake
@@ -128,7 +144,7 @@ swiftdrop:
     # Requests per minute per caller; over the limit the gateway answers 429 RATE_LIMITED.
     rate-limit:
       enabled: ${GATEWAY_RATE_LIMIT_ENABLED:true}
-      authenticated-per-minute: ${GATEWAY_RATE_LIMIT_USER_PER_MINUTE:300}   # per Keycloak user
+      authenticated-per-minute: ${GATEWAY_RATE_LIMIT_USER_PER_MINUTE:300}   # per Keycloak user or merchant API client
       anonymous-per-minute: ${GATEWAY_RATE_LIMIT_ANON_PER_MINUTE:60}        # per client IP
       # Address prefixes whose X-Forwarded-For is believed (web server, ingress). Comma-separated.
       trusted-proxies: ${GATEWAY_TRUSTED_PROXIES:127.0.0.1,0:0:0:0:0:0:0:1}
@@ -156,6 +172,11 @@ server:
   shutdown: graceful
 
 management:
+  # Redis only holds rate-limit buckets and the limiter fails open, so Redis being down must not
+  # mark the gateway unhealthy (Kubernetes would restart it for nothing).
+  health:
+    redis:
+      enabled: false
   endpoints:
     web:
       exposure:

@@ -1,12 +1,16 @@
 import "server-only";
 import { gatewayFetch } from "@/lib/gateway";
 import type {
+  DistanceBandVersion,
   DistrictAssignment,
   MerchantAgreement,
+  PricingSettingsVersion,
   Quote,
   RateCard,
   RemoteAreaCharge,
+  SameDayVehicleConfig,
   SizeClassRate,
+  SpecialHandlingConfig,
   SpecialHandlingOption,
   Zone,
 } from "@/lib/pricing";
@@ -66,22 +70,36 @@ export async function fetchRateCards(search: string = ""): Promise<PricingPage<R
   return readJson<PricingPage<RateCard>>(`/api/v1/admin/pricing/rate-cards${search}`, "rate cards");
 }
 
-/** Every card in force on a date. Reads all the pages, so a large zone map is not cut short. */
+/** Every card in force on a date. Reads all the pages in parallel after page 0. */
 export async function fetchRateCardsInForce(on: string): Promise<RateCard[]> {
-  const cards: RateCard[] = [];
-  let page = 0;
-  let totalPages = 1;
-  while (page < totalPages) {
-    const result = await fetchRateCards(`?activeOn=${encodeURIComponent(on)}&page=${page}&size=100`);
-    cards.push(...result.content);
-    totalPages = result.page.totalPages;
-    page += 1;
-  }
-  return cards;
+  const first = await fetchRateCards(`?activeOn=${encodeURIComponent(on)}&page=0&size=100`);
+  if (first.page.totalPages <= 1) return first.content;
+  const remaining = await Promise.all(
+    Array.from({ length: first.page.totalPages - 1 }, (_, i) =>
+      fetchRateCards(`?activeOn=${encodeURIComponent(on)}&page=${i + 1}&size=100`),
+    ),
+  );
+  return [...first.content, ...remaining.flatMap((result) => result.content)];
 }
 
 export async function fetchRemoteAreas(): Promise<RemoteAreaCharge[]> {
   return readJson<RemoteAreaCharge[]>("/api/v1/admin/pricing/remote-areas", "remote-area charges");
+}
+
+export async function fetchPricingSettings(): Promise<PricingSettingsVersion[]> {
+  return readJson<PricingSettingsVersion[]>("/api/v1/admin/pricing/settings", "fee settings");
+}
+
+export async function fetchDistanceBands(): Promise<DistanceBandVersion[]> {
+  return readJson<DistanceBandVersion[]>("/api/v1/admin/pricing/distance-bands", "distance bands");
+}
+
+export async function fetchSpecialHandlingConfig(): Promise<SpecialHandlingConfig[]> {
+  return readJson<SpecialHandlingConfig[]>("/api/v1/admin/pricing/special-handling", "handling options");
+}
+
+export async function fetchSameDayVehicles(): Promise<SameDayVehicleConfig[]> {
+  return readJson<SameDayVehicleConfig[]>("/api/v1/admin/pricing/vehicles", "same-day vehicles");
 }
 
 export async function fetchAgreementsInForce(): Promise<MerchantAgreement[]> {
