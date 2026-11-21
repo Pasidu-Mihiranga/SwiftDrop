@@ -7,18 +7,18 @@ webhook retry activity diagram. The other diagrams support them.
 
 | View | Source | Export |
 |---|---|---|
-| Use cases: webhooks | [usecase-m8-webhooks.mmd](usecase-m8-webhooks.mmd) | [SVG](usecase-m8-webhooks.svg), [PNG](usecase-m8-webhooks.png) |
-| Use cases: merchant simulator | [usecase-m8-merchant-simulator.mmd](usecase-m8-merchant-simulator.mmd) | [SVG](usecase-m8-merchant-simulator.svg), [PNG](usecase-m8-merchant-simulator.png) |
-| Register an endpoint, test ping | [sequence-m8-endpoint-registration.mmd](sequence-m8-endpoint-registration.mmd) | [SVG](sequence-m8-endpoint-registration.svg), [PNG](sequence-m8-endpoint-registration.png) |
-| Parcel event to signed webhook | [sequence-m8-signed-delivery.mmd](sequence-m8-signed-delivery.mmd) | [SVG](sequence-m8-signed-delivery.svg), [PNG](sequence-m8-signed-delivery.png) |
-| Retries, dead letter, admin replay | [sequence-m8-retry-dead-letter-replay.mmd](sequence-m8-retry-dead-letter-replay.mmd) | [SVG](sequence-m8-retry-dead-letter-replay.svg), [PNG](sequence-m8-retry-dead-letter-replay.png) |
-| Merchant simulator demo | [sequence-m8-simulator-demo.mmd](sequence-m8-simulator-demo.mmd) | [SVG](sequence-m8-simulator-demo.svg), [PNG](sequence-m8-simulator-demo.png) |
-| Data model | [er-m8-webhooks.mmd](er-m8-webhooks.mmd) | [SVG](er-m8-webhooks.svg), [PNG](er-m8-webhooks.png) |
-| Webhook retry activity (required) | [activity-m8-webhook-retry.mmd](activity-m8-webhook-retry.mmd) | [SVG](activity-m8-webhook-retry.svg), [PNG](activity-m8-webhook-retry.png) |
-| Service architecture | [architecture-m8-webhooks.mmd](architecture-m8-webhooks.mmd) | [SVG](architecture-m8-webhooks.svg), [PNG](architecture-m8-webhooks.png) |
-| Integration design (required) | [integration-m8-patterns.mmd](integration-m8-patterns.mmd) | [SVG](integration-m8-patterns.svg), [PNG](integration-m8-patterns.png) |
-| Class diagram | [class-m8-webhooks.mmd](class-m8-webhooks.mmd) | [SVG](class-m8-webhooks.svg), [PNG](class-m8-webhooks.png) |
-| Deployment on Kubernetes | [deployment-m8-webhooks.mmd](deployment-m8-webhooks.mmd) | [SVG](deployment-m8-webhooks.svg), [PNG](deployment-m8-webhooks.png) |
+| Use cases: webhooks | [01-use-cases-webhooks.mmd](01-use-cases-webhooks.mmd) | [SVG](01-use-cases-webhooks.svg), [PNG](01-use-cases-webhooks.png) |
+| Use cases: merchant simulator | [02-use-cases-merchant-simulator.mmd](02-use-cases-merchant-simulator.mmd) | [SVG](02-use-cases-merchant-simulator.svg), [PNG](02-use-cases-merchant-simulator.png) |
+| Register an endpoint, test ping | [06-seq-endpoint-registration.mmd](06-seq-endpoint-registration.mmd) | [SVG](06-seq-endpoint-registration.svg), [PNG](06-seq-endpoint-registration.png) |
+| Parcel event to signed webhook | [07-seq-signed-delivery.mmd](07-seq-signed-delivery.mmd) | [SVG](07-seq-signed-delivery.svg), [PNG](07-seq-signed-delivery.png) |
+| Retries, dead letter, admin replay | [08-seq-retry-dead-letter-replay.mmd](08-seq-retry-dead-letter-replay.mmd) | [SVG](08-seq-retry-dead-letter-replay.svg), [PNG](08-seq-retry-dead-letter-replay.png) |
+| Merchant simulator demo | [09-seq-simulator-demo.mmd](09-seq-simulator-demo.mmd) | [SVG](09-seq-simulator-demo.svg), [PNG](09-seq-simulator-demo.png) |
+| Data model | [03-er-diagram.mmd](03-er-diagram.mmd) | [SVG](03-er-diagram.svg), [PNG](03-er-diagram.png) |
+| Webhook retry activity (required) | [10-activity-webhook-retry.mmd](10-activity-webhook-retry.mmd) | [SVG](10-activity-webhook-retry.svg), [PNG](10-activity-webhook-retry.png) |
+| Service architecture | [04-architecture.mmd](04-architecture.mmd) | [SVG](04-architecture.svg), [PNG](04-architecture.png) |
+| Integration design (required) | [05-integration-design.mmd](05-integration-design.mmd) | [SVG](05-integration-design.svg), [PNG](05-integration-design.png) |
+| Class diagram | [11-class-webhooks.mmd](11-class-webhooks.mmd) | [SVG](11-class-webhooks.svg), [PNG](11-class-webhooks.png) |
+| Deployment on Kubernetes | [12-deployment-webhooks.mmd](12-deployment-webhooks.mmd) | [SVG](12-deployment-webhooks.svg), [PNG](12-deployment-webhooks.png) |
 
 ## What is already built and what is design
 
@@ -30,7 +30,7 @@ webhook retry activity diagram. The other diagrams support them.
 
 ## Integration design: what and why
 
-The numbers match [integration-m8-patterns](integration-m8-patterns.svg).
+The numbers match [05-integration-design](05-integration-design.svg).
 
 | # | Pattern | Where | Why |
 |---|---|---|---|

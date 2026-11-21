@@ -1,0 +1,24 @@
+%%{init: {"theme": "base", "fontFamily": "'Segoe UI', 'Helvetica Neue', Arial, sans-serif", "themeVariables": {"fontFamily": "'Segoe UI', 'Helvetica Neue', Arial, sans-serif", "fontSize": "15px", "background": "#ffffff", "primaryColor": "#ffffff", "primaryTextColor": "#111111", "primaryBorderColor": "#111111", "secondaryColor": "#ffffff", "tertiaryColor": "#ececec", "lineColor": "#111111", "textColor": "#111111", "mainBkg": "#ffffff", "nodeBorder": "#111111", "clusterBkg": "#ececec", "clusterBorder": "#d4d4d4", "titleColor": "#555555", "edgeLabelBackground": "#ffffff", "actorBkg": "#ffffff", "actorBorder": "#111111", "actorTextColor": "#111111", "actorLineColor": "#555555", "signalColor": "#111111", "signalTextColor": "#111111", "labelBoxBkgColor": "#ffffff", "labelBoxBorderColor": "#111111", "labelTextColor": "#111111", "loopTextColor": "#111111", "noteBkgColor": "#ffffff", "noteBorderColor": "#111111", "noteTextColor": "#111111", "activationBkgColor": "#ffffff", "activationBorderColor": "#111111", "sequenceNumberColor": "#ffffff", "altSectionBkgColor": "#ffffff", "stateBkg": "#ffffff", "stateBorder": "#111111", "compositeBackground": "#ececec", "transitionColor": "#111111", "transitionLabelColor": "#111111", "classText": "#111111", "attributeBackgroundColorOdd": "#ffffff", "attributeBackgroundColorEven": "#f5f5f5", "stateLabelColor": "#111111", "nodeTextColor": "#111111", "labelColor": "#111111", "specialStateColor": "#111111", "innerEndBackground": "#111111"}}}%%
+%% M9 activity: how one event is turned into notifications.
+flowchart TB
+    S((" ")) --> R["Receive a Kafka event<br/>parcel or merchant topic"]
+    R --> D1{"already processed?<br/>consumer_idempotency"}
+    D1 -- "yes" --> ACK["Commit the offset<br/>send nothing"]
+    ACK --> E1(((" ")))
+    D1 -- "no" --> T{"event type"}
+    T -- "MerchantLifecycleChanged" --> MT["Approval or rejection e-mail<br/>to the merchant"]
+    T -- "ParcelCreated, ParcelStatusChanged" --> PR["Load contacts and preferences"]
+    PR --> D2{"status opted in?"}
+    D2 -- "no" --> LOG["Record as skipped"]
+    D2 -- "yes" --> CH["Render the Handlebars template<br/>brand layout and tracking link"]
+    CH --> EM["E-mail channel<br/>if e-mail is on"]
+    CH --> SM["SMS channel<br/>if SMS is on"]
+    MT --> SAVE
+    EM --> SAVE["Save notification and log<br/>bell entry"]
+    SM --> SAVE
+    LOG --> SAVE
+    SAVE --> D3{"send failed after retries?"}
+    D3 -- "yes" --> DLQ["Publish to the dead-letter topic"]
+    D3 -- "no" --> OK["Commit the offset"]
+    DLQ --> OK
+    OK --> E2(((" ")))

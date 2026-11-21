@@ -1,7 +1,7 @@
 import "reflect-metadata";
 import type { INestApplication, Type } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
-import { contractExample, type EventEnvelope, Topics, publishEvent } from "@swiftdrop/common";
+import { contractExample, createTopicsWhenReady, type EventEnvelope, Topics, publishEvent } from "@swiftdrop/common";
 import { type StartedKafkaContainer, KafkaContainer } from "@testcontainers/kafka";
 import { type StartedMongoDBContainer, MongoDBContainer } from "@testcontainers/mongodb";
 import { Kafka, type Producer, logLevel } from "kafkajs";
@@ -88,7 +88,7 @@ describe("notification-service event flow on real Kafka, MongoDB and Mailpit", (
     });
     const admin = kafka.admin();
     await admin.connect();
-    await admin.createTopics({
+    await createTopicsWhenReady(admin, {
       waitForLeaders: true,
       topics: [
         Topics.PARCEL_CREATED,

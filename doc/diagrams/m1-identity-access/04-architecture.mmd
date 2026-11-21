@@ -1,0 +1,39 @@
+%%{init: {"theme": "base", "fontFamily": "'Segoe UI', 'Helvetica Neue', Arial, sans-serif", "themeVariables": {"fontFamily": "'Segoe UI', 'Helvetica Neue', Arial, sans-serif", "fontSize": "15px", "background": "#ffffff", "primaryColor": "#ffffff", "primaryTextColor": "#111111", "primaryBorderColor": "#111111", "secondaryColor": "#ffffff", "tertiaryColor": "#ececec", "lineColor": "#111111", "textColor": "#111111", "mainBkg": "#ffffff", "nodeBorder": "#111111", "clusterBkg": "#ececec", "clusterBorder": "#d4d4d4", "titleColor": "#555555", "edgeLabelBackground": "#ffffff", "actorBkg": "#ffffff", "actorBorder": "#111111", "actorTextColor": "#111111", "actorLineColor": "#555555", "signalColor": "#111111", "signalTextColor": "#111111", "labelBoxBkgColor": "#ffffff", "labelBoxBorderColor": "#111111", "labelTextColor": "#111111", "loopTextColor": "#111111", "noteBkgColor": "#ffffff", "noteBorderColor": "#111111", "noteTextColor": "#111111", "activationBkgColor": "#ffffff", "activationBorderColor": "#111111", "sequenceNumberColor": "#ffffff", "altSectionBkgColor": "#ffffff", "stateBkg": "#ffffff", "stateBorder": "#111111", "compositeBackground": "#ececec", "transitionColor": "#111111", "transitionLabelColor": "#111111", "classText": "#111111", "attributeBackgroundColorOdd": "#ffffff", "attributeBackgroundColorEven": "#f5f5f5", "stateLabelColor": "#111111", "nodeTextColor": "#111111", "labelColor": "#111111", "specialStateColor": "#111111", "innerEndBackground": "#111111"}}}%%
+%% M1 architecture view: identity and access across the presentation, business-logic and data layers.
+%% Matches doc/01-architecture.md sections 1, 2.1 and 4; class names are the planned M1 design.
+flowchart LR
+    subgraph PRES["Presentation layer - apps/web (Next.js 16)"]
+        BR["Browser<br/>login, profile, address book, admin users<br/>session cookie only"]
+        AJ["Auth.js v5<br/>client swiftdrop-web, code + PKCE, refresh"]
+        PX["proxy.ts<br/>accessFor / homeFor role guard"]
+        BFF["BFF /api/bff/*<br/>adds Bearer token server-side"]
+    end
+    subgraph EDGE["Edge"]
+        GW["api-gateway :8080<br/>JWT check (JWKS, iss, aud, exp), routes, CORS, correlation id"]
+    end
+    subgraph BL["Business logic layer - user-service"]
+        API["api<br/>UserController, AddressController, AdminUserController"]
+        APP["application<br/>UserProfileService, AddressService, AdminUserService + ports"]
+        DOM["domain<br/>UserProfile, Address, CourierProfile, AddressPolicy"]
+        INF["infrastructure<br/>JPA, AES-GCM converter, KeycloakAdminAdapter"]
+    end
+    subgraph DATA["Data layer"]
+        DB[("users_db PostgreSQL")]
+    end
+    subgraph IDP["Identity provider"]
+        KC["Keycloak realm swiftdrop<br/>roles, clients, policies"]
+        GG["Google OAuth 2.0"]
+    end
+    BR <--> AJ
+    AJ -. "OIDC code + PKCE, refresh" .-> KC
+    BR --> PX
+    BR --> BFF
+    BFF -- "Bearer JWT" --> GW
+    GW -. JWKS .-> KC
+    GW -- routes --> API
+    API --> APP --> DOM
+    INF -. implements ports .-> APP
+    INF -- JPA / Flyway --> DB
+    INF -- "Admin REST API" --> KC
+    API -. "JWKS (validates again)" .-> KC
+    KC <-- brokering --> GG
