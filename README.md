@@ -114,7 +114,7 @@ curl -H "Authorization: Bearer <access_token>" http://localhost:8080/api/v1/parc
 ```
 apps/web/                 Next.js 16 (App Router) — all UIs + BFF (/api/bff/*), Auth.js + Keycloak
 services/                 one folder per microservice
-  api-gateway/            Spring Cloud Gateway — JWT validation, routing, CORS, correlation ids
+  api-gateway/            Spring Cloud Gateway — JWT validation, routing, CORS, rate limiting, correlation ids
   user-service/ merchant-service/ pricing-service/ parcel-service/ dispatch-service/ reporting-service/   (Spring Boot)
   tracking-service/ notification-service/ webhook-service/                                               (NestJS)
   ai-assistant-service/   FastAPI + MCP
@@ -147,6 +147,7 @@ pnpm new-service --type nest --name chat-service --port 8093 --route chat --mong
   Inject the caller as `AuthenticatedUser` (Java), `@CurrentUser()` (Nest) or `Depends(current_user)` (FastAPI).
 - **Errors:** RFC 9457 `application/problem+json` with `code`, `traceId`, `timestamp`; never stack traces or personal data.
 - **Correlation:** `X-Correlation-Id` is created at the gateway and copied into logs and events.
+- **Rate limiting:** the gateway allows 300 requests a minute per signed-in user and 60 per IP for anonymous callers (`GATEWAY_RATE_LIMIT_*`), then answers `429 RATE_LIMITED` with `Retry-After`. The web server passes the visitor IP on, and the gateway believes `X-Forwarded-For` only from `GATEWAY_TRUSTED_PROXIES`.
 - **Logs:** one JSON object per line (`@timestamp, level, service, message, correlationId, traceId`); emails, phones,
   passwords and tokens are masked automatically.
 - **Events:** published only through the outbox (`OutboxWriter.publish(...)`), consumed idempotently.
