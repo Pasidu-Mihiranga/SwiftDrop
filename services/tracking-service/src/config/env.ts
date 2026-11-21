@@ -13,7 +13,15 @@ for (const file of [".env", "../../.env"]) {
 const keycloakPort = process.env.KEYCLOAK_HOST_PORT ?? "8180";
 const kafkaPort = process.env.KAFKA_HOST_PORT ?? "9092";
 const mongoPort = process.env.MONGO_HOST_PORT ?? "27018";
+const mongoUser = process.env.MONGO_ROOT_USER;
+const mongoPass = process.env.MONGO_ROOT_PASSWORD;
+const mongoDefault =
+  mongoUser && mongoPass
+    ? `mongodb://${mongoUser}:${mongoPass}@localhost:${mongoPort}/tracking?authSource=admin`
+    : `mongodb://localhost:${mongoPort}/tracking`;
 const redisPort = process.env.REDIS_HOST_PORT ?? "6380";
+const redisPass = process.env.REDIS_PASSWORD;
+const redisDefault = redisPass ? `redis://:${redisPass}@localhost:${redisPort}` : `redis://localhost:${redisPort}`;
 
 /** Fail fast at startup if configuration is missing or malformed (12-factor config). */
 const schema = z.object({
@@ -24,7 +32,7 @@ const schema = z.object({
   MONGO_URI: z
     .string()
     .regex(/^mongodb(\+srv)?:\/\//, "MONGO_URI must start with mongodb:// or mongodb+srv://")
-    .default(`mongodb://localhost:${mongoPort}/tracking`),
+    .default(mongoDefault),
   /** Set to false to run the service without consuming Kafka (unit tests, local API work). */
   KAFKA_CONSUMER_ENABLED: z
     .enum(["true", "false"])
@@ -35,7 +43,7 @@ const schema = z.object({
   REDIS_URL: z
     .string()
     .regex(/^rediss?:\/\//, "REDIS_URL must start with redis:// or rediss://")
-    .default(`redis://localhost:${redisPort}`),
+    .default(redisDefault),
 });
 
 export type Env = z.infer<typeof schema>;
