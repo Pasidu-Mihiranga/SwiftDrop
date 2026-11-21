@@ -22,6 +22,7 @@ import lk.swiftdrop.parcel.application.model.MerchantOrderFilter;
 import lk.swiftdrop.parcel.application.model.MerchantOrderResult;
 import lk.swiftdrop.parcel.application.model.PagedResult;
 import lk.swiftdrop.parcel.application.query.ParcelQueryService;
+import lk.swiftdrop.parcel.application.receipt.ReceiptPdfGenerator;
 import lk.swiftdrop.parcel.domain.exception.IdempotencyKeyReusedException;
 import lk.swiftdrop.parcel.domain.model.IdempotencyKey;
 import lk.swiftdrop.parcel.domain.model.Parcel;
@@ -93,6 +94,9 @@ class MerchantOrderControllerTest {
     private CancelParcelUseCase cancelParcel;
     @MockitoBean
     private ParcelQueryService parcels;
+    // ParcelController also serves receipts (M9); this slice loads it, so its generator is mocked too.
+    @MockitoBean
+    private ReceiptPdfGenerator receipts;
 
     static RequestPostProcessor as(String userId, String merchantId, String... roles) {
         return jwt().jwt(token -> {
