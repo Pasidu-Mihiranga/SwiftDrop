@@ -2,7 +2,7 @@
   "realm": "swiftdrop",
   "displayName": "SwiftDrop",
   "enabled": true,
-  "sslRequired": "external",
+  "sslRequired": "none",
   "registrationAllowed": true,
   "registrationEmailAsUsername": true,
   "loginWithEmailAllowed": true,
