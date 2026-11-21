@@ -36,6 +36,10 @@ import {
   roundCoordinate,
   withDistrict,
   withPickedPoint,
+  canReuseQuote,
+  quoteIdFromSearchParams,
+  type Quote,
+  type QuoteRequestBody,
 } from "./pricing";
 
 const WESTERN: Zone = { code: "WP", name: "Western", districts: ["Colombo", "Gampaha", "Kalutara"], active: true };
@@ -741,5 +745,31 @@ describe("quote handoff query params", () => {
     });
 
     expect(parsed).toEqual({ fromDistrict: "Colombo" });
+  });
+});
+
+describe("carrying a /quote quote into booking", () => {
+  const ID = "4b9d6f0e-2a71-4c3e-9f1a-0c8e5d7b6a21";
+  const quote = {
+    quoteId: ID, fee: { amount: 950, currency: "LKR" }, breakdown: [], fromZone: "WP", toZone: "CP",
+    weightKg: 2, sizeClass: "S", serviceLevel: "STANDARD",
+    issuedAt: "2026-06-01T09:00:00Z", expiresAt: "2026-06-01T09:15:00Z",
+  } as Quote;
+  const request = { fromDistrict: "Colombo", toDistrict: "Kandy", weightKg: 2 } as unknown as QuoteRequestBody;
+
+  it("reads only a well-formed quote id", () => {
+    expect(quoteIdFromSearchParams({ quoteId: ID })).toBe(ID);
+    expect(quoteIdFromSearchParams({ quoteId: [` ${ID} `, "x"] })).toBe(ID);
+    expect(quoteIdFromSearchParams({ quoteId: "q-123" })).toBeUndefined();
+    expect(quoteIdFromSearchParams({})).toBeUndefined();
+  });
+
+  it("reuses a quote only while it is valid and the request is unchanged", () => {
+    const carried = { quote, request };
+    const before = new Date("2026-06-01T09:10:00Z");
+    expect(canReuseQuote(carried, { ...request }, before)).toBe(true);
+    expect(canReuseQuote(carried, { ...request, weightKg: 3 }, before)).toBe(false);
+    expect(canReuseQuote(carried, request, new Date("2026-06-01T09:15:01Z"))).toBe(false);
+    expect(canReuseQuote(null, request, before)).toBe(false);
   });
 });

@@ -837,3 +837,23 @@ export function quoteFromSearchParams(
 
   return result;
 }
+
+/** The quote id `/quote` hands to `/customer/book`, if it is a well-formed UUID. */
+export function quoteIdFromSearchParams(params: Record<string, string | string[] | undefined>): string | undefined {
+  const value = firstParam(params.quoteId)?.trim();
+  return value && isUuid(value) ? value : undefined;
+}
+
+/**
+ * Whether a carried quote can stand for the current form: it must still be valid and the form must
+ * ask for exactly the same pricing request it was issued for. Anything else needs a fresh quote.
+ */
+export function canReuseQuote(
+  carried: { quote: Quote; request: QuoteRequestBody } | null | undefined,
+  request: QuoteRequestBody,
+  now: Date,
+): boolean {
+  if (!carried) return false;
+  if (quoteLifetime(carried.quote.expiresAt, now).expired) return false;
+  return JSON.stringify(carried.request) === JSON.stringify(request);
+}
