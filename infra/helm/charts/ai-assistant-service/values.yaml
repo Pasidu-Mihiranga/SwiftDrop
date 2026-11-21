@@ -19,8 +19,17 @@ probes:
 metrics:
   path: /metrics
 
+# swiftdrop-app-secrets supplies GEMINI_API_KEY / OPENAI_API_KEY (or VERTEX_CREDENTIALS_JSON when
+# LLM_PROVIDER is vertex), REDIS_PASSWORD and
+# ASSISTANT_VAULT_SECRET (encrypts the per-conversation PII vault; without it every pod would pick its
+# own random key and a conversation could not move between replicas). Redis host and port come from
+# global.commonConfig.
 secretRefs: ["swiftdrop-app-secrets"]
 config:
   GATEWAY_URL: http://api-gateway:8080
   LLM_PROVIDER: gemini
-  LLM_MODEL: gemini-2.0-flash
+  LLM_MODEL: gemini-2.5-flash
+  ASSISTANT_RATE_LIMIT_PER_MIN: "20"
+  ASSISTANT_MAX_TOOL_ROUNDS: "5"
+  # MCP clients are third-party AI apps: keep their results masked.
+  MCP_MASK_PII: "true"
