@@ -663,3 +663,83 @@ describe("map points", () => {
     }
   });
 });
+
+describe("quote handoff query params", () => {
+  it("round-trips route, coordinates, dimensions, add-ons, and handling options cleanly", async () => {
+    const { quoteToBookingHref, quoteFromSearchParams } = await import("./pricing");
+    const values = form({
+      fromAddress: "45 Galle Road",
+      fromDistrict: "Colombo",
+      toAddress: "12 Temple Road",
+      toDistrict: "Kandy",
+      weightKg: "3.5",
+      sizeClass: "L",
+      serviceLevel: "SAME_DAY",
+      vehicleType: "VAN",
+      codAmount: "4500",
+      declaredValue: "20000",
+      lengthCm: "40",
+      widthCm: "30",
+      heightCm: "20",
+      specialHandling: ["FRAGILE", "KEEP_UPRIGHT"],
+      fromPoint: { latitude: 6.93441234, longitude: 79.84281234 },
+      toPoint: { latitude: 7.2936, longitude: 80.6413 },
+    });
+
+    const href = quoteToBookingHref(values, {
+      quoteId: "q-123",
+      fee: { amount: 1200, currency: "LKR" },
+      breakdown: [],
+      fromZone: "WP",
+      toZone: "CP",
+      weightKg: 3.5,
+      sizeClass: "L",
+      serviceLevel: "SAME_DAY",
+      issuedAt: "2026-06-01T09:00:00Z",
+      expiresAt: "2026-06-01T09:15:00Z",
+    });
+
+    expect(href.startsWith("/customer/book?")).toBe(true);
+    const url = new URL(href, "https://swiftdrop.example");
+    const rawParams = Object.fromEntries(url.searchParams.entries());
+    expect(rawParams.quoteId).toBe("q-123");
+
+    const parsed = quoteFromSearchParams(rawParams);
+    expect(parsed).toEqual({
+      fromAddress: "45 Galle Road",
+      fromDistrict: "Colombo",
+      toAddress: "12 Temple Road",
+      toDistrict: "Kandy",
+      weightKg: "3.5",
+      sizeClass: "L",
+      serviceLevel: "SAME_DAY",
+      vehicleType: "VAN",
+      codAmount: "4500",
+      declaredValue: "20000",
+      lengthCm: "40",
+      widthCm: "30",
+      heightCm: "20",
+      specialHandling: ["FRAGILE", "KEEP_UPRIGHT"],
+      fromPoint: { latitude: 6.934412, longitude: 79.842812 },
+      toPoint: { latitude: 7.2936, longitude: 80.6413 },
+    });
+  });
+
+  it("ignores invalid enum values, negative weights, and out-of-range coordinates", async () => {
+    const { quoteFromSearchParams } = await import("./pricing");
+    const parsed = quoteFromSearchParams({
+      fromDistrict: ["Colombo", "Galle"],
+      sizeClass: "HUGE",
+      serviceLevel: "ROCKET",
+      vehicleType: "THREE_WHEELER",
+      weightKg: "-5",
+      codAmount: "-1",
+      fromLat: "95",
+      fromLng: "80",
+      toLat: "not-a-number",
+      toLng: "80.6",
+    });
+
+    expect(parsed).toEqual({ fromDistrict: "Colombo" });
+  });
+});

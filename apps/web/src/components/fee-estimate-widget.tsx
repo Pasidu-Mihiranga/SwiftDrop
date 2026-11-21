@@ -21,6 +21,7 @@ import {
   formatMoney,
   distanceNotice,
   quoteLifetime,
+  quoteToBookingHref,
   sizeClassLabel,
   sizeClassNotice,
   serviceLevelLabel,
@@ -221,9 +222,16 @@ export function FeeEstimateWidget({
       </div>
 
       {coverageError ? (
-        <p role="alert" className="notice-warning">
-          {coverageError}
-        </p>
+        <div role="alert" className="notice-warning flex items-center justify-between gap-2">
+          <span>{coverageError}</span>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="text-xs font-semibold underline hover:text-slate-900"
+          >
+            Retry
+          </button>
+        </div>
       ) : null}
 
       <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.8fr)_minmax(0,1.2fr)] items-start">
@@ -604,7 +612,7 @@ export function FeeEstimateWidget({
                   <select
                     id="sizeClass"
                     name="sizeClass"
-                    className="input bg-white text-sm"
+                    className="input text-sm"
                     value={values.sizeClass}
                     onChange={(event) => update("sizeClass", event.target.value)}
                     aria-invalid={Boolean(errors.sizeClass)}
@@ -682,7 +690,7 @@ export function FeeEstimateWidget({
                   <select
                     id="serviceLevel"
                     name="serviceLevel"
-                    className="input bg-white text-sm"
+                    className="input text-sm"
                     value={values.serviceLevel}
                     onChange={(event) => update("serviceLevel", event.target.value)}
                     aria-invalid={Boolean(errors.serviceLevel)}
@@ -772,7 +780,7 @@ export function FeeEstimateWidget({
                     <select
                       id="vehicleType"
                       name="vehicleType"
-                      className="input bg-white text-sm"
+                      className="input text-sm"
                       value={values.vehicleType}
                       onChange={(event) => update("vehicleType", event.target.value)}
                       aria-invalid={Boolean(errors.vehicleType)}
@@ -1068,6 +1076,7 @@ export function FeeEstimateWidget({
             {quote && lifetime ? (
               <QuoteSummary
                 quote={quote}
+                values={values}
                 expired={expired}
                 remaining={lifetime.label}
                 quantity={values.numberOfParcels}
@@ -1082,11 +1091,13 @@ export function FeeEstimateWidget({
 
 function QuoteSummary({
   quote,
+  values,
   expired,
   remaining,
   quantity,
 }: {
   quote: Quote;
+  values: QuoteFormValues;
   expired: boolean;
   remaining: string;
   quantity: number;
@@ -1247,13 +1258,14 @@ function QuoteSummary({
         </p>
 
         {/* Direct Action to Booking */}
-        <div className="pt-2 border-t border-slate-100">
+        <div className="space-y-2 border-t border-slate-100 pt-2">
+          {quantity > 1 ? (
+            <p className="text-[11px] text-slate-500">
+              Each booking creates one parcel per quote. Proceeding will pre-fill details for a single parcel.
+            </p>
+          ) : null}
           <Link
-            href={`/customer/book?quoteId=${quote.quoteId}&fromDistrict=${encodeURIComponent(
-              quote.fromDistrict || "",
-            )}&toDistrict=${encodeURIComponent(quote.toDistrict || "")}&weightKg=${quote.weightKg}&sizeClass=${
-              quote.sizeClass
-            }&serviceLevel=${quote.serviceLevel}`}
+            href={quoteToBookingHref(values, quote)}
             className="btn-primary w-full py-2.5 text-center text-xs font-semibold shadow-xs"
           >
             Book this delivery &rarr;

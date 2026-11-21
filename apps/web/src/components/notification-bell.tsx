@@ -83,7 +83,7 @@ export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = async (): Promise<boolean> => {
     try {
       const res = await fetch("/api/bff/api/v1/notifications/me");
       if (res.ok) {
@@ -92,16 +92,33 @@ export function NotificationBell() {
         const unread = typeof raw.unreadCount === "number" ? raw.unreadCount : list.filter((n) => !n.read).length;
         setNotifications(list);
         setUnreadCount(unread);
+        return true;
       }
+      return false;
     } catch {
       // Ignore network errors in polling
+      return false;
     }
   };
 
   useEffect(() => {
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 15000);
-    return () => clearInterval(interval);
+    let cancelled = false;
+    let delayMs = 15000;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const poll = async () => {
+      const ok = await fetchNotifications();
+      if (cancelled) return;
+      // Back off when notification-service is unavailable so polling does not spam the gateway.
+      delayMs = ok ? 15000 : Math.min(delayMs * 2, 120000);
+      timer = setTimeout(poll, delayMs);
+    };
+
+    poll();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, []);
 
   // Close on outside click
