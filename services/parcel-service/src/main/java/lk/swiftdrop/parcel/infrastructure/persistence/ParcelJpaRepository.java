@@ -16,6 +16,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -27,6 +28,8 @@ public class ParcelJpaRepository implements ParcelRepository {
     private static final Sort NEWEST_FIRST = Sort.by(Sort.Direction.DESC, "createdAt");
     /** The id breaks ties so a page boundary never repeats or skips an order. */
     private static final Sort NEWEST_FIRST_STABLE = NEWEST_FIRST.and(Sort.by(Sort.Direction.DESC, "id"));
+    /** The escape character for LIKE patterns built from a merchant's search text. */
+    private static final char LIKE_ESCAPE = '\\';
 
     private final SpringDataParcelRepository rows;
 
@@ -93,8 +96,22 @@ public class ParcelJpaRepository implements ParcelRepository {
         if (filter.to() != null) {
             query = query.and((root, q, cb) -> cb.lessThan(root.<Instant>get("createdAt"), filter.to()));
         }
+        if (filter.orderRef() != null) {
+            // A bound parameter, with LIKE's wildcards escaped: "%" or "_" typed by the merchant are
+            // matched literally, never as "anything". The merchant condition above always applies.
+            String pattern = "%" + escapeLike(filter.orderRef().toLowerCase(Locale.ROOT)) + "%";
+            query = query.and((root, q, cb) ->
+                    cb.like(cb.lower(root.get("merchantOrderRef")), pattern, LIKE_ESCAPE));
+        }
         Page<ParcelEntity> found = rows.findAll(query, PageRequest.of(page, size, NEWEST_FIRST_STABLE));
         return new PagedResult<>(found.map(entity -> ParcelEntityMapper.toDomain(entity, false)).getContent(),
                 found.getNumber(), found.getSize(), found.getTotalElements(), found.getTotalPages());
+    }
+
+    /** Makes LIKE's wildcards and the escape character itself literal. */
+    static String escapeLike(String text) {
+        return text.replace(String.valueOf(LIKE_ESCAPE), "" + LIKE_ESCAPE + LIKE_ESCAPE)
+                .replace("%", LIKE_ESCAPE + "%")
+                .replace("_", LIKE_ESCAPE + "_");
     }
 }

@@ -63,6 +63,14 @@ describe("fetchMyOrders", () => {
     );
   });
 
+  it("passes an order-reference search on with the page", async () => {
+    respond(200, { content: [], page: { page: 1, size: 20, totalElements: 21, totalPages: 2 } });
+
+    await fetchMyOrders({ orderRef: "WEB-10" }, 1);
+
+    expect(gatewayFetchMock).toHaveBeenCalledWith("/api/v1/merchant/orders?page=1&size=20&orderRef=WEB-10");
+  });
+
   it("fails loudly when the service refuses, so the dashboard shows its error state", async () => {
     respond(403);
 

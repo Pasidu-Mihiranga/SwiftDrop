@@ -134,8 +134,9 @@ paths:
       summary: The caller's merchant's orders, newest first (MERCHANT portal user or MERCHANT_API)
       description: |
         Only the orders of the merchant in the access token; there is no merchant id parameter, so one merchant
-        cannot list another's orders. A suspended merchant can still read its history. 403 MERCHANT_ID_MISSING
-        when the token names no merchant; 400 INVALID_DATE_RANGE when from is not before to.
+        cannot list another's orders. A suspended merchant can still read its history. The filters combine: an
+        order must match all of them, and paging counts only matching orders. 403 MERCHANT_ID_MISSING when the
+        token names no merchant; 400 INVALID_DATE_RANGE when from is not before to.
       tags: [Merchant API]
       security: [{ keycloak: [] }, { bearerAuth: [] }]
       parameters:
@@ -148,6 +149,14 @@ paths:
           in: query
           description: Orders created before this instant.
           schema: { type: string, format: date-time }
+        - name: orderRef
+          in: query
+          description: |
+            Orders whose merchantOrderRef contains this text, ignoring case (for example "1001" finds "WEB-1001").
+            Surrounding spaces are ignored and an empty value means no search. "%" and "_" are matched as
+            ordinary characters, not as wildcards. Added in a backwards-compatible way: clients that do not send
+            it are unaffected.
+          schema: { type: string, maxLength: 100, example: WEB-1001 }
         - $ref: "common.v1.yaml#/components/parameters/Page"
         - $ref: "common.v1.yaml#/components/parameters/Size"
       responses:

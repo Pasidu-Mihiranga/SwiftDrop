@@ -254,6 +254,26 @@ class MerchantOrderApiIT {
     }
 
     @Test
+    void anOrderRefSearchStaysWithinTheCallersMerchantAndCombinesWithTheOtherFilters() throws Exception {
+        order(systemOf(MERCHANT_A), "order-key-s-1", ORDER.formatted("WEB-1001"), 201);
+        order(systemOf(MERCHANT_A), "order-key-s-2", ORDER.formatted("WEB-1002"), 201);
+        order(systemOf(MERCHANT_A), "order-key-s-3", ORDER.formatted("POS-1"), 201);
+        order(systemOf(MERCHANT_B), "order-key-s-4", ORDER.formatted("WEB-1001"), 201);
+
+        JsonNode portal = json(send(get(ORDERS).with(as("merchant-user-a", MERCHANT_A, "MERCHANT"))
+                .param("orderRef", "web-100").param("status", "CREATED").param("size", "1"), 200));
+        JsonNode merchantB = json(send(get(ORDERS).with(systemOf(MERCHANT_B))
+                .param("orderRef", "1002").param("merchantId", MERCHANT_A), 200));
+
+        OpenApiContract.assertParcelSchema("MerchantOrderPage", portal.toString());
+        assertThat(portal.get("page").get("totalElements").asInt()).isEqualTo(2);
+        assertThat(portal.get("page").get("totalPages").asInt()).isEqualTo(2);
+        assertThat(portal.get("content").get(0).get("merchantOrderRef").asString()).isEqualTo("WEB-1002");
+        assertThat(merchantB.get("content")).as("merchant A's WEB-1002 is never shown to merchant B").isEmpty();
+        send(get(ORDERS).with(systemOf(MERCHANT_A)).param("orderRef", "x".repeat(101)), 400);
+    }
+
+    @Test
     void customersAndDispatchersCannotReachTheMerchantApi() throws Exception {
         for (String role : List.of("CUSTOMER", "DISPATCHER")) {
             OpenApiContract.assertProblem(send(post(ORDERS).with(as("user-1", MERCHANT_A, role))

@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 import lk.swiftdrop.common.security.AuthenticatedUser;
 import lk.swiftdrop.events.common.Types.ParcelStatus;
 import lk.swiftdrop.parcel.api.dto.MerchantOrderRequest;
@@ -14,6 +15,7 @@ import lk.swiftdrop.parcel.application.command.MerchantOrderService;
 import lk.swiftdrop.parcel.application.model.MerchantOrderFilter;
 import lk.swiftdrop.parcel.application.model.MerchantOrderResult;
 import lk.swiftdrop.parcel.domain.model.IdempotencyKey;
+import lk.swiftdrop.parcel.domain.model.Parcel;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -78,15 +80,19 @@ public class MerchantOrderController {
 
     @GetMapping
     @PreAuthorize(MERCHANT_OR_ITS_SYSTEM)
-    @Operation(summary = "The caller's merchant's orders, newest first, filtered by status and creation time")
+    @Operation(summary = "The caller's merchant's orders, newest first, filtered by status, creation time and "
+            + "order reference")
     public ParcelPageResponse list(@RequestParam(required = false) ParcelStatus status,
                                    @RequestParam(required = false)
                                    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
                                    @RequestParam(required = false)
                                    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
+                                   @RequestParam(required = false) @Size(max = Parcel.MAX_ORDER_REF_LENGTH)
+                                   String orderRef,
                                    @RequestParam(defaultValue = "0") @Min(0) int page,
                                    @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
                                    AuthenticatedUser caller) {
-        return ParcelPageResponse.from(orders.list(caller, new MerchantOrderFilter(status, from, to), page, size));
+        return ParcelPageResponse.from(
+                orders.list(caller, new MerchantOrderFilter(status, from, to, orderRef), page, size));
     }
 }
