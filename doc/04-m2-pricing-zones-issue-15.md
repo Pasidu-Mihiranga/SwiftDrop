@@ -316,6 +316,55 @@ exercised. TLS was not exercised either, since dev runs over plain http by desig
 - [ ] Request review when the feature is ready. Do not commit or push until
       the user explicitly asks; do not add an agent co-author trailer.
 
+## Phase 6: Fixed geography and pricing extensions
+
+Geography is fixed master data: nine provinces, 25 districts and the district-to-province
+mapping cannot be changed from the admin dashboard or the API.
+
+- [x] Remove every zone and district write path: the admin create/update zone and assign
+      district endpoints, `ZoneAdminService`, the write methods on the repositories and
+      entities, the request DTOs, the contract operations, and the edit forms on
+      `/admin/pricing/zones`, which is now read-only.
+- [x] `V15__fix_geography.sql` restores the canonical mapping on a database that drifted
+      (Ampara had been moved to CP on at least one local database), re-activates the nine
+      province zones, and adds triggers that reject INSERT, UPDATE and DELETE on
+      `district_zone` and changes to a zone's code, name or active flag. A future migration
+      that must change geography runs `SET LOCAL swiftdrop.allow_geography_change = 'on'`
+      first.
+- [x] `V16__create_pricing_extensions.sql` adds `pricing_setting` (fuel %, tax %, minimum
+      charge), `distance_band` (line haul and transit days), `special_handling` and
+      `same_day_vehicle`. **All seeded values are placeholders awaiting review:** fuel 5%,
+      tax 18%, minimum LKR 350; bands 0-30 / 30-100 / 100-200 / 200-300 / 300+ km at
+      0 / 150 / 300 / 450 / 600; handling Fragile 250, Perishable 300, Liquid 200,
+      Signature 100; Bike 10 kg / 40 km / x1.0, Van 100 kg / 120 km / x1.8.
+- [x] Fee chain extended in `FeeCalculator`:
+      `TAX(COD(INSURANCE(MERCHANT_DISCOUNT(REMOTE_AREA(SPECIAL_HANDLING(FUEL(MINIMUM_CHARGE(EXPRESS(SIZE(BASE|DISTANCE + LINE_HAUL + WEIGHT))))))))))`.
+      Each new rule charges nothing when unconfigured, so earlier fees are unchanged in
+      isolation. Same-day never pays line haul; its distance charge is scaled by the vehicle.
+- [x] Quotes carry `estimatedTransitDays`, `vehicleType`, `specialHandling` and a 12-character
+      `pricingVersion` fingerprint of the tariff used. Every lane is now measured, because
+      line haul needs the distance; only same-day lanes feed the same-day distance meter.
+- [x] Map points: district boundaries (geoBoundaries ADM2, ODbL, see
+      `services/pricing-service/src/main/resources/geo/NOTICE.md`) answer the new public
+      `GET /api/v1/pricing/locate`, and a quote point outside its district is refused
+      (`LOCATION_DISTRICT_MISMATCH`, `OUTSIDE_COVERAGE`). Public
+      `GET /api/v1/pricing/special-handling` lists the options. Both are public in
+      pricing-service and the gateway.
+- [x] Web: vehicle choice for same-day, handling checkboxes, transit time, pricing version
+      and the new error messages on `/quote`; an optional Leaflet map per district that is
+      only mounted when opened and only offered when `MAP_TILE_URL` is set (`.env.example`,
+      compose, Helm dev; blank in prod, which needs a tile service licensed for production).
+- [x] Verified: pricing-service `mvn verify` (273 unit, 67 integration tests, coverage gate),
+      api-gateway tests, web typecheck, 222 tests with coverage, `next build`, Helm lint and
+      dev/prod render, compose config, no-emoji check. The migrations were also applied to a
+      throwaway copy of the local `pricing_db` (which had Ampara in CP): Ampara returned to EP,
+      the trigger refused a move, and the live endpoints answered as expected.
+- [ ] Review and replace the placeholder values in V16 with agreed figures (new migration).
+- [ ] Not built: free-text address search (needs an external geocoder whose terms and data
+      handling must be agreed first), a same-day order cut-off time, and admin screens for
+      the V16 settings, which are migration-managed for now.
+- [ ] Browser check of the map on a real viewport has not been done in this environment.
+
 ## Current boundary
 
 The pricing service is feature complete behind the API: the seeded schema, the

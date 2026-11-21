@@ -1,6 +1,10 @@
 package lk.swiftdrop.pricing.infrastructure.persistence;
 
+import lk.swiftdrop.pricing.application.port.out.DistanceBandRepository;
 import lk.swiftdrop.pricing.application.port.out.DistrictAssignmentRepository;
+import lk.swiftdrop.pricing.application.port.out.PricingSettingsRepository;
+import lk.swiftdrop.pricing.application.port.out.SameDayVehicleRepository;
+import lk.swiftdrop.pricing.application.port.out.SpecialHandlingRepository;
 import lk.swiftdrop.pricing.application.port.out.RateCardRepository;
 import lk.swiftdrop.pricing.application.port.out.VolumetricDivisorRepository;
 import lk.swiftdrop.pricing.application.port.out.WeightTierRepository;
@@ -9,6 +13,8 @@ import lk.swiftdrop.pricing.application.port.out.ZoneRepository;
 import lk.swiftdrop.pricing.domain.model.DistrictAssignment;
 import lk.swiftdrop.pricing.domain.model.RateCard;
 import lk.swiftdrop.pricing.domain.model.SizeClassCode;
+import lk.swiftdrop.pricing.domain.model.SpecialHandlingOption;
+import lk.swiftdrop.pricing.domain.model.VehicleType;
 import lk.swiftdrop.pricing.domain.model.Zone;
 import lk.swiftdrop.pricing.domain.model.ZoneCode;
 import org.junit.jupiter.api.Test;
@@ -16,7 +22,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceException;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -24,6 +29,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.math.BigDecimal;
+import java.util.Map;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -65,6 +71,14 @@ class PricingReferenceDataIT {
     private VolumetricDivisorRepository divisors;
     @Autowired
     private WeightTierRepository weightTiers;
+    @Autowired
+    private PricingSettingsRepository settings;
+    @Autowired
+    private DistanceBandRepository distanceBands;
+    @Autowired
+    private SpecialHandlingRepository specialHandling;
+    @Autowired
+    private SameDayVehicleRepository vehicles;
 
     @Test
     void seedsTheNineProvinceZonesAllActiveAndSortedByCode() {
@@ -144,47 +158,108 @@ class PricingReferenceDataIT {
     }
 
     @Test
-    void movesADistrictToAnotherZoneWithoutCreatingADuplicate() {
-        districts.assign("Kandy", ZoneCode.of("UP"));
+    void mapsEveryDistrictToItsRealProvince() {
+        Map<String, List<String>> expected = Map.of(
+                "WP", List.of("Colombo", "Gampaha", "Kalutara"),
+                "CP", List.of("Kandy", "Matale", "Nuwara Eliya"),
+                "SP", List.of("Galle", "Matara", "Hambantota"),
+                "NP", List.of("Jaffna", "Kilinochchi", "Mannar", "Mullaitivu", "Vavuniya"),
+                "EP", List.of("Ampara", "Batticaloa", "Trincomalee"),
+                "NWP", List.of("Kurunegala", "Puttalam"),
+                "NCP", List.of("Anuradhapura", "Polonnaruwa"),
+                "UP", List.of("Badulla", "Monaragala"),
+                "SGP", List.of("Kegalle", "Ratnapura"));
 
-        assertThat(districts.findActiveZoneCodeByDistrict("Kandy")).contains(ZoneCode.of("UP"));
-        assertThat(districts.findAll()).hasSize(25);
+        assertThat(expected).hasSize(9);
+        expected.forEach((zone, names) -> {
+            assertThat(zones.findByCode(ZoneCode.of(zone)).orElseThrow().districts())
+                    .containsExactlyInAnyOrderElementsOf(names);
+            names.forEach(name -> assertThat(districts.findActiveZoneCodeByDistrict(name))
+                    .contains(ZoneCode.of(zone)));
+        });
     }
 
     @Test
-    void doesNotAssignADistrictToAZoneThatDoesNotExist() {
-        assertThat(districts.assign("Kandy", ZoneCode.of("ZZ"))).isEmpty();
-        assertThat(districts.findActiveZoneCodeByDistrict("Kandy")).contains(ZoneCode.of("CP"));
+    void refusesToMoveADistrictToAnotherProvince() {
+        assertThatThrownBy(() -> entityManager.createNativeQuery("UPDATE district_zone SET zone_id = "
+                + "(SELECT id FROM zone WHERE code = 'CP') WHERE district = 'Ampara'").executeUpdate())
+                .hasStackTraceContaining("Geography is fixed master data");
     }
 
     @Test
-    void persistsANewZone() {
-        Zone saved = zones.save(Zone.newZone(ZoneCode.of("TEST-A"), "Test zone", true));
-
-        assertThat(saved.id()).isNotNull();
-        assertThat(zones.existsByCode(ZoneCode.of("TEST-A"))).isTrue();
-        assertThat(zones.findById(saved.id())).isPresent();
-        assertThat(saved.districts()).isEmpty();
+    void refusesToAddADistrict() {
+        assertThatThrownBy(() -> entityManager.createNativeQuery("INSERT INTO district_zone (district, zone_id) "
+                + "SELECT 'Atlantis', id FROM zone WHERE code = 'WP'").executeUpdate())
+                .hasStackTraceContaining("Geography is fixed master data");
     }
 
     @Test
-    void theDatabaseRefusesASecondZoneWithTheSameCode() {
-        zones.save(Zone.newZone(ZoneCode.of("TEST-B"), "First", true));
-        zones.save(Zone.newZone(ZoneCode.of("TEST-B"), "Duplicate", true));
-
-        // The unique constraint is enforced on write, so the breach surfaces at flush time.
-        assertThatThrownBy(entityManager::flush).isInstanceOf(PersistenceException.class);
+    void refusesToAddRemoveOrRenameAZone() {
+        assertThatThrownBy(() -> entityManager.createNativeQuery(
+                "UPDATE zone SET name = 'Somewhere else' WHERE code = 'WP'").executeUpdate())
+                .hasStackTraceContaining("Geography is fixed master data");
     }
 
     @Test
-    void updatesAZoneWithoutChangingItsCode() {
-        Zone central = zones.findByCode(ZoneCode.of("CP")).orElseThrow();
+    void refusesToSwitchAProvinceZoneOff() {
+        assertThatThrownBy(() -> entityManager.createNativeQuery(
+                "UPDATE zone SET active = FALSE WHERE code = 'NP'").executeUpdate())
+                .hasStackTraceContaining("Geography is fixed master data");
+    }
 
-        Zone renamed = zones.save(central.with("Central Province", true));
+    @Test
+    void aMigrationThatMeansToChangeGeographyCanSaySo() {
+        entityManager.createNativeQuery("SET LOCAL swiftdrop.allow_geography_change = 'on'").executeUpdate();
 
-        assertThat(renamed.code()).isEqualTo(ZoneCode.of("CP"));
-        assertThat(renamed.name()).isEqualTo("Central Province");
-        assertThat(renamed.districts()).contains("Kandy");
+        int moved = entityManager.createNativeQuery("UPDATE district_zone SET zone_id = "
+                + "(SELECT id FROM zone WHERE code = 'CP') WHERE district = 'Ampara'").executeUpdate();
+
+        // Rolled back with the test transaction, so the seed stays intact for the other tests.
+        assertThat(moved).isEqualTo(1);
+    }
+
+    @Test
+    void seedsOneSetOfFeeWideSettings() {
+        var inForce = settings.findInForce(TODAY).orElseThrow();
+
+        assertThat(inForce.fuelSurchargePct()).isEqualByComparingTo("0.05");
+        assertThat(inForce.taxPct()).isEqualByComparingTo("0.18");
+        assertThat(inForce.minimumCharge()).isEqualByComparingTo("350.00");
+        assertThat(settings.findInForce(LocalDate.of(2025, 12, 31))).isEmpty();
+    }
+
+    @Test
+    void seedsDistanceBandsThatCoverEveryDistanceExactlyOnce() {
+        var bands = distanceBands.findBandsInForce(TODAY);
+
+        assertThat(bands).hasSize(5);
+        assertThat(bands.getFirst().minKm()).isEqualByComparingTo("0");
+        assertThat(bands.getLast().maxKm()).isNull();
+        for (int i = 1; i < bands.size(); i++) {
+            // Contiguous: each band starts where the one before it ends, so no distance falls
+            // into a gap and none is claimed twice.
+            assertThat(bands.get(i).minKm()).isEqualByComparingTo(bands.get(i - 1).maxKm());
+        }
+        for (String km : List.of("0", "29.99", "30", "150", "299.99", "300", "1000")) {
+            assertThat(bands.stream().filter(band -> band.contains(new BigDecimal(km)))).hasSize(1);
+        }
+    }
+
+    @Test
+    void seedsTheHandlingOptionsInDisplayOrder() {
+        assertThat(specialHandling.findActive()).extracting(SpecialHandlingOption::code)
+                .containsExactly("FRAGILE", "PERISHABLE", "LIQUID", "SIGNATURE");
+    }
+
+    @Test
+    void seedsABikeAndAVanForSameDayWork() {
+        var bike = vehicles.findActive(VehicleType.BIKE).orElseThrow();
+        var van = vehicles.findActive(VehicleType.VAN).orElseThrow();
+
+        assertThat(vehicles.findAllActive()).hasSize(2);
+        assertThat(bike.maxWeightKg()).isLessThan(van.maxWeightKg());
+        assertThat(bike.maxDistanceKm()).isLessThan(van.maxDistanceKm());
+        assertThat(bike.rateMultiplier()).isLessThan(van.rateMultiplier());
     }
 
     @Test

@@ -16,8 +16,14 @@ import java.util.Objects;
  * so each one charges against the rounded total of everything beneath it:
  *
  * <pre>
- *   COD( INSURANCE( MERCHANT_DISCOUNT( REMOTE_AREA( EXPRESS( SIZE( LaneCharge + Weight ) ) ) ) ) )
+ *   TAX( COD( INSURANCE( MERCHANT_DISCOUNT( REMOTE_AREA( SPECIAL_HANDLING( FUEL(
+ *       MINIMUM_CHARGE( EXPRESS( SIZE( LaneCharge + LineHaul + Weight ) ) ) ) ) ) ) ) ) )
  * </pre>
+ *
+ * <p>Read from the inside out: the transport charge (lane, line haul, weight, size, express) is
+ * floored by the minimum, fuel is charged on that, the optional extras are added, and tax is
+ * charged on the finished total. Every rule added after the first release contributes nothing
+ * when its configuration is absent, so a context without it prices exactly as before.
  *
  * <p>Two of those do not compound, and their position in the chain affects only the order of
  * the lines: the cash-on-delivery commission is a fraction of the cash being collected, and the
@@ -43,15 +49,19 @@ public final class FeeCalculator {
 
     /** The rule chain as the contract documents it. Kept in one place so the order is reviewable. */
     public static PricingStrategy defaultPipeline() {
-        return new CodFeeDecorator(
-                new InsuranceSurchargeDecorator(
-                        new MerchantDiscountDecorator(
-                                new RemoteAreaSurchargeDecorator(
-                                new ExpressSurchargeDecorator(
-                                        new SizeSurchargeDecorator(
-                                                new CompositePricingStrategy(
-                                                        new LaneChargeStrategy(),
-                                                        new TieredWeightStrategy())))))));
+        // Built from the inside out, one rule per line, in the order PricingRule declares.
+        PricingStrategy chain = new CompositePricingStrategy(
+                new LaneChargeStrategy(), new LineHaulStrategy(), new TieredWeightStrategy());
+        chain = new SizeSurchargeDecorator(chain);
+        chain = new ExpressSurchargeDecorator(chain);
+        chain = new MinimumChargeDecorator(chain);
+        chain = new FuelSurchargeDecorator(chain);
+        chain = new SpecialHandlingDecorator(chain);
+        chain = new RemoteAreaSurchargeDecorator(chain);
+        chain = new MerchantDiscountDecorator(chain);
+        chain = new InsuranceSurchargeDecorator(chain);
+        chain = new CodFeeDecorator(chain);
+        return new TaxDecorator(chain);
     }
 
     /**

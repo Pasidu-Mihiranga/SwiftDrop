@@ -443,6 +443,8 @@ services:
       AUTH_KEYCLOAK_ISSUER: ${KEYCLOAK_PUBLIC_URL}/realms/${KEYCLOAK_REALM}
       AUTH_KEYCLOAK_INTERNAL_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}
       GATEWAY_URL: http://api-gateway:8080
+      MAP_TILE_URL: ${MAP_TILE_URL:-}
+      MAP_TILE_ATTRIBUTION: ${MAP_TILE_ATTRIBUTION:-}
     ports: ["${WEB_HOST_PORT:-3000}:3000"]
 
 volumes:

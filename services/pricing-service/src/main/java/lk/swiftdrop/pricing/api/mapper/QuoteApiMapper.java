@@ -26,6 +26,9 @@ public final class QuoteApiMapper {
                 // changed and is not left to compare two identical fields.
                 snapshot.sizeClassWasDerived() ? snapshot.declaredSizeClass() : null,
                 snapshot.declaredValue(), snapshot.agreementId(), snapshot.distanceKm(),
-                snapshot.distanceSource());
+                snapshot.distanceSource(), snapshot.estimatedTransitDays(), snapshot.vehicleType(),
+                // Absent rather than an empty list, like every other field that does not apply.
+                snapshot.specialHandling().isEmpty() ? null : snapshot.specialHandling(),
+                snapshot.pricingVersion());
     }
 }
