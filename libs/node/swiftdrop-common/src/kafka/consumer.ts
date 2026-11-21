@@ -30,6 +30,8 @@ export interface EventConsumerOptions {
   maxAttempts?: number;
   /** Where messages go after the last failed attempt, e.g. Topics.NOTIFICATION_DEAD_LETTER. */
   deadLetterTopic: string;
+  /** Called once per message with its outcome (for metrics). */
+  onOutcome?: (outcome: ProcessOutcome, topic: string) => void;
 }
 
 export type ProcessOutcome = "handled" | "duplicate" | "skipped" | "dead-lettered";
@@ -115,7 +117,12 @@ export async function startEventConsumer(kafka: Kafka, options: EventConsumerOpt
     });
   };
 
-  await consumer.run({ eachMessage: (payload) => processMessage(payload, options, deadLetter).then(() => undefined) });
+  await consumer.run({
+    eachMessage: async (payload) => {
+      const outcome = await processMessage(payload, options, deadLetter);
+      options.onOutcome?.(outcome, payload.topic);
+    },
+  });
   options.logger.info({ topics: options.topics, groupId: options.groupId }, "Kafka consumer started");
   return { consumer, producer };
 }

@@ -2,16 +2,18 @@ import { Module } from "@nestjs/common";
 import { SwiftDropCommonModule } from "@swiftdrop/common/nest";
 import { env } from "./config/env";
 import { MetaModule } from "./modules/meta/meta.module";
+import { WebhooksModule } from "./modules/webhooks/webhooks.module";
 
 @Module({
   imports: [
     // JWT guard, problem+json errors, correlation ids, JSON logging, /metrics and /health/live
     SwiftDropCommonModule.forRoot({
       service: "webhook-service",
-      issuer: env.KEYCLOAK_ISSUER,
-      jwksUri: env.KEYCLOAK_JWKS_URI,
+      issuer: env().KEYCLOAK_ISSUER,
+      jwksUri: env().KEYCLOAK_JWKS_URI,
     }),
     MetaModule,
+    WebhooksModule.forRoot(env()),
   ],
 })
 export class AppModule {}

@@ -70,10 +70,11 @@ class UserProfileEntity {
         updatedAt = Instant.now();
     }
 
-    void apply(String newEmail, String newFullName, String newPhone, Set<UserRole> newRoles) {
+    void apply(String newEmail, String newFullName, String newPhone, ProfileStatus newStatus, Set<UserRole> newRoles) {
         this.email = newEmail;
         this.fullName = newFullName;
         this.phone = newPhone;
+        this.status = newStatus;
         // Replace in place so Hibernate only inserts and deletes the rows that changed.
         this.roles.retainAll(newRoles);
         this.roles.addAll(newRoles);

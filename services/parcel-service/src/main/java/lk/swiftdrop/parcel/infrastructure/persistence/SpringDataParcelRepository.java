@@ -4,11 +4,13 @@ import lk.swiftdrop.events.common.Types.ParcelStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.util.UUID;
 
 /** Spring Data access to {@code parcel}. Only {@link ParcelJpaRepository} uses it. */
-interface SpringDataParcelRepository extends JpaRepository<ParcelEntity, UUID> {
+interface SpringDataParcelRepository extends JpaRepository<ParcelEntity, UUID>,
+        JpaSpecificationExecutor<ParcelEntity> {
 
     boolean existsByTrackingNumber(String trackingNumber);
 

@@ -17,8 +17,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const signedIn = Boolean(session && !session.error);
 
   return (
-    <html lang="en">
-      <body className="min-h-screen">
+    <html lang="en" suppressHydrationWarning>
+      <body className="min-h-screen" suppressHydrationWarning>
         <SiteHeader />
         <main className="mx-auto w-full max-w-6xl px-4 py-8 pb-24 sm:px-6">{children}</main>
         <ChatAssistant signedIn={signedIn} />

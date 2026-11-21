@@ -18,6 +18,9 @@ const config: NextConfig = {
   // Monorepo: trace dependencies from the repository root so the standalone build is complete.
   outputFileTracingRoot: path.join(__dirname, "..", ".."),
   poweredByHeader: false,
+  experimental: {
+    agentUpgrade: "security",
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

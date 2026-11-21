@@ -2,62 +2,258 @@ openapi: 3.1.0
 info:
   title: SwiftDrop merchant-service API
   version: 1.0.0-draft
-  description: Merchant registration, admin approval and API credentials (Keycloak client credentials). Owner — M7.
+  description: |
+    Merchant registration, admin approval and API credentials (Keycloak client credentials). Owner — M7.
+
+    Lifecycle: PENDING -> APPROVED or REJECTED, APPROVED -> SUSPENDED. REJECTED and SUSPENDED are final.
+    Every change publishes MerchantLifecycleChanged (contracts/events/merchant-lifecycle.v1.schema.json).
+    A user whose application was rejected may apply again; the rejected application is kept.
+    On approve, reject and suspend, 422 means the current status does not allow that decision, and 409
+    MERCHANT_MODIFIED means someone else changed the application at the same time (reload and decide again).
 servers: [{ url: http://localhost:8080 }]
 security: [{ bearerAuth: [] }]
 paths:
   /api/v1/merchants/register:
     post:
-      summary: Apply to become a merchant (any signed-in user)
+      summary: Apply to become a merchant (any signed-in person; not a merchant API client)
+      description: |
+        The applicant is the caller. Returns 409 MERCHANT_APPLICATION_EXISTS when the caller already has an
+        application that is not rejected, and 409 MERCHANT_BR_NUMBER_TAKEN when another application that is not
+        rejected uses the same business registration number (compared upper case, without spaces).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterMerchantRequest" }
+      responses:
+        "201":
+          description: Application created (status PENDING)
+          headers:
+            Location: { description: /api/v1/merchants/me, schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Merchant" }
+        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "409": { $ref: "common.v1.yaml#/components/responses/Conflict" }
+  /api/v1/merchants/me:
+    get:
+      summary: The caller's latest application and its status, including a rejection reason
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Merchant" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
+  /api/v1/merchants/me/credentials/rotate:
+    post:
+      summary: Issue a new client secret for the caller's merchant (MERCHANT user; shown once)
+      description: |
+        The merchant is the one in the caller's token (merchant_id) and the caller must be its owner; nothing is
+        read from the request. Merchant API clients (MERCHANT_API) cannot call this. Keycloak generates the new
+        secret and the previous one stops working immediately; access tokens already issued stay valid until they
+        expire. The secret appears only in this response (sent with Cache-Control no-store): it is never stored
+        by SwiftDrop or logged, so a lost secret can only be replaced by rotating again. The first call after
+        approval is how the merchant collects their first secret.
+
+        404 MERCHANT_NOT_FOUND when the caller owns no such merchant, 404 API_CREDENTIAL_NOT_FOUND when the
+        merchant has no credential in use, 422 MERCHANT_NOT_APPROVED when the merchant is not APPROVED (for
+        example SUSPENDED). 503 IDENTITY_PROVIDER_UNAVAILABLE means Keycloak did not confirm the rotation and no
+        secret is returned. Usually nothing changed and the previous secret still works, but if Keycloak applied
+        the change and its answer was lost, the previous secret no longer works. Either way, rotating again is safe
+        and returns a working secret.
+      responses:
+        "200":
+          description: The new credentials. Store the secret now; it cannot be shown again.
+          headers:
+            Cache-Control: { description: no-store, schema: { type: string } }
+            Pragma: { description: no-cache (for HTTP/1.0 caches), schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiCredentialSecret" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
+        "422": { $ref: "common.v1.yaml#/components/responses/UnprocessableContent" }
+        "503":
+          description: Keycloak did not confirm the rotation; no secret is returned and rotating again is safe
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
+  /api/v1/admin/merchants:
+    get:
+      summary: A page of merchant applications in one status, oldest first (ADMIN)
+      parameters:
+        - name: status
+          in: query
+          description: Defaults to PENDING, the approval queue.
+          schema: { $ref: "#/components/schemas/MerchantStatus", default: PENDING }
+        - $ref: "common.v1.yaml#/components/parameters/Page"
+        - $ref: "common.v1.yaml#/components/parameters/Size"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantPage" }
+        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+  /api/v1/admin/merchants/{merchantId}/approve:
+    post:
+      summary: Approve a PENDING application (ADMIN) — grants MERCHANT role and provisions an API client
+      description: |
+        Keycloak is updated before anything is committed: a confidential client merchant-<merchantId> is created
+        (client credentials, MERCHANT_API role, fixed merchant_id claim, audience swiftdrop-api) and the applicant
+        receives the MERCHANT role and merchant_id attribute at their next sign-in. The client secret is not returned
+        here; the merchant collects it from the rotate endpoint. If Keycloak is unavailable the answer is 503
+        IDENTITY_PROVIDER_UNAVAILABLE, the merchant stays PENDING, and approving again is safe. 422
+        MERCHANT_OWNER_MISSING means the applicant's account no longer exists.
+      parameters: [{ $ref: "#/components/parameters/MerchantId" }]
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Merchant" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
+        "409": { $ref: "common.v1.yaml#/components/responses/Conflict" }
+        "422": { $ref: "common.v1.yaml#/components/responses/UnprocessableContent" }
+        "503":
+          description: Keycloak could not be reached; nothing was committed and retrying is safe
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
+  /api/v1/admin/merchants/{merchantId}/reject:
+    post:
+      summary: Reject a PENDING application with a reason the applicant can read (ADMIN)
+      parameters: [{ $ref: "#/components/parameters/MerchantId" }]
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [businessName, brNumber, contactEmail, contactPhone, pickupAddress]
+              required: [reason]
               properties:
-                businessName: { type: string, maxLength: 150 }
-                brNumber: { type: string, description: Business registration number, maxLength: 30 }
-                contactEmail: { type: string, format: email }
-                contactPhone: { type: string }
-                website: { type: string, format: uri }
-                pickupAddress: { $ref: "common.v1.yaml#/components/schemas/Address" }
-      responses:
-        "201": { description: Application created (status PENDING) }
-        "409": { $ref: "common.v1.yaml#/components/responses/Conflict" }
-  /api/v1/merchants/me:
-    get: { summary: The caller's merchant profile and status, responses: { "200": { description: OK }, "404": { $ref: "common.v1.yaml#/components/responses/NotFound" } } }
-  /api/v1/merchants/me/credentials/rotate:
-    post:
-      summary: Issue a new client secret (shown once)
+                reason:
+                  type: string
+                  description: Surrounding whitespace is removed; the remaining text must be 1 to 500 characters.
+                  pattern: "\\S"
+                  maxLength: 500
       responses:
         "200":
-          description: New credentials
+          description: Rejected
           content:
             application/json:
-              schema:
-                type: object
-                properties:
-                  clientId: { type: string }
-                  clientSecret: { type: string }
-                  tokenUrl: { type: string, format: uri }
-  /api/v1/admin/merchants:
+              schema: { $ref: "#/components/schemas/Merchant" }
+        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
+        "409": { $ref: "common.v1.yaml#/components/responses/Conflict" }
+        "422": { $ref: "common.v1.yaml#/components/responses/UnprocessableContent" }
+  /api/v1/admin/merchants/{merchantId}/suspend:
+    post:
+      summary: Suspend an APPROVED merchant (ADMIN) — its API orders are refused once the event is consumed
+      parameters: [{ $ref: "#/components/parameters/MerchantId" }]
+      responses:
+        "200":
+          description: Suspended
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Merchant" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
+        "409": { $ref: "common.v1.yaml#/components/responses/Conflict" }
+        "422": { $ref: "common.v1.yaml#/components/responses/UnprocessableContent" }
+  /api/v1/merchants/meta/whoami:
     get:
-      summary: Merchant applications (ADMIN)
-      parameters: [{ name: status, in: query, schema: { type: string, enum: [PENDING, APPROVED, REJECTED, SUSPENDED] } }]
-      responses: { "200": { description: OK } }
-  /api/v1/admin/merchants/{merchantId}/approve:
-    post:
-      summary: Approve — grants MERCHANT role and provisions an API client (publishes MerchantLifecycleChanged)
-      parameters: [{ name: merchantId, in: path, required: true, schema: { type: string, format: uuid } }]
-      responses: { "200": { description: Approved }, "422": { $ref: "common.v1.yaml#/components/responses/UnprocessableContent" } }
-  /api/v1/admin/merchants/{merchantId}/reject:
-    post:
-      summary: Reject with a reason
-      parameters: [{ name: merchantId, in: path, required: true, schema: { type: string, format: uuid } }]
-      requestBody: { content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, maxLength: 500 } } } } } }
-      responses: { "200": { description: Rejected } }
+      summary: Smoke test (gateway → service → JWT)
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "common.v1.yaml#/components/schemas/WhoAmI" } } } }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
 components:
   securitySchemes:
     bearerAuth: { $ref: "common.v1.yaml#/components/securitySchemes/bearerAuth" }
+  parameters:
+    MerchantId:
+      name: merchantId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  schemas:
+    MerchantStatus:
+      type: string
+      enum: [PENDING, APPROVED, REJECTED, SUSPENDED]
+    PickupAddress:
+      type: object
+      description: The shared Address schema without coordinates. Encrypted at rest.
+      required: [line1, city, district]
+      properties:
+        line1: { type: string, maxLength: 120 }
+        line2: { type: string, maxLength: 120 }
+        city: { type: string, maxLength: 60, example: Kandy }
+        district: { type: string, maxLength: 40, example: Kandy }
+        postalCode: { type: string, pattern: "^[0-9]{5}$" }
+    RegisterMerchantRequest:
+      type: object
+      required: [businessName, brNumber, contactEmail, contactPhone, pickupAddress]
+      properties:
+        businessName: { type: string, minLength: 1, maxLength: 150 }
+        brNumber:
+          type: string
+          description: Business registration number. Stored upper case without spaces.
+          maxLength: 30
+          pattern: "^[A-Za-z0-9 /-]+$"
+          example: PV 12345
+        contactEmail: { type: string, format: email, maxLength: 254 }
+        contactPhone:
+          type: string
+          description: Sri Lankan mobile or landline number. Encrypted at rest.
+          pattern: "^(\\+94|0)[1-9][0-9]{8}$"
+          example: "0771234567"
+        website: { type: string, format: uri, maxLength: 255, pattern: "^https?://\\S+$" }
+        pickupAddress: { $ref: "#/components/schemas/PickupAddress" }
+    Merchant:
+      type: object
+      description: A merchant application, as shown to its applicant and to admins.
+      required: [id, businessName, brNumber, contactEmail, contactPhone, pickupAddress, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        businessName: { type: string }
+        brNumber: { type: string, example: PV12345 }
+        contactEmail: { type: string, format: email }
+        contactPhone: { type: string }
+        website: { type: string, format: uri }
+        pickupAddress: { $ref: "#/components/schemas/PickupAddress" }
+        status: { $ref: "#/components/schemas/MerchantStatus" }
+        rejectionReason: { type: string, description: Present only when REJECTED. }
+        reviewedAt: { type: string, format: date-time, description: When the latest decision was made. }
+        createdAt: { type: string, format: date-time }
+    ApiCredentialSecret:
+      type: object
+      description: A merchant's client credentials for the OAuth 2.0 client credentials grant. Shown once.
+      required: [clientId, clientSecret, tokenUrl]
+      additionalProperties: false
+      properties:
+        clientId: { type: string, pattern: "^merchant-[0-9a-f-]{36}$", example: merchant-7e726c28-4a72-4fea-9ec1-c56b08262ddc }
+        clientSecret: { type: string, minLength: 1, description: Never stored by SwiftDrop; rotate again if it is lost. }
+        tokenUrl:
+          type: string
+          format: uri
+          description: Token endpoint to call with grant_type=client_credentials.
+          example: http://localhost:8180/realms/swiftdrop/protocol/openid-connect/token
+    MerchantPage:
+      type: object
+      required: [content, page]
+      properties:
+        content: { type: array, items: { $ref: "#/components/schemas/Merchant" } }
+        page: { $ref: "common.v1.yaml#/components/schemas/PageMeta" }

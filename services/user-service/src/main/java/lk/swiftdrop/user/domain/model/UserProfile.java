@@ -56,6 +56,11 @@ public record UserProfile(String id, String email, String fullName, PhoneNumber 
         return new UserProfile(id, tokenEmail, fullName, phone, status, tokenRoles, createdAt, updatedAt);
     }
 
+    /** An admin enables or disables the account; Keycloak blocks the sign-in, this keeps the profile in step. */
+    public UserProfile withStatus(ProfileStatus newStatus) {
+        return new UserProfile(id, email, fullName, phone, newStatus, roles, createdAt, updatedAt);
+    }
+
     /** The only change a user can make to their own profile. A {@code null} phone removes it. */
     public UserProfile withContactDetails(String newFullName, PhoneNumber newPhone) {
         return new UserProfile(id, email, newFullName, newPhone, status, roles, createdAt, updatedAt);

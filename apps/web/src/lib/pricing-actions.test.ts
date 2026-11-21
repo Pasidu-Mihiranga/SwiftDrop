@@ -11,14 +11,11 @@ vi.mock("@/lib/gateway", () => ({ gatewayFetch: gatewayFetchMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 
 import {
-  assignDistrict,
   closeRateCard,
   createRateCard,
-  createZone,
   publishMerchantAgreement,
   publishRemoteArea,
   updateSizeClass,
-  updateZone,
 } from "@/lib/pricing-actions";
 
 function sizeForm(): FormData {
@@ -174,19 +171,19 @@ describe("admin pricing actions", () => {
 
   it("falls back to the problem code when there is no detail", async () => {
     asAdmin();
-    respondProblem(422, { status: 422, code: "ZONE_CODE_TAKEN" });
+    respondProblem(422, { status: 422, code: "RATE_CARD_INVALID" });
 
-    const result = await createZone(IDLE, form({ code: "WP", name: "Western" }));
+    const result = await createRateCard(IDLE, rateCardForm());
 
     expect(result.status).toBe("error");
-    expect(result.message).toContain("ZONE_CODE_TAKEN");
+    expect(result.message).toContain("RATE_CARD_INVALID");
   });
 
   it("copes with a failure whose body is not JSON", async () => {
     asAdmin();
     gatewayFetchMock.mockResolvedValue(new Response("502 Bad Gateway", { status: 502 }));
 
-    const result = await createZone(IDLE, form({ code: "WP", name: "Western" }));
+    const result = await createRateCard(IDLE, rateCardForm());
 
     expect(result.status).toBe("error");
     expect(result.message).toContain("UNEXPECTED_ERROR");
@@ -207,96 +204,6 @@ describe("admin pricing actions", () => {
     const result = await createRateCard(IDLE, rateCardForm());
 
     expect(result.errors).toEqual({ baseFee: "must not be negative", effectiveFrom: "is required" });
-  });
-
-  describe("assignDistrict", () => {
-    it("assigns a district to a zone", async () => {
-      asAdmin();
-      respondOk();
-
-      const result = await assignDistrict(IDLE, form({ district: "Nuwara Eliya", zoneCode: "CP" }));
-
-      expect(result).toEqual({ status: "ok", message: "Nuwara Eliya now belongs to CP." });
-      // The district is part of the path, so it has to be encoded.
-      expect(gatewayFetchMock).toHaveBeenCalledWith(
-        "/api/v1/admin/pricing/districts/Nuwara%20Eliya",
-        expect.objectContaining({ method: "PUT", body: JSON.stringify({ zoneCode: "CP" }) }),
-      );
-    });
-
-    it("asks for both fields before calling the service", async () => {
-      asAdmin();
-
-      const result = await assignDistrict(IDLE, form({ district: " ", zoneCode: "CP" }));
-
-      expect(result).toEqual({ status: "error", message: "Pick a district and a zone." });
-      expect(gatewayFetchMock).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("createZone", () => {
-    it("upper-cases the code and creates the zone active", async () => {
-      asAdmin();
-      respondOk();
-
-      const result = await createZone(IDLE, form({ code: " sgp ", name: "Sabaragamuwa" }));
-
-      expect(result).toEqual({ status: "ok", message: "Zone SGP created." });
-      expect(gatewayFetchMock).toHaveBeenCalledWith(
-        "/api/v1/admin/pricing/zones",
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({ code: "SGP", name: "Sabaragamuwa", active: true }),
-        }),
-      );
-    });
-
-    it("requires a code and a name", async () => {
-      asAdmin();
-
-      expect(await createZone(IDLE, form({ code: "WP", name: "" }))).toEqual({
-        status: "error",
-        message: "A zone needs a code and a name.",
-      });
-      expect(gatewayFetchMock).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("updateZone", () => {
-    it("sends the name and the checkbox state", async () => {
-      asAdmin();
-      respondOk();
-
-      const result = await updateZone(
-        IDLE,
-        form({ zoneId: "11111111-2222-3333-4444-555555555555", name: "Western", active: "on" }),
-      );
-
-      expect(result).toEqual({ status: "ok", message: "Zone Western updated." });
-      expect(gatewayFetchMock).toHaveBeenCalledWith(
-        "/api/v1/admin/pricing/zones/11111111-2222-3333-4444-555555555555",
-        expect.objectContaining({ body: JSON.stringify({ name: "Western", active: true }) }),
-      );
-    });
-
-    it("treats a missing checkbox as inactive rather than unchanged", async () => {
-      asAdmin();
-      respondOk();
-
-      await updateZone(IDLE, form({ zoneId: "zone-1", name: "Western" }));
-
-      expect(gatewayFetchMock).toHaveBeenCalledWith(
-        "/api/v1/admin/pricing/zones/zone-1",
-        expect.objectContaining({ body: JSON.stringify({ name: "Western", active: false }) }),
-      );
-    });
-
-    it("requires an id and a name", async () => {
-      asAdmin();
-
-      expect((await updateZone(IDLE, form({ zoneId: "", name: "Western" }))).status).toBe("error");
-      expect(gatewayFetchMock).not.toHaveBeenCalled();
-    });
   });
 
   describe("createRateCard", () => {

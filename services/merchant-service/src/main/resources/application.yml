@@ -40,6 +40,23 @@ spring:
           jwk-set-uri: ${KEYCLOAK_JWKS_URI:http://localhost:${KEYCLOAK_HOST_PORT:8180}/realms/swiftdrop/protocol/openid-connect/certs}
           audiences: swiftdrop-api
 
+swiftdrop:
+  keycloak:
+    admin:
+      # Server-to-server Keycloak URL (http://keycloak:8080 inside Docker) for the Admin REST API
+      base-url: ${KEYCLOAK_INTERNAL_URL:http://localhost:${KEYCLOAK_HOST_PORT:8180}}
+      realm: ${KEYCLOAK_REALM:swiftdrop}
+      # Service account that provisions merchant API clients (realm-swiftdrop.json)
+      client-id: merchant-service-admin
+      client-secret: ${KC_MERCHANT_SERVICE_CLIENT_SECRET:}
+      connect-timeout: 2s
+      read-timeout: 5s
+    # Token endpoint merchants call with their client credentials (the browser-facing issuer URL)
+    token-url: ${KEYCLOAK_TOKEN_URL:${spring.security.oauth2.resourceserver.jwt.issuer-uri}/protocol/openid-connect/token}
+  pii:
+    # base64-encoded 32-byte AES key for merchant phones and pickup addresses; start-up fails without it
+    encryption-key: ${PII_ENCRYPTION_KEY:}
+
 server:
   port: ${PORT:8082}
   shutdown: graceful
