@@ -65,3 +65,11 @@ springdoc:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
+
+swiftdrop:
+  outbox:
+    # reporting-service only consumes events; it never writes to the outbox.
+    relay-enabled: false
+  reporting:
+    # Business day used to bucket events (a delivery at 01:00 Colombo time counts for that local day).
+    time-zone: ${REPORTING_TIME_ZONE:Asia/Colombo}

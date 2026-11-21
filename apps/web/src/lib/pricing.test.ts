@@ -3,6 +3,9 @@ import {
   EMPTY_QUOTE_FORM,
   MAX_WEIGHT_KG,
   breakdownLabel,
+  pricingErrorMessage,
+  transitDaysLabel,
+  visibleBreakdown,
   districtOptions,
   formatEffectivePeriod,
   formatMoney,
@@ -29,6 +32,10 @@ import {
   parseWeightBands,
   periodStatus,
   type MerchantAgreement,
+  locatePath,
+  roundCoordinate,
+  withDistrict,
+  withPickedPoint,
 } from "./pricing";
 
 const WESTERN: Zone = { code: "WP", name: "Western", districts: ["Colombo", "Gampaha", "Kalutara"], active: true };
@@ -539,5 +546,120 @@ describe("isoDate", () => {
   it("follows the Sri Lankan calendar, which pricing-service quotes on", () => {
     expect(isoDate(new Date("2026-06-01T18:29:00Z"))).toBe("2026-06-01");
     expect(isoDate(new Date("2026-06-01T18:31:00Z"))).toBe("2026-06-02");
+  });
+});
+
+describe("M2 quote fields", () => {
+  const base = { ...EMPTY_QUOTE_FORM, fromDistrict: "Colombo", toDistrict: "Kandy", weightKg: "2" };
+
+  it("sends the vehicle only for same-day", () => {
+    const same = validateQuoteForm({ ...base, serviceLevel: "SAME_DAY", vehicleType: "VAN" }, []);
+    const standard = validateQuoteForm({ ...base, vehicleType: "VAN" }, []);
+    expect(same.ok && same.body.vehicleType).toBe("VAN");
+    expect(standard.ok && standard.body.vehicleType).toBeUndefined();
+  });
+
+  it("rejects an unknown vehicle and too many handling options", () => {
+    const result = validateQuoteForm(
+      { ...base, serviceLevel: "SAME_DAY", vehicleType: "LORRY", specialHandling: ["A", "B", "C", "D", "E", "F"] },
+      [],
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors.vehicleType).toBeDefined();
+      expect(result.errors.specialHandling).toBeDefined();
+    }
+  });
+
+  it("sends chosen handling codes", () => {
+    const result = validateQuoteForm({ ...base, specialHandling: ["FRAGILE"] }, []);
+    expect(result.ok && result.body.specialHandling).toEqual(["FRAGILE"]);
+  });
+
+  it("labels the new rules and error codes", () => {
+    expect(breakdownLabel("LINE_HAUL")).toBe("Line haul (distance band)");
+    expect(breakdownLabel("MINIMUM_CHARGE")).toBe("Minimum charge top-up");
+    expect(breakdownLabel("FUEL")).toBe("Fuel surcharge");
+    expect(breakdownLabel("SPECIAL_HANDLING")).toBe("Special handling");
+    expect(breakdownLabel("TAX")).toBe("Tax");
+    for (const code of [
+      "OUTSIDE_COVERAGE",
+      "LOCATION_DISTRICT_MISMATCH",
+      "UNKNOWN_SPECIAL_HANDLING",
+      "SAME_DAY_OUT_OF_RANGE",
+      "NO_DISTANCE_BAND",
+    ]) {
+      expect(pricingErrorMessage(code)).toBeTruthy();
+    }
+    expect(pricingErrorMessage("OTHER")).toBeUndefined();
+    expect(pricingErrorMessage(undefined)).toBeUndefined();
+  });
+
+  it("drops zero lines and words transit days", () => {
+    expect(visibleBreakdown([{ rule: "BASE", amount: 5 }, { rule: "FUEL", amount: 0 }])).toEqual([
+      { rule: "BASE", amount: 5 },
+    ]);
+    expect(transitDaysLabel(1)).toBe("1 day");
+    expect(transitDaysLabel(3)).toBe("3 days");
+    expect(transitDaysLabel(undefined)).toBeUndefined();
+    expect(transitDaysLabel(0)).toBeUndefined();
+  });
+});
+
+describe("map points", () => {
+  const FORT = { latitude: 6.93441234567, longitude: 79.84281234567 };
+
+  it("rounds a coordinate to the six decimals the contract accepts", () => {
+    expect(roundCoordinate(6.93441234567)).toBe(6.934412);
+    expect(roundCoordinate(-0.0000004)).toBe(-0);
+  });
+
+  it("asks the BFF which district a point is in, with rounded coordinates", () => {
+    expect(locatePath(FORT)).toBe("api/v1/pricing/locate?latitude=6.934412&longitude=79.842812");
+  });
+
+  it("takes the district from the point picked, so the two always agree", () => {
+    const picked = withPickedPoint(form({ fromDistrict: "Kandy" }), "from", FORT, {
+      district: "Colombo",
+      zoneCode: "WP",
+    });
+
+    expect(picked.fromDistrict).toBe("Colombo");
+    expect(picked.fromPoint).toEqual(FORT);
+    expect(picked.toPoint).toBeUndefined();
+  });
+
+  it("drops a pinned point when another district is chosen from the list", () => {
+    const pinned = form({ fromPoint: FORT });
+
+    expect(withDistrict(pinned, "from", "Gampaha", "Colombo").fromPoint).toBeUndefined();
+    expect(withDistrict(pinned, "from", "Colombo", "Colombo").fromPoint).toEqual(FORT);
+    expect(withDistrict(form({ toPoint: FORT }), "to", "Kandy", undefined).toPoint).toBeUndefined();
+  });
+
+  it("sends the pinned points with the quote request, rounded", () => {
+    const result = validateQuoteForm(form({ fromPoint: FORT, toPoint: { latitude: 7.2936, longitude: 80.6413 } }), DISTRICTS);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.body).toMatchObject({
+        fromLatitude: 6.934412,
+        fromLongitude: 79.842812,
+        toLatitude: 7.2936,
+        toLongitude: 80.6413,
+      });
+    }
+  });
+
+  it("sends no coordinates when nothing was pinned", () => {
+    const result = validateQuoteForm(form(), DISTRICTS);
+
+    expect(result.ok && "fromLatitude" in result.body).toBe(false);
+  });
+
+  it("explains the new same-day and handling refusals in plain words", () => {
+    for (const code of ["SAME_DAY_TOO_HEAVY", "VEHICLE_NOT_OFFERED", "TOO_MANY_SPECIAL_HANDLING", "DISTANCE_UNAVAILABLE"]) {
+      expect(pricingErrorMessage(code)).toBeTruthy();
+    }
   });
 });

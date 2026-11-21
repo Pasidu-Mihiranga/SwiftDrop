@@ -57,10 +57,14 @@ export function homeFor(roles: readonly string[]): string {
 /** Navigation entries shown in the header for a user's roles. */
 export function navigationFor(roles: readonly string[]): { href: string; label: string }[] {
   const items: { href: string; label: string }[] = [];
-  if (roles.includes("CUSTOMER")) items.push({ href: "/customer", label: "My deliveries" });
+  if (roles.includes("CUSTOMER")) {
+    items.push({ href: "/customer", label: "My deliveries" });
+    items.push({ href: "/customer/history", label: "History & Receipts" });
+  }
   if (roles.includes("MERCHANT")) items.push({ href: "/merchant", label: "Merchant portal" });
   if (roles.includes("COURIER")) items.push({ href: "/courier", label: "Today's runs" });
   if (roles.includes("DISPATCHER") || roles.includes("ADMIN")) items.push({ href: "/admin", label: "Operations" });
+  if (roles.includes("ADMIN")) items.push({ href: "/admin/notifications/sms-inbox", label: "SMS Inbox" });
   return items;
 }
 
@@ -69,13 +73,17 @@ export function adminNavigationFor(roles: readonly string[]): { href: string; la
   const items: { href: string; label: string }[] = [];
   if (roles.includes("DISPATCHER") || roles.includes("ADMIN")) {
     items.push({ href: "/admin", label: "Overview" });
+    items.push({ href: "/admin/reports", label: "Reports" });
     items.push({ href: "/admin/dispatch", label: "Dispatch" });
+    items.push({ href: "/admin/couriers", label: "Couriers" });
   }
   if (roles.includes("ADMIN")) {
     items.push({ href: "/admin/pricing/zones", label: "Zones & districts" });
     items.push({ href: "/admin/pricing/rate-cards", label: "Rate cards" });
     items.push({ href: "/admin/pricing/remote-areas", label: "Remote areas" });
     items.push({ href: "/admin/pricing/merchants", label: "Merchant rates" });
+    items.push({ href: "/admin/webhooks", label: "Webhooks DLQ" });
+    items.push({ href: "/admin/notifications/sms-inbox", label: "SMS inbox" });
   }
   return items;
 }

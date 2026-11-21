@@ -59,8 +59,15 @@ describe("homeFor and navigationFor", () => {
   });
 
   it("builds role-aware navigation", () => {
-    expect(navigationFor(["CUSTOMER", "MERCHANT"]).map((i) => i.href)).toEqual(["/customer", "/merchant"]);
-    expect(navigationFor(["ADMIN"]).map((i) => i.href)).toEqual(["/admin"]);
+    expect(navigationFor(["CUSTOMER", "MERCHANT"]).map((i) => i.href)).toEqual([
+      "/customer",
+      "/customer/history",
+      "/merchant",
+    ]);
+    expect(navigationFor(["ADMIN"]).map((i) => i.href)).toEqual([
+      "/admin",
+      "/admin/notifications/sms-inbox",
+    ]);
   });
 });
 
@@ -68,13 +75,22 @@ describe("adminNavigationFor", () => {
   it("offers pricing configuration only to administrators", () => {
     expect(adminNavigationFor(["ADMIN"]).map((i) => i.href)).toEqual([
       "/admin",
+      "/admin/reports",
       "/admin/dispatch",
+      "/admin/couriers",
       "/admin/pricing/zones",
       "/admin/pricing/rate-cards",
       "/admin/pricing/remote-areas",
       "/admin/pricing/merchants",
+      "/admin/webhooks",
+      "/admin/notifications/sms-inbox",
     ]);
-    expect(adminNavigationFor(["DISPATCHER"]).map((i) => i.href)).toEqual(["/admin", "/admin/dispatch"]);
+    expect(adminNavigationFor(["DISPATCHER"]).map((i) => i.href)).toEqual([
+      "/admin",
+      "/admin/reports",
+      "/admin/dispatch",
+      "/admin/couriers",
+    ]);
   });
 
   it("offers nothing to roles without operations access", () => {
@@ -85,11 +101,15 @@ describe("adminNavigationFor", () => {
   it("does not duplicate links for someone who is both", () => {
     expect(adminNavigationFor(["DISPATCHER", "ADMIN"]).map((i) => i.href)).toEqual([
       "/admin",
+      "/admin/reports",
       "/admin/dispatch",
+      "/admin/couriers",
       "/admin/pricing/zones",
       "/admin/pricing/rate-cards",
       "/admin/pricing/remote-areas",
       "/admin/pricing/merchants",
+      "/admin/webhooks",
+      "/admin/notifications/sms-inbox",
     ]);
   });
 });

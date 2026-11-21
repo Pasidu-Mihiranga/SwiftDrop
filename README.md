@@ -69,18 +69,18 @@ pnpm stack:down
 
 Host ports are configurable in `.env` (defaults avoid clashing with other local stacks).
 
-### Demo users (Keycloak realm `swiftdrop`)
+### Demo users (Keycloak realm `swiftdrop` & `users_db`)
 
-Password for all: value of `KC_SEED_USER_PASSWORD` in `.env` (default `Swift@2026`).
+Password for all demo accounts: **`Swift@2026`** (configurable via `KC_SEED_USER_PASSWORD` in `.env`).
 
-| User | Role | User id (JWT `sub`) |
-|---|---|---|
-| admin@swiftdrop.lk | ADMIN | `10000000-0000-4000-8000-000000000001` |
-| dispatcher@swiftdrop.lk | DISPATCHER | `10000000-0000-4000-8000-000000000002` |
-| courier1@swiftdrop.lk | COURIER | `10000000-0000-4000-8000-000000000003` |
-| courier2@swiftdrop.lk | COURIER | `10000000-0000-4000-8000-000000000004` |
-| customer@swiftdrop.lk | CUSTOMER | `10000000-0000-4000-8000-000000000005` |
-| merchant@swiftdrop.lk | MERCHANT (merchant_id `00000000-0000-4000-8000-000000000001`) | `10000000-0000-4000-8000-000000000006` |
+| Email | Password | Roles | Default Web Portal | Fixed User ID (JWT `sub`) | Seeded Profile / Notes |
+|---|---|---|---|---|---|
+| `admin@swiftdrop.lk` | `Swift@2026` | `ADMIN`, `CUSTOMER` | `/admin` | `10000000-0000-4000-8000-000000000001` | Full Operations, Pricing, Reports, Couriers, Webhooks DLQ & SMS Inbox access |
+| `dispatcher@swiftdrop.lk` | `Swift@2026` | `DISPATCHER`, `CUSTOMER` | `/admin/dispatch` | `10000000-0000-4000-8000-000000000002` | Dispatch board, courier directory (`read`), and delivery reports |
+| `courier1@swiftdrop.lk` | `Swift@2026` | `COURIER`, `CUSTOMER` | `/courier` | `10000000-0000-4000-8000-000000000003` | Vehicle: `BIKE`, Home zone: `WP` (Western), Capacity: `25/day`, `assignable: true` |
+| `courier2@swiftdrop.lk` | `Swift@2026` | `COURIER`, `CUSTOMER` | `/courier` | `10000000-0000-4000-8000-000000000004` | Vehicle: `VAN`, Home zone: `CP` (Central), Capacity: `40/day`, `assignable: true` |
+| `customer@swiftdrop.lk` | `Swift@2026` | `CUSTOMER` | `/customer` | `10000000-0000-4000-8000-000000000005` | Saved default pickup address (`45 Galle Road, Colombo 03`), bookings & PDF receipts |
+| `merchant@swiftdrop.lk` | `Swift@2026` | `MERCHANT`, `CUSTOMER` | `/merchant` | `10000000-0000-4000-8000-000000000006` | Claim `merchant_id: 00000000-0000-4000-8000-000000000001`, webhook endpoints & logs |
 
 The ids are fixed in the realm file, so `pnpm keycloak:reimport` keeps them and data that refers to a demo user
 (profiles, addresses, courier assignments) stays valid. Users created by hand or through Google get a new id on
@@ -88,9 +88,15 @@ every re-import.
 
 Machine client for the merchant API: `merchant-demo` (client credentials, secret `KC_DEMO_MERCHANT_CLIENT_SECRET`).
 
-**Google login:** create an OAuth client in Google Cloud Console with redirect URI
-`http://localhost:8180/realms/swiftdrop/broker/google/endpoint`, put `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
-in `.env`, then re-import the realm: `pnpm keycloak:reimport`.
+### Optional manual setup (external keys & road routing)
+
+Everything else works out of the box after `pnpm env:init` and `pnpm infra:up`. The following three integrations are optional:
+
+1. **AI Delivery Assistant (`ai-assistant-service`):** set `GEMINI_API_KEY` (when `LLM_PROVIDER=gemini`) or `OPENAI_API_KEY` (when `LLM_PROVIDER=openai`) in `.env` and restart `ai-assistant-service` to enable live LLM tool-calling answers in the chat widget. Without a key, the service still starts and `/mcp` tools work directly.
+2. **Google OAuth login:** create an OAuth client in Google Cloud Console with redirect URI
+   `http://localhost:8180/realms/swiftdrop/broker/google/endpoint`, put `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
+   in `.env`, then re-import the realm: `pnpm keycloak:reimport`.
+3. **OSRM road-routed same-day distances:** run `pnpm routing:up` and set `OSRM_URL=http://localhost:15000` (or `http://osrm:5000` in Compose) in `.env`. When `OSRM_URL` is blank, `pricing-service` automatically falls back to Haversine road-distance estimation.
 
 Get a token for API testing (dev-only `swiftdrop-test` client):
 
@@ -146,6 +152,43 @@ pnpm new-service --type nest --name chat-service --port 8093 --route chat --mong
 - **Events:** published only through the outbox (`OutboxWriter.publish(...)`), consumed idempotently.
 - **Config:** environment variables only; secrets live in `.env` (local) or Kubernetes Secrets.
 
+## Observability and Debugging with Grafana
+
+SwiftDrop provides a complete LGTM (Loki, Grafana, Tempo, Prometheus) observability stack orchestrated with Grafana Alloy.
+
+### 1. Starting the Observability Stack
+
+```bash
+pnpm obs:up
+```
+
+Open Grafana at [http://localhost:3001](http://localhost:3001) using credentials `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD` (defaults in `.env`: `admin` / `admin`).
+
+### 2. Available Dashboards
+
+- **SwiftDrop - Platform Overview (`swiftdrop-platform`):** Real-time cluster health, RED metrics (Rate, Errors, Duration), Kafka consumer lag across all topics, and active error log streams.
+- **SwiftDrop - Notifications & Business KPIs (`swiftdrop-m9-observability`):** Real-time delivery status transitions, OpenPDF receipts generated, email/SMS notification throughput, and JVM/Node.js memory metrics.
+
+### 3. Distributed Tracing with Tempo
+
+Every incoming request receives an OpenTelemetry trace context at `api-gateway` and propagates through Kafka headers across downstream microservices:
+1. Open **Explore** in Grafana and choose **Tempo** as the data source.
+2. Search for traces by service (`api-gateway`, `parcel-service`, `notification-service`) or operation name.
+3. Drill down into individual spans to inspect span attributes, Kafka topic partition offsets, and execution timings.
+
+### 4. Trace-to-Log Correlation
+
+1. Within Tempo trace view, click **Trace to Logs** to view matching logs in **Loki**.
+2. Every log line contains the matching `traceId` and `correlationId`.
+3. PII (customer email, phone number, physical address) is automatically sanitized in logs before ingestion.
+
+### 5. Inspecting Notification Dead Letters and Consumer Lag
+
+If notification delivery encounters persistent failures:
+1. Check **Kafka Consumer Lag** panel on the M9 dashboard.
+2. Failed events are routed to `swiftdrop.notification.dead-letter.v1` after max retry attempts (default: 3).
+3. View dead-letter payload and original failure stack trace in Kafka UI at [http://localhost:8088](http://localhost:8088).
+
 ## Tests
 
 ```bash
@@ -162,3 +205,25 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md) first. In short:
 - `main` is protected: changes only through pull requests with one approving review and a green `no-emoji` check.
 - Branch per feature: `feat/m<N>-<topic>`; Conventional Commits (`feat:`, `fix:`, `test:` …).
 - **No emojis** anywhere in the repository, commits, pull requests or issues (`python scripts/check-no-emoji.py`).
+
+See [Demo users](#demo-users-keycloak-realm-swiftdrop) above for the roles and credentials to log in with.
+
+## Container images
+
+Every merge to `main` (and every `v*.*.*` tag) runs [`release.yml`](.github/workflows/release.yml): it builds one image per
+service plus the web app, scans each with Trivy, and publishes it to the GitHub Container Registry:
+
+```
+ghcr.io/pasidu-mihiranga/swiftdrop-<service>:sha-<short-sha>   # immutable: pin this in Helm values / compose
+ghcr.io/pasidu-mihiranga/swiftdrop-<service>:main              # newest build of main (also :latest)
+ghcr.io/pasidu-mihiranga/swiftdrop-<service>:1.2.3             # on a v1.2.3 tag (also :1.2)
+```
+
+`<service>` is the folder name under `services/` (e.g. `reporting-service`), or `web` for `apps/web`.
+
+- **Release gate:** an image with a *critical* vulnerability that already has a fix is not published. Fix it by bumping the
+  base image or the dependency; if that is impossible for now, record the CVE with a reason in [`.trivyignore`](.trivyignore).
+  Pull requests that change a Dockerfile run the same build and scan without publishing.
+- **Supply chain:** published images carry OCI labels linking them to this repository, a provenance attestation and an SBOM.
+- **Pulling:** GHCR creates new packages as private. After the first release, set each `swiftdrop-*` package to public
+  (Package settings, Change visibility) so kind/minikube can pull without credentials, or create an image pull secret.

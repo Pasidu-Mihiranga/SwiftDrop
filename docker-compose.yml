@@ -362,7 +362,11 @@ services:
   merchant-service:
     <<: *app
     build: { context: ., dockerfile: services/merchant-service/Dockerfile }
-    environment: { <<: *java-env, DB_NAME: merchants_db, DB_USER: merchant_svc }
+    environment:
+      <<: *java-env
+      DB_NAME: merchants_db
+      DB_USER: merchant_svc
+      PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY}
 
   pricing-service:
     <<: *app
@@ -404,6 +408,8 @@ services:
   notification-service:
     <<: *app
     mem_limit: 256m
+    ports:
+      - "8091:8091"
     build: { context: ., dockerfile: services/notification-service/Dockerfile }
     environment:
       <<: *node-env
@@ -418,6 +424,13 @@ services:
     environment:
       <<: *node-env
       MONGO_URI: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@mongo:27017/webhooks?authSource=admin
+      # encrypts signing secrets at rest (base64 32-byte key)
+      WEBHOOK_SECRET_KEY: ${PII_ENCRYPTION_KEY}
+      # retry delays in seconds; shorten for the demo, e.g. "5,10,20,40,60,90"
+      WEBHOOK_BACKOFF_SECONDS: ${WEBHOOK_BACKOFF_SECONDS:-30,120,600,1800,7200,21600}
+      # local demo only: lets webhooks reach the merchant simulator over http inside this network
+      WEBHOOK_ALLOW_HTTP: "true"
+      WEBHOOK_ALLOW_PRIVATE_NETWORKS: "true"
 
   ai-assistant-service:
     <<: *app
@@ -430,6 +443,10 @@ services:
       LLM_MODEL: ${LLM_MODEL}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # conversation memory and the encrypted PII vault
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      ASSISTANT_VAULT_SECRET: ${ASSISTANT_VAULT_SECRET:-}
+      MCP_MASK_PII: ${MCP_MASK_PII:-true}
 
   web:
     <<: *app
@@ -443,6 +460,8 @@ services:
       AUTH_KEYCLOAK_ISSUER: ${KEYCLOAK_PUBLIC_URL}/realms/${KEYCLOAK_REALM}
       AUTH_KEYCLOAK_INTERNAL_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}
       GATEWAY_URL: http://api-gateway:8080
+      MAP_TILE_URL: ${MAP_TILE_URL:-}
+      MAP_TILE_ATTRIBUTION: ${MAP_TILE_ATTRIBUTION:-}
     ports: ["${WEB_HOST_PORT:-3000}:3000"]
 
 volumes:

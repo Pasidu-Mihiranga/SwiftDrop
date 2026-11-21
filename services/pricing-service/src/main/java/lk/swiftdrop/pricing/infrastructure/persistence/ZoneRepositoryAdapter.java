@@ -7,7 +7,6 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 @Repository
 class ZoneRepositoryAdapter implements ZoneRepository {
@@ -29,11 +28,6 @@ class ZoneRepositoryAdapter implements ZoneRepository {
     }
 
     @Override
-    public Optional<Zone> findById(UUID id) {
-        return zones.findById(id).map(PricingPersistenceMapper::toDomain);
-    }
-
-    @Override
     public Optional<Zone> findByCode(ZoneCode code) {
         return zones.findByCode(code.value()).map(PricingPersistenceMapper::toDomain);
     }
@@ -41,17 +35,5 @@ class ZoneRepositoryAdapter implements ZoneRepository {
     @Override
     public boolean existsByCode(ZoneCode code) {
         return zones.existsByCode(code.value());
-    }
-
-    @Override
-    public Zone save(Zone zone) {
-        ZoneEntity entity = zone.id() == null
-                ? new ZoneEntity(UUID.randomUUID(), zone.code().value(), zone.name(), zone.active())
-                : zones.findById(zone.id()).orElseThrow(
-                        () -> new IllegalStateException("Zone " + zone.id() + " disappeared while being saved"));
-        if (zone.id() != null) {
-            entity.rename(zone.name(), zone.active());
-        }
-        return PricingPersistenceMapper.toDomain(zones.save(entity));
     }
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { FeeEstimateWidget } from "@/components/fee-estimate-widget";
-import { fetchActiveZones } from "@/lib/pricing-api";
+import { mapConfig } from "@/lib/map-config";
+import { fetchActiveZones, fetchSpecialHandling } from "@/lib/pricing-api";
 
 export const metadata = {
   title: "Delivery fee estimate",
@@ -9,21 +10,38 @@ export const metadata = {
 
 /** Coverage is read on the server so no zone list or API host ever ships to the browser. */
 export default async function QuotePage() {
-  const { zones, error } = await fetchActiveZones();
+  const [{ zones, error }, { options: specialHandling }] = await Promise.all([
+    fetchActiveZones(),
+    fetchSpecialHandling(),
+  ]);
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold">What will my delivery cost?</h1>
-        <p className="text-slate-600">
+    <div className="space-y-5">
+      <header>
+        <nav aria-label="Breadcrumb" className="text-xs text-slate-500">
+          <Link href="/" className="hover:text-slate-800">
+            SwiftDrop
+          </Link>
+          <span className="mx-1.5 text-slate-300">/</span>
+          <span className="text-slate-700">Pricing &amp; quotes</span>
+        </nav>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
+          What will my delivery cost?
+        </h1>
+        <p className="mt-1 text-sm text-slate-600">
           Get a price for any of our {zones.length > 0 ? `${zones.length} service zones` : "service zones"} across Sri
           Lanka. No account needed.
         </p>
-      </div>
+      </header>
 
       <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="card min-w-0">
-          <FeeEstimateWidget zones={zones} coverageError={error} />
+          <FeeEstimateWidget
+            zones={zones}
+            specialHandling={specialHandling}
+            coverageError={error}
+            map={mapConfig()}
+          />
         </div>
 
         <aside className="space-y-4">
