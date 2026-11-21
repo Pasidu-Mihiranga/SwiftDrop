@@ -47,7 +47,16 @@ describe("webhook-service meta endpoint", () => {
 
 describe("configuration", () => {
   it("applies defaults and rejects malformed values", () => {
-    expect(loadEnv({}).PORT).toBe(8092);
-    expect(() => loadEnv({ KEYCLOAK_ISSUER: "not a url" })).toThrow();
+    const key = { WEBHOOK_SECRET_KEY: "k" };
+    const env = loadEnv(key);
+    expect(env.PORT).toBe(8092);
+    expect(env.WEBHOOK_BACKOFF_SECONDS).toEqual([30, 120, 600, 1800, 7200, 21600]);
+    expect(env.WEBHOOK_ALLOW_HTTP).toBe(false);
+    expect(loadEnv({ ...key, WEBHOOK_ALLOW_HTTP: "true", WEBHOOK_BACKOFF_SECONDS: "1, 2" })).toMatchObject({
+      WEBHOOK_ALLOW_HTTP: true, WEBHOOK_BACKOFF_SECONDS: [1, 2] });
+    expect(() => loadEnv({ ...key, KEYCLOAK_ISSUER: "not a url" })).toThrow();
+    expect(() => loadEnv({ ...key, WEBHOOK_ALLOW_HTTP: "yes" })).toThrow();
+    expect(() => loadEnv({ ...key, WEBHOOK_BACKOFF_SECONDS: "30,soon" })).toThrow();
+    expect(() => loadEnv({})).toThrow();
   });
 });
