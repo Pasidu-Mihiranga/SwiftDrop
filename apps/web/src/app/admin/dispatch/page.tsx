@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useDispatchFeed } from "@/components/tracking/use-dispatch-feed";
 
 interface CourierRecord {
-  userId: string;
+  id: string;
   fullName: string;
   email: string;
   vehicleType: string | null;
@@ -212,7 +212,7 @@ export default function DispatchHome() {
                   </tr>
                 ) : (
                   couriers.map((c) => (
-                    <tr key={c.userId} className="hover:bg-slate-50/70">
+                    <tr key={c.id} className="hover:bg-slate-50/70">
                       <td className="px-5 py-3">
                         <p className="font-medium text-slate-900">{c.fullName}</p>
                         <p className="text-xs text-slate-500">{c.email}</p>

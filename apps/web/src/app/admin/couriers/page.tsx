@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 interface CourierRecord {
-  userId: string;
+  id: string;
   fullName: string;
   email: string;
-  phone: string | null;
+  enabled: boolean;
+  profileComplete: boolean;
   vehicleType: "BIKE" | "THREE_WHEELER" | "VAN" | "TRUCK" | null;
   homeZoneId: string | null;
   maxDailyCapacity: number | null;
@@ -51,7 +52,7 @@ export default function AdminCouriersPage() {
     try {
       const [courierRes, zoneRes] = await Promise.all([
         fetch("/api/bff/api/v1/admin/couriers"),
-        fetch("/api/bff/api/v1/pricing/zones"),
+        fetch("/api/bff/api/v1/admin/pricing/zones"),
       ]);
       if (courierRes.ok) {
         const list = (await courierRes.json()) as CourierRecord[];
@@ -77,19 +78,19 @@ export default function AdminCouriersPage() {
   function openEditor(c: CourierRecord) {
     setEditing(c);
     setVehicleType(c.vehicleType ?? "BIKE");
-    setHomeZoneId(c.homeZoneId ?? "");
+    setHomeZoneId(c.homeZoneId ?? zones[0]?.id ?? "");
     setMaxDailyCapacity(String(c.maxDailyCapacity ?? 25));
     setActive(c.active);
     setSaveMessage(null);
   }
 
-  async function handleSaveProfile(e: React.FormEvent) {
+  async function handleSaveProfile(e: FormEvent) {
     e.preventDefault();
     if (!editing) return;
     setSaving(true);
     setSaveMessage(null);
     try {
-      const res = await fetch(`/api/bff/api/v1/admin/couriers/${editing.userId}`, {
+      const res = await fetch(`/api/bff/api/v1/admin/couriers/${editing.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -101,7 +102,7 @@ export default function AdminCouriersPage() {
       });
       if (res.ok) {
         const updated = (await res.json()) as CourierRecord;
-        setCouriers((prev) => prev.map((c) => (c.userId === updated.userId ? updated : c)));
+        setCouriers((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
         setEditing(null);
         setSaveMessage({ type: "success", text: `Updated courier profile for ${updated.fullName}.` });
       } else {
@@ -134,7 +135,7 @@ export default function AdminCouriersPage() {
       return (
         c.fullName.toLowerCase().includes(q) ||
         c.email.toLowerCase().includes(q) ||
-        c.userId.toLowerCase().includes(q)
+        c.id.toLowerCase().includes(q)
       );
     }
     return true;
@@ -297,45 +298,48 @@ export default function AdminCouriersPage() {
                   </td>
                 </tr>
               ) : (
-                filtered.map((c) => (
-                  <tr key={c.userId} className="transition-colors hover:bg-slate-50/70">
-                    <td className="px-5 py-3.5">
-                      <p className="font-semibold text-slate-900">{c.fullName}</p>
-                      <p className="font-mono text-xs text-slate-400">{c.userId}</p>
-                    </td>
-                    <td className="px-4 py-3.5 text-xs">
-                      <p className="text-slate-800">{c.email}</p>
-                      <p className="text-slate-500">{c.phone ?? "No phone"}</p>
-                    </td>
-                    <td className="px-4 py-3.5">
-                      {c.vehicleType ? (
-                        <span className="status-pill-neutral">{VEHICLE_LABELS[c.vehicleType] ?? c.vehicleType}</span>
-                      ) : (
-                        <span className="text-xs text-slate-400">Unassigned</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3.5 font-mono text-xs text-slate-700">
-                      {c.homeZoneId ? c.homeZoneId.slice(0, 8) : "Any zone"}
-                    </td>
-                    <td className="px-4 py-3.5 font-semibold tabular-nums text-slate-900">
-                      {c.maxDailyCapacity ? `${c.maxDailyCapacity} / day` : "Not set"}
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <span className={c.assignable ? "status-pill-success" : "status-pill-warning"}>
-                        {c.assignable ? "Assignable" : c.active ? "Needs vehicle/capacity" : "Inactive"}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5 text-right">
-                      <button
-                        type="button"
-                        onClick={() => openEditor(c)}
-                        className="rounded-lg px-3 py-1 text-xs font-medium text-brand-700 ring-1 ring-slate-200 hover:bg-slate-50"
-                      >
-                        Configure
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                filtered.map((c) => {
+                  const zone = zones.find((z) => z.id === c.homeZoneId);
+                  return (
+                    <tr key={c.id} className="transition-colors hover:bg-slate-50/70">
+                      <td className="px-5 py-3.5">
+                        <p className="font-semibold text-slate-900">{c.fullName}</p>
+                        <p className="font-mono text-xs text-slate-400">{c.id}</p>
+                      </td>
+                      <td className="px-4 py-3.5 text-xs">
+                        <p className="text-slate-800">{c.email}</p>
+                        <p className="text-slate-500">{c.enabled ? "Keycloak enabled" : "Disabled"}</p>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        {c.vehicleType ? (
+                          <span className="status-pill-neutral">{VEHICLE_LABELS[c.vehicleType] ?? c.vehicleType}</span>
+                        ) : (
+                          <span className="text-xs text-slate-400">Unassigned</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3.5 text-xs text-slate-700">
+                        {zone ? `${zone.name} (${zone.code})` : c.homeZoneId ? c.homeZoneId.slice(0, 8) : "Not set"}
+                      </td>
+                      <td className="px-4 py-3.5 font-semibold tabular-nums text-slate-900">
+                        {c.maxDailyCapacity ? `${c.maxDailyCapacity} / day` : "Not set"}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <span className={c.assignable ? "status-pill-success" : "status-pill-warning"}>
+                          {c.assignable ? "Assignable" : c.active ? "Needs vehicle/capacity" : "Inactive"}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        <button
+                          type="button"
+                          onClick={() => openEditor(c)}
+                          className="rounded-lg px-3 py-1 text-xs font-medium text-brand-700 ring-1 ring-slate-200 hover:bg-slate-50"
+                        >
+                          Configure
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -392,20 +396,32 @@ export default function AdminCouriersPage() {
 
               <div>
                 <label htmlFor="edit-zone" className="block text-xs font-medium text-slate-700">
-                  Home zone UUID (optional)
+                  Home zone *
                 </label>
-                <input
-                  id="edit-zone"
-                  type="text"
-                  value={homeZoneId}
-                  onChange={(e) => setHomeZoneId(e.target.value)}
-                  placeholder="Leave blank for any zone"
-                  className="input mt-1 font-mono text-xs"
-                />
-                {zones.length > 0 && (
-                  <p className="mt-1 text-[11px] text-slate-500">
-                    Active zones: {zones.map((z) => z.code).join(", ")}
-                  </p>
+                {zones.length > 0 ? (
+                  <select
+                    id="edit-zone"
+                    required
+                    value={homeZoneId}
+                    onChange={(e) => setHomeZoneId(e.target.value)}
+                    className="input mt-1 bg-white text-sm"
+                  >
+                    {zones.map((z) => (
+                      <option key={z.id ?? z.code} value={z.id ?? ""}>
+                        {z.name} ({z.code})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    id="edit-zone"
+                    type="text"
+                    required
+                    value={homeZoneId}
+                    onChange={(e) => setHomeZoneId(e.target.value)}
+                    placeholder="Zone UUID"
+                    className="input mt-1 font-mono text-xs"
+                  />
                 )}
               </div>
 

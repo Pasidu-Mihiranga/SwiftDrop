@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import {
   formatMoney,
   statusBadgeClass,
@@ -10,12 +10,10 @@ import {
   sizeClassDescription,
   serviceLevelDescription,
   type ParcelResponse,
-  type ParcelStatus,
 } from "@/lib/parcels";
 
 export default function ParcelDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const id = params?.id as string;
 
   const [parcel, setParcel] = useState<ParcelResponse | null>(null);

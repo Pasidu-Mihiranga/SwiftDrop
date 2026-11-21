@@ -74,7 +74,6 @@ export default function BookDeliveryPage() {
   const [step, setStep] = useState<Step>(1);
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
-  const [loadingAddresses, setLoadingAddresses] = useState(true);
 
   // Quote state
   const [quote, setQuote] = useState<QuoteResult | null>(null);
@@ -114,8 +113,6 @@ export default function BookDeliveryPage() {
         }
       } catch {
         // Fallback to manual entry
-      } finally {
-        setLoadingAddresses(false);
       }
     }
     loadAddresses();
