@@ -17,4 +17,8 @@ interface SpringDataParcelRepository extends JpaRepository<ParcelEntity, UUID>,
     Page<ParcelEntity> findByCustomerId(String customerId, Pageable pageable);
 
     Page<ParcelEntity> findByCustomerIdAndStatus(String customerId, ParcelStatus status, Pageable pageable);
+
+    Page<ParcelEntity> findByCourierId(String courierId, Pageable pageable);
+
+    Page<ParcelEntity> findByCourierIdAndStatus(String courierId, ParcelStatus status, Pageable pageable);
 }
