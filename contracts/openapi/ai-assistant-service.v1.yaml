@@ -1,15 +1,34 @@
 openapi: 3.1.0
 info:
   title: SwiftDrop ai-assistant-service API
-  version: 1.0.0-draft
+  version: 1.0.0
   description: |
-    Delivery assistant chat. Anonymous callers may use public tools (tracking, quotes); signed-in callers' tokens are forwarded
-    so the assistant only sees what the user may see. MCP (streamable HTTP) is served at /mcp. Owner — M10.
+    Delivery assistant chat, and the same tools for external AI clients over MCP. Owner - M10.
+
+    Access. Anonymous callers get the public tools only (track a parcel, estimate a fee, list service
+    zones). A signed-in caller's token is forwarded to every tool call, so the assistant never sees more
+    than the user could see in the web app; list_my_parcels and get_parcel_details need it.
+
+    Personal data. The LLM is a third party and never receives personal data: names, phone numbers,
+    emails, NIC numbers, payment cards and addresses are replaced by placeholders such as [PHONE_1]
+    before anything is sent to it, and the real values are put back only in the answer streamed to the
+    caller. Conversation memory (Redis, 24 hours) stores the placeholders; the vault that maps them back
+    is encrypted with ASSISTANT_VAULT_SECRET. MCP tool results are masked irreversibly unless
+    MCP_MASK_PII=false.
+
+    Guardrails. SwiftDrop topics only (other requests get a fixed reply), answers grounded in tool
+    results, at most ASSISTANT_MAX_TOOL_ROUNDS tool rounds per message, and a rate limit per user or,
+    for guests, per client address.
+
+    MCP. The tools are served over the Model Context Protocol (streamable HTTP, stateless, JSON
+    responses) at POST /mcp: tools/list and tools/call for track_parcel, estimate_delivery_fee,
+    list_service_zones, list_my_parcels and get_parcel_details. Send the SwiftDrop access token as a
+    bearer token for the private tools.
 servers: [{ url: http://localhost:8080 }]
 paths:
   /api/v1/assistant/chat:
     post:
-      summary: Ask the assistant (Server-Sent Events stream)
+      summary: Ask the assistant; the answer streams back as server-sent events
       security: [{}, { bearerAuth: [] }]
       requestBody:
         required: true
@@ -19,14 +38,87 @@ paths:
               type: object
               required: [message]
               properties:
-                message: { type: string, maxLength: 2000, example: "How much to send 2 kg to Kandy?" }
-                conversationId: { type: string }
+                message: { type: string, minLength: 1, maxLength: 2000, example: "How much to send 2 kg from Colombo to Kandy?" }
+                conversationId:
+                  type: string
+                  maxLength: 64
+                  description: >
+                    Continue a conversation, using the id from an earlier `done` event. An unknown, expired or
+                    someone else's id starts a new conversation.
       responses:
         "200":
-          description: "SSE stream: `event: token` (text chunks), `event: tool` (tool call summary), `event: done`"
-          content: { text/event-stream: { schema: { type: string } } }
+          description: |
+            A stream of server-sent events, in this order:
+            - `tool` (zero or more): a tool the assistant used, `{"name", "label", "ok"}`; `label` is a short
+              chip text without personal data, e.g. "Checked tracking SD261020K7Q2M9X"
+            - `token` (one or more): the next piece of the answer, `{"text"}`
+            - `error` (instead of tokens if the model is unavailable): `{"code": "ASSISTANT_UNAVAILABLE", "message"}`
+            - `done` (always last): `{"conversationId"}`
+          content:
+            text/event-stream:
+              schema: { type: string }
+              examples:
+                answer:
+                  value: |
+                    event: tool
+                    data: {"name": "track_parcel", "label": "Checked tracking SD261020K7Q2M9X", "ok": true}
+
+                    event: token
+                    data: {"text": "Your parcel is out for delivery in Kandy."}
+
+                    event: done
+                    data: {"conversationId": "9f1c2a0b3d4e5f60718293a4b5c6d7e8"}
+        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "429":
+          description: Too many messages from this user or address in the last minute (code RATE_LIMITED)
+          content: { application/problem+json: { schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" } } }
+        "503":
+          description: No LLM provider is configured (code ASSISTANT_NOT_CONFIGURED)
+          content: { application/problem+json: { schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" } } }
   /api/v1/assistant/meta/provider:
-    get: { summary: Configured LLM provider and model, security: [], responses: { "200": { description: OK } } }
+    get:
+      summary: Configured LLM provider and model (never the key)
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  provider: { type: string, enum: [gemini, openai] }
+                  model: { type: string, example: gemini-2.5-flash }
+                  configured: { type: boolean }
+  /api/v1/assistant/meta/whoami:
+    get:
+      summary: Smoke test - the caller as seen by ai-assistant-service
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content: { application/json: { schema: { $ref: "common.v1.yaml#/components/schemas/WhoAmI" } } }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+  /mcp:
+    post:
+      summary: MCP endpoint (JSON-RPC 2.0 over streamable HTTP, stateless)
+      description: >
+        tools/list and tools/call for the five SwiftDrop tools. Without a bearer token only the public tools
+        work. Personal data in results is masked unless MCP_MASK_PII=false; failures come back as results
+        with isError true.
+      security: [{}, { bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, description: "A JSON-RPC 2.0 request" }
+            example: { "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                       "params": { "name": "track_parcel", "arguments": { "tracking_number": "SD261020K7Q2M9X" } } }
+      responses:
+        "200":
+          description: JSON-RPC response
+          content: { application/json: { schema: { type: object } } }
 components:
   securitySchemes:
     bearerAuth: { $ref: "common.v1.yaml#/components/securitySchemes/bearerAuth" }
