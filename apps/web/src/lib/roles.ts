@@ -57,10 +57,14 @@ export function homeFor(roles: readonly string[]): string {
 /** Navigation entries shown in the header for a user's roles. */
 export function navigationFor(roles: readonly string[]): { href: string; label: string }[] {
   const items: { href: string; label: string }[] = [];
-  if (roles.includes("CUSTOMER")) items.push({ href: "/customer", label: "My deliveries" });
+  if (roles.includes("CUSTOMER")) {
+    items.push({ href: "/customer", label: "My deliveries" });
+    items.push({ href: "/customer/history", label: "History & Receipts" });
+  }
   if (roles.includes("MERCHANT")) items.push({ href: "/merchant", label: "Merchant portal" });
   if (roles.includes("COURIER")) items.push({ href: "/courier", label: "Today's runs" });
   if (roles.includes("DISPATCHER") || roles.includes("ADMIN")) items.push({ href: "/admin", label: "Operations" });
+  if (roles.includes("ADMIN")) items.push({ href: "/admin/notifications/sms-inbox", label: "SMS Inbox" });
   return items;
 }
 

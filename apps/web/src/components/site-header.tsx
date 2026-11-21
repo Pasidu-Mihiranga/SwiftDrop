@@ -4,6 +4,7 @@ import { auth, signOut } from "@/auth";
 import { idToken } from "@/lib/gateway";
 import { appUrl, keycloakConfig, keycloakLogoutUrl } from "@/lib/keycloak";
 import { navigationFor } from "@/lib/roles";
+import { NotificationBell } from "@/components/notification-bell";
 
 export async function SiteHeader() {
   const session = await auth();
@@ -27,21 +28,24 @@ export async function SiteHeader() {
             ))}
         </nav>
         {user ? (
-          <form
-            action={async () => {
-              "use server";
-              // End both sessions: the app cookie here, then Keycloak's SSO session, which would
-              // otherwise sign the same user straight back in on the next "Sign in".
-              const hint = await idToken();
-              await signOut({ redirect: false });
-              redirect(keycloakLogoutUrl(keycloakConfig(), `${appUrl()}/`, hint));
-            }}
-            className="flex items-center gap-3"
-          >
-            <span className="hidden text-sm text-slate-600 sm:inline">{user.name ?? user.email}</span>
-            <Link href="/account" className="rounded-md px-3 py-2 text-sm text-slate-600 hover:bg-slate-100">My profile</Link>
-            <button className="btn-secondary" type="submit">Sign out</button>
-          </form>
+          <div className="flex items-center gap-3">
+            <NotificationBell />
+            <form
+              action={async () => {
+                "use server";
+                // End both sessions: the app cookie here, then Keycloak's SSO session, which would
+                // otherwise sign the same user straight back in on the next "Sign in".
+                const hint = await idToken();
+                await signOut({ redirect: false });
+                redirect(keycloakLogoutUrl(keycloakConfig(), `${appUrl()}/`, hint));
+              }}
+              className="flex items-center gap-3"
+            >
+              <span className="hidden text-sm text-slate-600 sm:inline">{user.name ?? user.email}</span>
+              <Link href="/account" className="rounded-md px-3 py-2 text-sm text-slate-600 hover:bg-slate-100">My profile</Link>
+              <button className="btn-secondary" type="submit">Sign out</button>
+            </form>
+          </div>
         ) : (
           <Link href="/login" className="btn-primary">Sign in</Link>
         )}

@@ -59,8 +59,15 @@ describe("homeFor and navigationFor", () => {
   });
 
   it("builds role-aware navigation", () => {
-    expect(navigationFor(["CUSTOMER", "MERCHANT"]).map((i) => i.href)).toEqual(["/customer", "/merchant"]);
-    expect(navigationFor(["ADMIN"]).map((i) => i.href)).toEqual(["/admin"]);
+    expect(navigationFor(["CUSTOMER", "MERCHANT"]).map((i) => i.href)).toEqual([
+      "/customer",
+      "/customer/history",
+      "/merchant",
+    ]);
+    expect(navigationFor(["ADMIN"]).map((i) => i.href)).toEqual([
+      "/admin",
+      "/admin/notifications/sms-inbox",
+    ]);
   });
 });
 
