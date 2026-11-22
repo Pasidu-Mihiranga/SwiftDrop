@@ -4,11 +4,17 @@ import { auth, signOut } from "@/auth";
 import { idToken } from "@/lib/gateway";
 import { appUrl, keycloakConfig, keycloakLogoutUrl } from "@/lib/keycloak";
 import { navigationFor } from "@/lib/roles";
+import { NavLink, NavLinks } from "@/components/nav-links";
 import { NotificationBell } from "@/components/notification-bell";
 
 export async function SiteHeader() {
   const session = await auth();
   const user = session && !session.error ? session.user : undefined;
+  const navItems = [
+    { href: "/track", label: "Track" },
+    { href: "/quote", label: "Get a price" },
+    ...(user ? navigationFor(user.roles) : []),
+  ];
 
   return (
     <header className="border-b border-slate-200 bg-white">
@@ -17,15 +23,8 @@ export async function SiteHeader() {
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-600 text-white">S</span>
           SwiftDrop
         </Link>
-        <nav className="flex flex-1 flex-wrap items-center gap-1 text-sm">
-          <Link href="/track" className="rounded-md px-3 py-2 text-slate-600 hover:bg-slate-100">Track</Link>
-          <Link href="/quote" className="rounded-md px-3 py-2 text-slate-600 hover:bg-slate-100">Get a price</Link>
-          {user &&
-            navigationFor(user.roles).map((item) => (
-              <Link key={item.href} href={item.href} className="rounded-md px-3 py-2 text-slate-600 hover:bg-slate-100">
-                {item.label}
-              </Link>
-            ))}
+        <nav aria-label="Primary" className="flex flex-1 flex-wrap items-center gap-1 text-sm">
+          <NavLinks items={navItems} />
         </nav>
         {user ? (
           <div className="flex items-center gap-3">
@@ -42,7 +41,7 @@ export async function SiteHeader() {
               className="flex items-center gap-3"
             >
               <span className="hidden text-sm text-slate-600 sm:inline">{user.name ?? user.email}</span>
-              <Link href="/account" className="rounded-md px-3 py-2 text-sm text-slate-600 hover:bg-slate-100">My profile</Link>
+              <NavLink href="/account" label="My profile" className="text-sm" />
               <button className="btn-secondary" type="submit">Sign out</button>
             </form>
           </div>

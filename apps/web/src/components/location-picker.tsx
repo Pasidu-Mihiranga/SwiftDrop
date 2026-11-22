@@ -64,12 +64,12 @@ export function LocationPicker({
   }
 
   return (
-    <div className="space-y-2 flex flex-col h-full">
+    <div className="space-y-2">
       <p id={`${id}-hint`} className="text-xs text-slate-600">
         Tap the map at the exact {purpose} point. The district is filled in for you.
       </p>
       <div
-        className={`${heightClass} w-full flex-1 overflow-hidden rounded-md border border-slate-200`}
+        className={`${heightClass} w-full overflow-hidden rounded-md border border-slate-200`}
         role="group"
         aria-label={`Map for the ${purpose} point`}
         aria-describedby={`${id}-hint`}

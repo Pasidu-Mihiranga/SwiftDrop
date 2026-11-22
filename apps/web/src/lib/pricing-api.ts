@@ -66,18 +66,16 @@ export async function fetchRateCards(search: string = ""): Promise<PricingPage<R
   return readJson<PricingPage<RateCard>>(`/api/v1/admin/pricing/rate-cards${search}`, "rate cards");
 }
 
-/** Every card in force on a date. Reads all the pages, so a large zone map is not cut short. */
+/** Every card in force on a date. Reads all the pages in parallel after page 0. */
 export async function fetchRateCardsInForce(on: string): Promise<RateCard[]> {
-  const cards: RateCard[] = [];
-  let page = 0;
-  let totalPages = 1;
-  while (page < totalPages) {
-    const result = await fetchRateCards(`?activeOn=${encodeURIComponent(on)}&page=${page}&size=100`);
-    cards.push(...result.content);
-    totalPages = result.page.totalPages;
-    page += 1;
-  }
-  return cards;
+  const first = await fetchRateCards(`?activeOn=${encodeURIComponent(on)}&page=0&size=100`);
+  if (first.page.totalPages <= 1) return first.content;
+  const remaining = await Promise.all(
+    Array.from({ length: first.page.totalPages - 1 }, (_, i) =>
+      fetchRateCards(`?activeOn=${encodeURIComponent(on)}&page=${i + 1}&size=100`),
+    ),
+  );
+  return [...first.content, ...remaining.flatMap((result) => result.content)];
 }
 
 export async function fetchRemoteAreas(): Promise<RemoteAreaCharge[]> {
