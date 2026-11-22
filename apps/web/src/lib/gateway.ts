@@ -56,6 +56,7 @@ export interface GatewayFetchOptions extends RequestInit {
 export async function gatewayFetch(path: string, init: GatewayFetchOptions = {}): Promise<Response> {
   const isPublic =
     init.anonymous ||
+    path.startsWith("/api/v1/pricing/quotes") ||
     path.startsWith("/api/v1/pricing/zones") ||
     path.startsWith("/api/v1/pricing/special-handling") ||
     path.startsWith("/api/v1/pricing/locate");

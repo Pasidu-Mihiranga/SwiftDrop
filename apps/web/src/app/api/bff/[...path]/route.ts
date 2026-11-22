@@ -24,6 +24,7 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     if (value) outgoing.set(name, value);
   }
   const isPublicPath =
+    target.startsWith("api/v1/pricing/quotes") ||
     target.startsWith("api/v1/pricing/zones") ||
     target.startsWith("api/v1/pricing/special-handling") ||
     target.startsWith("api/v1/pricing/locate") ||
