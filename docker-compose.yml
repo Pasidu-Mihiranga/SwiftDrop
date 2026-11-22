@@ -335,6 +335,8 @@ services:
       <<: *keycloak-env
       SPRING_PROFILES_ACTIVE: docker
       WEB_ORIGIN: http://localhost:3000
+      # The web container (Docker network) passes on the visitor IP for the anonymous rate limit.
+      GATEWAY_TRUSTED_PROXIES: "172.,10.,192.168.,127.0.0.1"
       USER_SERVICE_URL: http://user-service:8081
       MERCHANT_SERVICE_URL: http://merchant-service:8082
       PRICING_SERVICE_URL: http://pricing-service:8083
