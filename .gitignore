@@ -1,5 +1,7 @@
 # --- Secrets / local env ---
 .env
+# Credential files (e.g. the Vertex AI service account key). Never committed.
+secrets/
 .env.*
 !.env.example
 *.pem

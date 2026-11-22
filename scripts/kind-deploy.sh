@@ -103,6 +103,10 @@ add S3_SECRET_KEY "${S3_SECRET_KEY:-}"
 add GEMINI_API_KEY "${GEMINI_API_KEY:-}"
 add OPENAI_API_KEY "${OPENAI_API_KEY:-}"
 add ASSISTANT_VAULT_SECRET "${ASSISTANT_VAULT_SECRET:-}"
+# Vertex AI service account key (LLM_PROVIDER=vertex), passed inline so no file has to be mounted.
+if [ -f secrets/google-service-account.json ]; then
+  add VERTEX_CREDENTIALS_JSON "$(cat secrets/google-service-account.json)"
+fi
 create_secret swiftdrop-app-secrets
 
 add AUTH_SECRET "${AUTH_SECRET:-}"

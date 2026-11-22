@@ -1,9 +1,13 @@
 """Environment-driven settings (12-factor). Locally the repository's .env is read; containers get env vars."""
 
+from pathlib import Path
 from typing import Literal
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+_REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
 class Settings(BaseSettings):
@@ -15,10 +19,17 @@ class Settings(BaseSettings):
     keycloak_jwks_uri: str | None = None
     gateway_url: str = "http://localhost:8080"
 
-    llm_provider: Literal["gemini", "openai"] = "gemini"
+    llm_provider: Literal["gemini", "openai", "vertex"] = "gemini"
     llm_model: str = "gemini-2.5-flash"
     gemini_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None
+    # Gemini on Vertex AI with a Google Cloud service account (LLM_PROVIDER=vertex). The key comes from a
+    # file (local runs and Docker, where it is mounted read-only) or inline JSON (a Kubernetes Secret).
+    # A relative path is taken from the repository root, so the same .env works wherever the service starts.
+    vertex_credentials_file: Path | None = None
+    vertex_credentials_json: SecretStr | None = None
+    vertex_project: str | None = None     # defaults to the key's project_id
+    vertex_location: str = "global"
 
     # Conversation memory and the PII vault live in Redis. Docker Compose sets REDIS_URL; Kubernetes sets
     # REDIS_HOST and REDIS_PORT (the chart's shared config); locally the URL is built from the same
@@ -38,6 +49,13 @@ class Settings(BaseSettings):
     assistant_history_messages: int = 20
     # MCP clients are third-party AI apps: tool results leave with personal data masked unless this is false.
     mcp_mask_pii: bool = True
+
+    @property
+    def vertex_credentials_path(self) -> Path | None:
+        path = self.vertex_credentials_file
+        if path is None or path.is_absolute():
+            return path
+        return _REPO_ROOT / path
 
     @property
     def issuer(self) -> str:

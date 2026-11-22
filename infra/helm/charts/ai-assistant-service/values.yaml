@@ -19,7 +19,8 @@ probes:
 metrics:
   path: /metrics
 
-# swiftdrop-app-secrets supplies GEMINI_API_KEY / OPENAI_API_KEY, REDIS_PASSWORD and
+# swiftdrop-app-secrets supplies GEMINI_API_KEY / OPENAI_API_KEY (or VERTEX_CREDENTIALS_JSON when
+# LLM_PROVIDER is vertex), REDIS_PASSWORD and
 # ASSISTANT_VAULT_SECRET (encrypts the per-conversation PII vault; without it every pod would pick its
 # own random key and a conversation could not move between replicas). Redis host and port come from
 # global.commonConfig.
