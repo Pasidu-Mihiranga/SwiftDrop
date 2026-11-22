@@ -7,8 +7,9 @@
 #   3. a quote already issued keeping its fee after that change
 #   4. quote expiry answering 404, indistinguishable from an unknown id
 #
-# It also exercises GET /api/v1/pricing/quotes/{id} exactly the way parcel-service
-# will, which is as far as this can go until M3 ships a booking endpoint.
+# It also exercises GET /api/v1/pricing/quotes/{id} and, when parcel-service is up,
+# confirms M3 POST /api/v1/parcels consumes a valid quote (201) and rejects an
+# expired or unknown quote (422 QUOTE_EXPIRED).
 #
 # Works against either deployment:
 #   ./scripts/demo-m2-pricing.sh                                  # kind, the defaults
@@ -158,7 +159,12 @@ LOOKED_UP="$(jq_get "['fee']['amount']" < /tmp/m2-look.json)"
 check "${LOOKED_UP}" "$(cat /tmp/m2-q1-fee)" "the stored snapshot is returned verbatim"
 printf "   Redis holds the computed snapshot, so lookup never recalculates.\n"
 
-step "3b. This is exactly the call parcel-service will make"
+parcel_payload() {
+  local quote_id="$1"
+  printf '{"quoteId":"%s","pickup":{"line1":"45 Galle Road","city":"Colombo 03","district":"Colombo","postalCode":"00300"},"dropoff":{"line1":"12 Temple Road","city":"Kandy","district":"Kandy","postalCode":"20000"},"recipient":{"name":"Sunimal Perera","phone":"0771234567"}}' "${quote_id}"
+}
+
+step "3b. Valid quote handoff to parcel-service (M2 -> M3)"
 printf "   GET %s/pricing/quotes/{quoteId} with a bearer token\n" "${BASE_URL}"
 python3 -I - <<'PY'
 import json
@@ -170,8 +176,17 @@ print("   fields parcel-service can validate:", ", ".join(need))
 assert not missing, f"missing {missing}"
 PY
 ok "every field in the agreed M3 contract is present"
-printf "   NOTE: parcel-service has no create-parcel endpoint yet, so the consuming\n"
-printf "         side of this handoff cannot be demonstrated. See Issue #15 Phase 3.\n"
+
+PARCEL_CODE="$(api -o /tmp/m2-parcel-ok.json -w '%{http_code}' -X POST "${BASE_URL}/parcels" \
+  -H "Authorization: Bearer ${CUSTOMER_TOKEN}" -H 'content-type: application/json' \
+  -d "$(parcel_payload "${QID}")" || echo "000")"
+if [ "${PARCEL_CODE}" = "502" ] || [ "${PARCEL_CODE}" = "503" ] || [ "${PARCEL_CODE}" = "504" ] || [ "${PARCEL_CODE}" = "000" ]; then
+  printf "   NOTE: parcel-service is offline (HTTP %s); skipping live M3 booking check.\n" "${PARCEL_CODE}"
+else
+  check "${PARCEL_CODE}" "201" "parcel-service consumes the valid quote"
+  TRACKING_NUM="$(jq_get "['trackingNumber']" < /tmp/m2-parcel-ok.json 2>/dev/null || echo '-')"
+  printf "   booked trackingNumber=%s\n" "${TRACKING_NUM}"
+fi
 
 # ---------------------------------------------------------------- 4. authorization and expiry
 step "4. Authorization"
@@ -206,6 +221,23 @@ else
   printf "     helm upgrade ... --set pricing-service.config.PRICING_QUOTE_TTL=PT1M\n"
   printf "   The boundary itself is asserted exactly, against a controlled clock, in\n"
   printf "   QuoteExpiryIT rather than by waiting.\n"
+fi
+
+step "4c. Expired/unknown quote rejected at booking (422 QUOTE_EXPIRED)"
+if [ "${DEMO_WAIT_FOR_EXPIRY:-0}" = "1" ]; then
+  EXPIRED_QID="${QID}"
+else
+  EXPIRED_QID="00000000-0000-0000-0000-000000000000"
+fi
+EXP_CODE="$(api -o /tmp/m2-parcel-exp.json -w '%{http_code}' -X POST "${BASE_URL}/parcels" \
+  -H "Authorization: Bearer ${CUSTOMER_TOKEN}" -H 'content-type: application/json' \
+  -d "$(parcel_payload "${EXPIRED_QID}")" || echo "000")"
+if [ "${EXP_CODE}" = "502" ] || [ "${EXP_CODE}" = "503" ] || [ "${EXP_CODE}" = "504" ] || [ "${EXP_CODE}" = "000" ]; then
+  printf "   NOTE: parcel-service is offline (HTTP %s); skipping live expired-quote booking check.\n" "${EXP_CODE}"
+else
+  check "${EXP_CODE}" "422" "parcel-service rejects expired/unknown quote"
+  EXP_ERR_CODE="$(jq_get "['code']" < /tmp/m2-parcel-exp.json 2>/dev/null || echo '-')"
+  check "${EXP_ERR_CODE}" "QUOTE_EXPIRED" "booking rejection returns QUOTE_EXPIRED"
 fi
 
 # ---------------------------------------------------------------- restore

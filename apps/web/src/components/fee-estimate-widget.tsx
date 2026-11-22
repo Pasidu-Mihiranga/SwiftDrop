@@ -21,6 +21,7 @@ import {
   formatMoney,
   distanceNotice,
   quoteLifetime,
+  quoteToBookingHref,
   sizeClassLabel,
   sizeClassNotice,
   serviceLevelLabel,
@@ -1075,6 +1076,7 @@ export function FeeEstimateWidget({
             {quote && lifetime ? (
               <QuoteSummary
                 quote={quote}
+                values={values}
                 expired={expired}
                 remaining={lifetime.label}
                 quantity={values.numberOfParcels}
@@ -1089,11 +1091,13 @@ export function FeeEstimateWidget({
 
 function QuoteSummary({
   quote,
+  values,
   expired,
   remaining,
   quantity,
 }: {
   quote: Quote;
+  values: QuoteFormValues;
   expired: boolean;
   remaining: string;
   quantity: number;
@@ -1254,13 +1258,14 @@ function QuoteSummary({
         </p>
 
         {/* Direct Action to Booking */}
-        <div className="pt-2 border-t border-slate-100">
+        <div className="space-y-2 border-t border-slate-100 pt-2">
+          {quantity > 1 ? (
+            <p className="text-[11px] text-slate-500">
+              Each booking creates one parcel per quote. Proceeding will pre-fill details for a single parcel.
+            </p>
+          ) : null}
           <Link
-            href={`/customer/book?quoteId=${quote.quoteId}&fromDistrict=${encodeURIComponent(
-              quote.fromDistrict || "",
-            )}&toDistrict=${encodeURIComponent(quote.toDistrict || "")}&weightKg=${quote.weightKg}&sizeClass=${
-              quote.sizeClass
-            }&serviceLevel=${quote.serviceLevel}`}
+            href={quoteToBookingHref(values, quote)}
             className="btn-primary w-full py-2.5 text-center text-xs font-semibold shadow-xs"
           >
             Book this delivery &rarr;
