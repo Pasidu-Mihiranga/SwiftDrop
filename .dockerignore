@@ -11,6 +11,8 @@
 .env
 .env.*
 !.env.example
+# Credentials are mounted at run time, never baked into an image.
+secrets
 doc
 tests
 infra/helm

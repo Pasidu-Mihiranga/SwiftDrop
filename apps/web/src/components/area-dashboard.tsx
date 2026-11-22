@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { auth } from "@/auth";
 import { gatewayFetch } from "@/lib/gateway";
 
@@ -8,6 +9,8 @@ interface Props {
   upcoming: { feature: string; owner: string }[];
   /** Service whose /meta/whoami proves the browser → BFF → gateway → service JWT chain. */
   check: { service: string; path: string };
+  /** Features of this area that are already live. */
+  available?: { feature: string; description: string; href: string }[];
 }
 
 async function platformCheck(path: string): Promise<{ ok: boolean; detail: string }> {
@@ -22,7 +25,7 @@ async function platformCheck(path: string): Promise<{ ok: boolean; detail: strin
   }
 }
 
-export async function AreaDashboard({ title, subtitle, upcoming, check }: Props) {
+export async function AreaDashboard({ title, subtitle, upcoming, check, available = [] }: Props) {
   const session = await auth();
   const result = await platformCheck(check.path);
 
@@ -32,6 +35,17 @@ export async function AreaDashboard({ title, subtitle, upcoming, check }: Props)
         <h1 className="text-2xl font-bold">{title}</h1>
         <p className="text-slate-600">{subtitle}</p>
       </div>
+
+      {available.length > 0 && (
+        <div className="grid gap-4 md:grid-cols-3">
+          {available.map((item) => (
+            <Link key={item.href} href={item.href} className="card block transition hover:border-brand-500 hover:shadow-md">
+              <h2 className="font-semibold text-brand-700">{item.feature}</h2>
+              <p className="mt-1 text-sm text-slate-600">{item.description}</p>
+            </Link>
+          ))}
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-3">
         <section className="card md:col-span-2">

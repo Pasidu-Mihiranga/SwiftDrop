@@ -161,12 +161,12 @@ def fig_class_assistant() -> str:
                            "+ save_vault(conversation_id, vault)"])
     factory, _ = _uml_class(60, 400, 290, "ProviderFactory", "", ["+ provider_config(settings)"])
     agent, agent_h = _uml_class(430, 60, 300, "AgentOrchestrator", "«facade»",
-                                ["+ chat(message, user): Stream", "- provider: LLMProvider", "- tools: ToolRegistry"])
+                                ["+ begin(user, conversation_id)", "+ run(conversation, message): Stream", "- provider, tools, store"])
     iface, iface_h = _uml_class(430, 250, 300, "LLMProvider", "«interface»", ["+ stream_chat(messages, tools)"])
     impl, _ = _uml_class(430, 400, 300, "OpenAICompatibleProvider", "«strategy»",
                          ["- base_url, model, api_key", "+ stream_chat(messages, tools)"])
     mcp, _ = _uml_class(430, 560, 300, "McpServer", "", ["+ tools_list()", "+ tools_call(name, args)"])
-    guard, _ = _uml_class(840, 60, 280, "Guardrails", "", ["+ check_input(message)", "+ check_scope(answer): bool"])
+    guard, _ = _uml_class(840, 60, 280, "Guardrails", "", ["+ RateLimiter.allow(subject)", "+ ScopeGate.feed(text)"])
     registry, registry_h = _uml_class(840, 250, 280, "ToolRegistry", "",
                                       ["+ public_tools()", "+ tools_for(user)", "+ call(name, args, user)"])
     api, _ = _uml_class(840, 430, 280, "SwiftDropApi", "«adapter»",

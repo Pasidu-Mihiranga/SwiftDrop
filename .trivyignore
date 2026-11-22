@@ -1,0 +1,7 @@
+# Vulnerabilities accepted for the release gate in .github/workflows/release.yml.
+# The gate fails on CRITICAL findings that have a fixed version available. Prefer fixing them
+# (bump the base image or the dependency). Only list an id here when that is not possible yet,
+# with the reason, the owner and a date to look again, for example:
+#
+#   # libfoo in eclipse-temurin:21-jre; no patched base image yet. Owner: M10. Review: 2026-12-01
+#   CVE-2026-12345
