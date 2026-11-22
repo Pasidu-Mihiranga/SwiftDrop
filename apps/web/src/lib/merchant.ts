@@ -35,6 +35,20 @@ export interface MerchantPage {
   page: { page: number; size: number; totalElements: number; totalPages: number };
 }
 
+/** A merchant's OAuth 2.0 client credentials (ApiCredentialSecret). The secret is shown once. */
+export interface ApiCredentials {
+  clientId: string;
+  clientSecret: string;
+  tokenUrl: string;
+}
+
+/** The credentials form's state: the new credentials exist only here, never in storage. */
+export interface CredentialsState {
+  status: "idle" | "ok" | "error";
+  message?: string;
+  credentials?: ApiCredentials;
+}
+
 /** Same limit as merchant-service (Merchant.MAX_REASON_LENGTH). */
 export const MAX_REASON_LENGTH = 500;
 
