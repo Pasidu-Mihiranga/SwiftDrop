@@ -37,7 +37,7 @@ const schema = z.object({
   MONGO_URI: z.string().min(1).default(mongoDefault),
   REDIS_URL: z.string().min(1).default(redisDefault),
   /** base64 32-byte AES key that encrypts signing secrets at rest; falls back to PII_ENCRYPTION_KEY in local .env */
-  WEBHOOK_SECRET_KEY: z.string().min(1).default(process.env.PII_ENCRYPTION_KEY ?? ""),
+  WEBHOOK_SECRET_KEY: z.string().min(1),
   /** Retry delays in seconds; shorten them for the demo, e.g. "5,10,20,40,60,90" */
   WEBHOOK_BACKOFF_SECONDS: z.string().default("30,120,600,1800,7200,21600")
     .transform((value) => value.split(",").map((part) => Number(part.trim())))
@@ -55,7 +55,14 @@ const schema = z.object({
 export type Env = z.infer<typeof schema>;
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
-  return schema.parse(source);
+  const secretKey =
+    source.WEBHOOK_SECRET_KEY ??
+    source.PII_ENCRYPTION_KEY ??
+    (source === process.env ? process.env.PII_ENCRYPTION_KEY : undefined);
+  return schema.parse({
+    ...source,
+    ...(secretKey ? { WEBHOOK_SECRET_KEY: secretKey } : {}),
+  });
 }
 
 let cached: Env | undefined;
