@@ -60,9 +60,28 @@ paths:
         "204": { description: Deleted }
         "404": { description: "ADDRESS_NOT_FOUND: unknown id or another person's address (indistinguishable)" }
   /api/v1/admin/users:
-    get: { summary: Search users (ADMIN), responses: { "200": { description: OK } } }
+    get:
+      summary: Search accounts (ADMIN)
+      description: |
+        Reads Keycloak, so every account is listed, including people who never signed in. Service accounts are excluded.
+        Every account holds CUSTOMER through Keycloak's default roles. Sorted by full name.
+      parameters:
+        - { name: search, in: query, required: false, schema: { type: string }, description: Part of the name or e-mail, case-insensitive }
+        - { name: role, in: query, required: false, schema: { type: string, enum: [CUSTOMER, MERCHANT, COURIER, DISPATCHER, ADMIN] } }
+        - { name: enabled, in: query, required: false, schema: { type: boolean } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: size, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/AdminUserPage" } } } }
+        "403": { description: Not ADMIN }
+        "503": { description: "IDENTITY_PROVIDER_UNAVAILABLE" }
     post:
-      summary: Create a courier or dispatcher account (ADMIN)
+      summary: Create a courier, dispatcher or admin account (ADMIN)
+      description: |
+        Creates the Keycloak account (username = e-mail, no password) with the role, then the profile in users_db
+        (and the courier's dispatch details when given). Keycloak then e-mails a "set your password" link valid for
+        24 hours, so SwiftDrop never handles a staff password. If the database part fails the Keycloak account is
+        deleted again. If the e-mail could not be sent the account still exists (invitationSent = false).
       requestBody:
         content:
           application/json:
@@ -70,13 +89,48 @@ paths:
               type: object
               required: [email, fullName, role]
               properties:
-                email: { type: string, format: email }
-                fullName: { type: string }
-                phone: { type: string }
+                email: { type: string, format: email, maxLength: 254 }
+                fullName: { type: string, maxLength: 100 }
+                phone: { type: string, pattern: "^(\\+94|0)7[0-9]{8}$" }
                 role: { type: string, enum: [COURIER, DISPATCHER, ADMIN] }
-      responses: { "201": { description: "Created; a temporary password is emailed" } }
+                vehicleType: { type: string, enum: [BIKE, THREE_WHEELER, VAN], description: "COURIER only; with homeZoneId and maxDailyCapacity" }
+                homeZoneId: { type: string, format: uuid }
+                maxDailyCapacity: { type: integer, minimum: 1, maximum: 200 }
+      responses:
+        "201":
+          description: Created; Keycloak e-mails a set-password link
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: "#/components/schemas/AdminUser" }
+                  invitationSent: { type: boolean }
+        "400": { description: "VALIDATION_FAILED, ROLE_NOT_ASSIGNABLE, COURIER_DETAILS_INCOMPLETE or COURIER_DETAILS_FOR_COURIERS_ONLY" }
+        "409": { description: "EMAIL_ALREADY_REGISTERED (Keycloak) or EMAIL_ALREADY_LINKED (users_db)" }
   /api/v1/admin/users/{userId}:
-    patch: { summary: Enable/disable user or change roles (ADMIN), parameters: [{ name: userId, in: path, required: true, schema: { type: string } }], responses: { "200": { description: OK } } }
+    patch:
+      summary: Enable or disable an account and/or replace its staff roles (ADMIN)
+      parameters: [{ name: userId, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled: { type: boolean, description: "false disables the account and signs the user out everywhere" }
+                roles: { type: array, items: { type: string, enum: [COURIER, DISPATCHER, ADMIN] }, description: "The complete set of staff roles; CUSTOMER and MERCHANT are never changed here" }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/AdminUser" } } } }
+        "404": { description: USER_NOT_FOUND }
+        "422": { description: "CANNOT_DISABLE_YOURSELF or CANNOT_REMOVE_OWN_ADMIN" }
+  /api/v1/admin/users/{userId}/invitation:
+    post:
+      summary: Send the set-password e-mail again (ADMIN)
+      parameters: [{ name: userId, in: path, required: true, schema: { type: string } }]
+      responses:
+        "202": { description: Sent }
+        "404": { description: USER_NOT_FOUND }
   /api/v1/admin/couriers:
     get:
       summary: "Couriers with vehicle, home zone and capacity (DISPATCHER, ADMIN)"
@@ -145,6 +199,23 @@ components:
             isDefault: { type: boolean }
             createdAt: { type: string, format: date-time }
             updatedAt: { type: string, format: date-time }
+    AdminUser:
+      type: object
+      required: [id, fullName, enabled, roles]
+      properties:
+        id: { type: string, description: Keycloak subject }
+        email: { type: [string, "null"], format: email }
+        fullName: { type: string }
+        enabled: { type: boolean }
+        roles: { type: array, items: { type: string, enum: [CUSTOMER, MERCHANT, COURIER, DISPATCHER, ADMIN] } }
+    AdminUserPage:
+      type: object
+      required: [items, total, page, size]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/AdminUser" } }
+        total: { type: integer }
+        page: { type: integer, description: zero-based }
+        size: { type: integer }
     Courier:
       type: object
       required: [id, fullName, enabled, profileComplete, assignable]

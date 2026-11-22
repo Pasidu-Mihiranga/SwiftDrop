@@ -89,6 +89,9 @@ web:
     AUTH_KEYCLOAK_ISSUER: http://auth.swiftdrop.local/realms/swiftdrop
     AUTH_KEYCLOAK_INTERNAL_URL: http://keycloak:8080
     KEYCLOAK_PUBLIC_URL: http://auth.swiftdrop.local
+    # Map on /quote. The public OpenStreetMap tiles are acceptable for a dev cluster only.
+    MAP_TILE_URL: https://tile.openstreetmap.org/{z}/{x}/{y}.png
+    MAP_TILE_ATTRIBUTION: Map data (c) OpenStreetMap contributors
 api-gateway:
   enabled: true
   config:

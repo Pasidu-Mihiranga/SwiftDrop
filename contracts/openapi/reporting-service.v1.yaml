@@ -1,38 +1,202 @@
 openapi: 3.1.0
 info:
   title: SwiftDrop reporting-service API
-  version: 1.0.0-draft
-  description: Event-driven delivery statistics (DISPATCHER/ADMIN). Owner — M10.
+  version: 1.0.0
+  description: |
+    Delivery statistics for operations staff (DISPATCHER, ADMIN). Owner - M10.
+
+    Source. reporting-service is a read model: it consumes ParcelCreated, ParcelStatusChanged
+    and ParcelAssigned from Kafka and owns no business data. Figures are eventually consistent,
+    normally within a second or two of the event.
+
+    Counting rules.
+      - created:   parcels whose creation falls on the day.
+      - delivered, failed, cancelled: status transitions to that status on the day. A parcel can
+        fail more than once before it is delivered, so `failed` counts attempts, not parcels.
+      - successRate = delivered / (delivered + failed), between 0 and 1; null when there were no
+        delivery attempts in the period.
+      - Zone is the parcel's dropoff zone. Activity seen before the parcel's ParcelCreated event
+        is reported under zone `UNKNOWN` until that event arrives, then moves to the real zone.
+
+    Days. `from` and `to` are inclusive business days in the operator's time zone
+    (Asia/Colombo by default), not UTC. A period may cover at most 366 days.
 servers: [{ url: http://localhost:8080 }]
 security: [{ bearerAuth: [] }]
+tags:
+  - name: reports
+    description: Delivery statistics (DISPATCHER, ADMIN).
 paths:
   /api/v1/reports/daily:
     get:
-      summary: Created / delivered / failed / cancelled per day (optionally per zone)
+      tags: [reports]
+      operationId: dailyReport
+      summary: Created / delivered / failed / cancelled per day, optionally for one zone
+      description: Returns one entry per day of the period, with zeros for days without activity.
       parameters:
-        - { name: from, in: query, required: true, schema: { type: string, format: date } }
-        - { name: to, in: query, required: true, schema: { type: string, format: date } }
-        - { name: zone, in: query, schema: { type: string } }
-      responses: { "200": { description: Series } }
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - $ref: "#/components/parameters/Zone"
+      responses:
+        "200":
+          description: Daily series and totals
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DailyReport" }
+        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
   /api/v1/reports/success-rate:
     get:
-      summary: Delivery success vs failure rate for a period
+      tags: [reports]
+      operationId: successRateReport
+      summary: Delivered vs failed attempts for a period, optionally for one zone
       parameters:
-        - { name: from, in: query, required: true, schema: { type: string, format: date } }
-        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - $ref: "#/components/parameters/Zone"
       responses:
         "200":
           description: Rates
           content:
             application/json:
+              schema: { $ref: "#/components/schemas/SuccessRateReport" }
+        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+  /api/v1/reports/zones:
+    get:
+      tags: [reports]
+      operationId: zoneReport
+      summary: Totals per dropoff zone for a period, ordered by zone code
+      parameters:
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+      responses:
+        "200":
+          description: One entry per zone with activity in the period
+          content:
+            application/json:
               schema:
-                type: object
-                properties:
-                  delivered: { type: integer }
-                  failed: { type: integer }
-                  successRate: { type: number, example: 0.94 }
+                type: array
+                items: { $ref: "#/components/schemas/ZoneReport" }
+        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
   /api/v1/reports/couriers:
-    get: { summary: Per-courier delivered/failed counts, responses: { "200": { description: OK } } }
+    get:
+      tags: [reports]
+      operationId: courierReport
+      summary: Delivered and failed attempts per courier for a period, most deliveries first
+      description: |
+        A transition is credited to the courier named on the status event, or else to the
+        courier the parcel was last assigned to. Courier ids are Keycloak user ids; resolve
+        names through user-service.
+      parameters:
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+      responses:
+        "200":
+          description: One entry per courier with attempts in the period
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CourierReport" }
+        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+  /api/v1/reports/meta/whoami:
+    get:
+      tags: [reports]
+      summary: Smoke test - the caller as seen by reporting-service (any role)
+      responses:
+        "200":
+          description: OK
+          content: { application/json: { schema: { $ref: "common.v1.yaml#/components/schemas/WhoAmI" } } }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
 components:
   securitySchemes:
     bearerAuth: { $ref: "common.v1.yaml#/components/securitySchemes/bearerAuth" }
+  parameters:
+    From:
+      name: from
+      in: query
+      required: true
+      description: First business day, inclusive.
+      schema: { type: string, format: date, example: "2026-10-01" }
+    To:
+      name: to
+      in: query
+      required: true
+      description: Last business day, inclusive. At most 366 days after `from`; 400 INVALID_REPORT_PERIOD otherwise.
+      schema: { type: string, format: date, example: "2026-10-31" }
+    Zone:
+      name: zone
+      in: query
+      description: Restrict to one dropoff zone code (as in pricing-service), or UNKNOWN.
+      schema: { type: string, pattern: "^[A-Z0-9-]{1,32}$", example: CP-KDY }
+  schemas:
+    SuccessRate:
+      type: [number, "null"]
+      minimum: 0
+      maximum: 1
+      description: delivered / (delivered + failed); null when there were no attempts.
+      example: 0.94
+    Totals:
+      type: object
+      required: [created, delivered, failed, cancelled, successRate]
+      properties:
+        created: { type: integer, example: 120 }
+        delivered: { type: integer, example: 104 }
+        failed: { type: integer, example: 7 }
+        cancelled: { type: integer, example: 3 }
+        successRate: { $ref: "#/components/schemas/SuccessRate" }
+    Day:
+      type: object
+      required: [date, created, delivered, failed, cancelled]
+      properties:
+        date: { type: string, format: date, example: "2026-10-20" }
+        created: { type: integer, example: 4 }
+        delivered: { type: integer, example: 3 }
+        failed: { type: integer, example: 1 }
+        cancelled: { type: integer, example: 0 }
+    DailyReport:
+      type: object
+      required: [from, to, totals, days]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        zone: { type: [string, "null"], example: CP-KDY }
+        totals: { $ref: "#/components/schemas/Totals" }
+        days:
+          type: array
+          description: One entry per day from `from` to `to`, in order.
+          items: { $ref: "#/components/schemas/Day" }
+    SuccessRateReport:
+      type: object
+      required: [from, to, delivered, failed, successRate]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        zone: { type: [string, "null"] }
+        delivered: { type: integer, example: 104 }
+        failed: { type: integer, example: 7 }
+        successRate: { $ref: "#/components/schemas/SuccessRate" }
+    ZoneReport:
+      type: object
+      required: [zoneCode, created, delivered, failed, cancelled, successRate]
+      properties:
+        zoneCode: { type: string, example: CP-KDY }
+        created: { type: integer }
+        delivered: { type: integer }
+        failed: { type: integer }
+        cancelled: { type: integer }
+        successRate: { $ref: "#/components/schemas/SuccessRate" }
+    CourierReport:
+      type: object
+      required: [courierId, delivered, failed, successRate]
+      properties:
+        courierId: { type: string, example: a1b2c3d4-0000-4000-8000-00000000c001 }
+        delivered: { type: integer, example: 42 }
+        failed: { type: integer, example: 3 }
+        successRate: { $ref: "#/components/schemas/SuccessRate" }

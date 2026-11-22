@@ -1,0 +1,153 @@
+{
+  "uid": "swiftdrop-m9-observability",
+  "title": "SwiftDrop – Notifications & Business KPIs (M9)",
+  "description": "Comprehensive M9 dashboard covering Business KPIs, Notification Delivery Channels, Service RED metrics, Kafka Consumer Lag, and Trace/Log correlation.",
+  "tags": ["swiftdrop", "m9", "notifications", "observability"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Notification Service Health",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "up{service=\"notification-service\"}", "legendFormat": "notification-service" }],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [{ "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }],
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      },
+      "options": { "colorMode": "background", "graphMode": "none", "textMode": "value_and_name", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Parcel Service Health",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "up{service=\"parcel-service\"}", "legendFormat": "parcel-service" }],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [{ "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }],
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      },
+      "options": { "colorMode": "background", "graphMode": "none", "textMode": "value_and_name", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Total Delivered (KPI)",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum(increase(http_server_requests_seconds_count{service=\"parcel-service\",status=\"200\"}[1h])) or vector(0)", "legendFormat": "Delivered" }],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "green", "mode": "fixed" },
+          "unit": "short"
+        }
+      },
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Receipts Generated (OpenPDF)",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum(increase(http_server_requests_seconds_count{service=\"parcel-service\",uri=~\"/api/v1/parcels/.*/receipt\"}[1h])) or vector(0)", "legendFormat": "Receipts" }],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "blue", "mode": "fixed" },
+          "unit": "short"
+        }
+      },
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Notification Channels Throughput (Emails & Mock SMS)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "sum by (uri) (rate(http_server_requests_seconds_count{service=\"notification-service\"}[1m]))", "legendFormat": "{{uri}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Kafka Consumer Lag – Notification Service",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "sum by (topic) (kafka_consumergroup_lag{consumergroup=\"notification-service\"})", "legendFormat": "Lag: {{topic}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Service RED Metrics – Request Rate",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "sum by (service) (rate(http_server_requests_seconds_count{service=~\"api-gateway|parcel-service|notification-service\"}[1m]))", "legendFormat": "{{service}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Service RED Metrics – 5xx Error Ratio",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "sum by (service) (rate(http_server_requests_seconds_count{service=~\"api-gateway|parcel-service|notification-service\",status=~\"5..\"}[5m])) / clamp_min(sum by (service) (rate(http_server_requests_seconds_count{service=~\"api-gateway|parcel-service|notification-service\"}[5m])), 1e-9)", "legendFormat": "{{service}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "max": 1 } }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Service RED Metrics – P95 Latency",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.95, sum by (service, le) (rate(http_server_requests_seconds_bucket{service=~\"api-gateway|parcel-service|notification-service\"}[5m])))", "legendFormat": "{{service}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Node.js & JVM Memory Usage",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "jvm_memory_used_bytes{area=\"heap\",service=\"parcel-service\"}", "legendFormat": "parcel-service Heap Used" },
+        { "refId": "B", "expr": "process_resident_memory_bytes{service=\"notification-service\"}", "legendFormat": "notification-service RSS" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" } }
+    },
+    {
+      "id": 11,
+      "type": "logs",
+      "title": "Correlated Logs with Trace IDs",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        { "refId": "A", "expr": "{compose_project=\"swiftdrop\", service=~\"notification-service|parcel-service|api-gateway\"}" }
+      ],
+      "options": { "showTime": true, "wrapLogMessage": true, "sortOrder": "Descending" }
+    }
+  ]
+}

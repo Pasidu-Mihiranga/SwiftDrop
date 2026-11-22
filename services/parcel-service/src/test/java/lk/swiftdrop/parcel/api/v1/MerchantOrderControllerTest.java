@@ -22,6 +22,7 @@ import lk.swiftdrop.parcel.application.model.MerchantOrderFilter;
 import lk.swiftdrop.parcel.application.model.MerchantOrderResult;
 import lk.swiftdrop.parcel.application.model.PagedResult;
 import lk.swiftdrop.parcel.application.query.ParcelQueryService;
+import lk.swiftdrop.parcel.application.receipt.ReceiptPdfGenerator;
 import lk.swiftdrop.parcel.domain.exception.IdempotencyKeyReusedException;
 import lk.swiftdrop.parcel.domain.model.IdempotencyKey;
 import lk.swiftdrop.parcel.domain.model.Parcel;
@@ -93,6 +94,9 @@ class MerchantOrderControllerTest {
     private CancelParcelUseCase cancelParcel;
     @MockitoBean
     private ParcelQueryService parcels;
+    /** ParcelController's receipt dependency (M9); not used by these tests. */
+    @MockitoBean
+    private ReceiptPdfGenerator receiptGenerator;
 
     static RequestPostProcessor as(String userId, String merchantId, String... roles) {
         return jwt().jwt(token -> {

@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { SwiftDropCommonModule } from "@swiftdrop/common/nest";
 import { env } from "./config/env";
 import { MetaModule } from "./modules/meta/meta.module";
+import { NotificationModule } from "./modules/notifications/notification.module";
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { MetaModule } from "./modules/meta/meta.module";
       jwksUri: env.KEYCLOAK_JWKS_URI,
     }),
     MetaModule,
+    NotificationModule,
   ],
 })
 export class AppModule {}
