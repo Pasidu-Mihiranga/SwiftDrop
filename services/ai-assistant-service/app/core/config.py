@@ -20,9 +20,12 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None
 
-    # Conversation memory and the PII vault live in Redis. Inside Docker REDIS_URL is set; locally the
-    # URL is built from the same variables the infra profile uses.
+    # Conversation memory and the PII vault live in Redis. Docker Compose sets REDIS_URL; Kubernetes sets
+    # REDIS_HOST and REDIS_PORT (the chart's shared config); locally the URL is built from the same
+    # variables the infra profile uses.
     redis_url: str | None = None
+    redis_host: str = "localhost"
+    redis_port: int | None = None
     redis_host_port: int = 6380
     redis_password: SecretStr | None = None
     # Encrypts the per-conversation PII vault. Without it a random key is used, so vaults do not survive
@@ -50,4 +53,4 @@ class Settings(BaseSettings):
             return self.redis_url
         password = self.redis_password.get_secret_value() if self.redis_password else ""
         auth = f":{password}@" if password else ""
-        return f"redis://{auth}localhost:{self.redis_host_port}/0"
+        return f"redis://{auth}{self.redis_host}:{self.redis_port or self.redis_host_port}/0"
