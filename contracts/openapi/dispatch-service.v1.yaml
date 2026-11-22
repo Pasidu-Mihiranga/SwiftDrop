@@ -1,23 +1,52 @@
 openapi: 3.1.0
 info:
   title: SwiftDrop dispatch-service API
-  version: 1.0.0-draft
-  description: Unassigned pool, courier assignment, run sheets and workloads (DISPATCHER/ADMIN; run sheet for COURIER). Owner — M5.
+  version: 1.0.0
+  description: >-
+    Kafka-fed CQRS parcel pool, assignments, courier workloads and daily run sheets. Owner M5.
+    Business dates default to Asia/Colombo. Capacity is advisory; dispatchers can balance
+    active deliveries using the workload view. Courier identity always comes from JWT sub.
 servers: [{ url: http://localhost:8080 }]
 security: [{ bearerAuth: [] }]
 paths:
   /api/v1/dispatch/unassigned:
     get:
-      summary: Parcels waiting for a courier
+      summary: Unassigned nonterminal parcels, oldest creation first (DISPATCHER, ADMIN)
       parameters:
         - { name: zone, in: query, schema: { type: string } }
-        - $ref: "common.v1.yaml#/components/parameters/Page"
-        - $ref: "common.v1.yaml#/components/parameters/Size"
+        - { name: page, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
       responses:
-        "200": { description: Page of parcel summaries }
+        "200":
+          description: Page of parcel summaries ordered by createdAt then parcelId
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [content, totalElements, page, size]
+                properties:
+                  content: { type: array, items: { $ref: "#/components/schemas/Parcel" } }
+                  totalElements: { type: integer, format: int64 }
+                  page: { type: integer }
+                  size: { type: integer }
+        "400": { description: Invalid pagination }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
   /api/v1/dispatch/assignments:
+    get:
+      summary: Assigned parcels for a date, for reassignment on the board (DISPATCHER, ADMIN)
+      parameters:
+        - { name: date, in: query, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: Assigned runs, ordered by assignedAt then parcelId
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Parcel" } }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
     post:
-      summary: Assign a parcel to a courier (publishes ParcelAssigned)
+      summary: Assign an unallocated parcel and publish ParcelAssigned (DISPATCHER, ADMIN)
+      description: Row lock and unique parcel constraint reject competing allocations. Allocation and outbox commit together.
       requestBody:
         required: true
         content:
@@ -27,41 +56,111 @@ paths:
               required: [parcelId, courierId]
               properties:
                 parcelId: { type: string, format: uuid }
-                courierId: { type: string }
-                runDate: { type: string, format: date }
+                courierId: { type: string, minLength: 1, maxLength: 255 }
+                runDate: { type: string, format: date, description: Today if omitted; must not be in the past }
       responses:
-        "201": { description: Assigned }
-        "409": { $ref: "common.v1.yaml#/components/responses/Conflict" }
-  /api/v1/dispatch/assignments/{assignmentId}/reassign:
-    post:
-      summary: Move an assignment to another courier
-      parameters: [{ name: assignmentId, in: path, required: true, schema: { type: string, format: uuid } }]
-      requestBody:
-        content: { application/json: { schema: { type: object, required: [courierId], properties: { courierId: { type: string } } } } }
-      responses: { "200": { description: Reassigned } }
-  /api/v1/dispatch/workloads:
-    get:
-      summary: Active deliveries, delivered and failed today, per courier
-      responses:
-        "200":
-          description: Workloads
+        "201":
+          description: Assigned
           content:
             application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    courierId: { type: string }
-                    courierName: { type: string }
-                    activeCount: { type: integer }
-                    deliveredToday: { type: integer }
-                    failedToday: { type: integer }
+              schema: { $ref: "#/components/schemas/Allocation" }
+        "400": { description: Invalid assignment body }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "404": { description: Parcel has not reached the read model }
+        "409": { $ref: "common.v1.yaml#/components/responses/Conflict" }
+        "422": { description: Courier unavailable or run date in the past }
+  /api/v1/dispatch/assignments/{assignmentId}/reassign:
+    post:
+      summary: Move a nonterminal assignment to another courier (DISPATCHER, ADMIN)
+      description: Preserves assignmentId and runDate; publishes previousCourierId. Completed and failed parcels cannot be reassigned.
+      parameters:
+        - { name: assignmentId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [courierId]
+              properties:
+                courierId: { type: string, minLength: 1, maxLength: 255 }
+      responses:
+        "200":
+          description: Reassigned
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Allocation" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "404": { description: Assignment not found }
+        "409": { $ref: "common.v1.yaml#/components/responses/Conflict" }
+        "422": { description: Courier unavailable or run date in the past }
+  /api/v1/dispatch/workloads:
+    get:
+      summary: All courier names, capacities and delivery counts (DISPATCHER, ADMIN)
+      description: >-
+        Joins the M1 courier directory using the caller's bearer token. Active excludes DELIVERED,
+        FAILED and CANCELLED; all run dates count. Delivered/failed today count parcels whose current
+        projected status matches and whose latest status timestamp falls in the current business day.
+        Reassignment transfers the parcel's contribution. Capacity is advisory, not a hard limit.
+      responses:
+        "200":
+          description: Courier workloads, including idle and unavailable couriers
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Workload" } }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
   /api/v1/courier/run-sheet:
     get:
-      summary: The calling courier's assignments for a day (COURIER, own data only)
-      parameters: [{ name: date, in: query, schema: { type: string, format: date } }]
-      responses: { "200": { description: Run sheet } }
+      summary: The calling courier's assignments only (COURIER)
+      description: Courier ID cannot be overridden with a query parameter. Includes completed assignments for the requested day.
+      parameters:
+        - { name: date, in: query, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: Run sheet ordered by assignment time
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Parcel" } }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
 components:
   securitySchemes:
     bearerAuth: { $ref: "common.v1.yaml#/components/securitySchemes/bearerAuth" }
+  schemas:
+    Parcel:
+      type: object
+      required: [parcelId, trackingNumber, zone, sizeClass, pickupCity, dropoffCity, createdAt, status]
+      properties:
+        parcelId: { type: string, format: uuid }
+        trackingNumber: { type: string }
+        zone: { type: string, description: Destination zone code }
+        sizeClass: { type: string, enum: [S, M, L, XL] }
+        pickupCity: { type: string }
+        dropoffCity: { type: string }
+        createdAt: { type: string, format: date-time }
+        status: { type: string, enum: [CREATED, PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED, FAILED, CANCELLED] }
+        assignmentId: { type: [string, "null"], format: uuid }
+        courierId: { type: [string, "null"] }
+        runDate: { type: [string, "null"], format: date }
+    Allocation:
+      type: object
+      required: [id, parcelId, courierId, runDate, assignedAt]
+      properties:
+        id: { type: string, format: uuid }
+        parcelId: { type: string, format: uuid }
+        courierId: { type: string }
+        previousCourierId: { type: [string, "null"] }
+        runDate: { type: string, format: date }
+        assignedAt: { type: string, format: date-time }
+    Workload:
+      type: object
+      required: [courierId, courierName, assignable, activeCount, deliveredToday, failedToday]
+      properties:
+        courierId: { type: string }
+        courierName: { type: string }
+        homeZoneId: { type: [string, "null"], format: uuid }
+        capacity: { type: [integer, "null"], minimum: 1 }
+        assignable: { type: boolean }
+        activeCount: { type: integer, minimum: 0 }
+        deliveredToday: { type: integer, minimum: 0 }
+        failedToday: { type: integer, minimum: 0 }
