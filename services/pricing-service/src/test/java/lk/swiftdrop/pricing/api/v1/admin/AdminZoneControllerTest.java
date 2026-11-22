@@ -64,6 +64,16 @@ class AdminZoneControllerTest {
     }
 
     @Test
+    void dispatcherCanResolveZoneIdsWithoutAccessToOtherPricingConfiguration() throws Exception {
+        UUID zoneId = UUID.randomUUID();
+        when(queries.allZones()).thenReturn(List.of(new Zone(zoneId, CENTRAL, "Central", true, List.of())));
+        mvc.perform(get("/api/v1/admin/pricing/zones").with(callerWithRoles("DISPATCHER")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].id").value(zoneId.toString()));
+        mvc.perform(get("/api/v1/admin/pricing/districts").with(callerWithRoles("DISPATCHER")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void zoneAndDistrictWritesAreGone() throws Exception {
         UUID id = UUID.randomUUID();
         mvc.perform(post("/api/v1/admin/pricing/zones").with(callerWithRoles("ADMIN"))
@@ -89,7 +99,7 @@ class AdminZoneControllerTest {
 
     @Test
     void keepsNonAdministratorsOutOfPricingConfiguration() throws Exception {
-        for (String role : List.of("CUSTOMER", "COURIER", "DISPATCHER", "MERCHANT")) {
+        for (String role : List.of("CUSTOMER", "COURIER", "MERCHANT")) {
             mvc.perform(get("/api/v1/admin/pricing/zones").with(callerWithRoles(role)))
                     .andExpect(status().isForbidden())
                     .andExpect(jsonPath("$.code").value("FORBIDDEN"));

@@ -392,7 +392,7 @@ services:
   dispatch-service:
     <<: *app
     build: { context: ., dockerfile: services/dispatch-service/Dockerfile }
-    environment: { <<: *java-env, DB_NAME: dispatch_db, DB_USER: dispatch_svc }
+    environment: { <<: *java-env, DB_NAME: dispatch_db, DB_USER: dispatch_svc, USER_SERVICE_URL: "http://user-service:8081" }
 
   reporting-service:
     <<: *app
