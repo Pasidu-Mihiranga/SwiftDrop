@@ -46,9 +46,22 @@ export async function idToken(): Promise<string | undefined> {
 /** Server components / actions call backend APIs through the gateway with the user's token. */
 export async function gatewayFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const token = await accessToken();
+  const ip = visitorIp(await headers());
   return fetch(`${gatewayUrl()}${path}`, {
     ...init,
     cache: "no-store",
-    headers: { ...(init.headers ?? {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: {
+      ...(init.headers ?? {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      // The gateway rate-limits anonymous callers by IP; without this every visitor would share this server's.
+      ...(ip ? { "X-Forwarded-For": ip } : {}),
+    },
   });
+}
+
+/** The visitor's address as this server received it (first X-Forwarded-For hop, else X-Real-IP). */
+export function visitorIp(requestHeaders: Headers): string | undefined {
+  const forwarded = requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const ip = forwarded || requestHeaders.get("x-real-ip")?.trim();
+  return ip && /^[0-9a-fA-F:.]{2,45}$/.test(ip) ? ip : undefined;
 }
