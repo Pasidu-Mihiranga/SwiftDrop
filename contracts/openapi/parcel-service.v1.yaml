@@ -103,9 +103,27 @@ paths:
                   expiresAt: { type: string, format: date-time }
   /api/v1/merchant/orders:
     post:
-      summary: Merchant system creates a delivery order (OAuth2 client credentials)
+      summary: Merchant system creates a delivery order (MERCHANT_API, OAuth2 client credentials)
+      description: |
+        The merchant is the one in the access token (merchant_id claim); no merchant id is accepted in the path,
+        query or body. Only a merchant parcel-service knows as APPROVED may order: it learns merchant status from
+        merchant-service's lifecycle events, and an unknown merchant is refused (fail closed). pricing-service
+        prices the order inline; weightKg, sizeClass, serviceLevel and codAmount set the fee, and codAmount is not
+        stored.
+
+        Idempotency-Key: the first request with a key creates the order (201). Repeating it with the same key and
+        the same body returns the same order (200, header Idempotent-Replayed: true) without pricing it again or
+        creating anything; concurrent repeats also get the one order. The same key with a different body is 409
+        IDEMPOTENCY_KEY_REUSED. A request that was refused (400, 403, 422, 503) stored nothing, so its key may be
+        used again.
+
+        Errors: 400 VALIDATION_FAILED or IDEMPOTENCY_KEY_INVALID (missing, or not 8 to 100 visible ASCII
+        characters); 403 MERCHANT_NOT_APPROVED or MERCHANT_ID_MISSING; 409 IDEMPOTENCY_KEY_REUSED, or
+        IDEMPOTENCY_KEY_IN_PROGRESS when a concurrent request with the key did not finish (retry with the same
+        key); 422 with pricing-service's code (e.g. DISTRICT_NOT_SERVICED, SIZE_CLASS_WEIGHT_EXCEEDED); 503
+        PRICING_UNAVAILABLE.
       tags: [Merchant API]
-      security: [{ keycloak: [] }]
+      security: [{ keycloak: [] }, { bearerAuth: [] }]
       parameters: [{ $ref: "common.v1.yaml#/components/parameters/IdempotencyKey" }]
       requestBody:
         required: true
@@ -113,18 +131,61 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/MerchantOrderRequest" }
       responses:
-        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Parcel" } } } }
-        "200": { description: Replay of an earlier request with the same Idempotency-Key }
+        "201":
+          description: Order created
+          headers:
+            Location: { description: "/api/v1/parcels/{id}", schema: { type: string } }
+          content: { application/json: { schema: { $ref: "#/components/schemas/MerchantOrder" } } }
+        "200":
+          description: Replay of an earlier request with the same Idempotency-Key and body; nothing new was created
+          headers:
+            Location: { description: "/api/v1/parcels/{id}", schema: { type: string } }
+            Idempotent-Replayed: { description: Always true on a replay, schema: { type: string, enum: ["true"] } }
+          content: { application/json: { schema: { $ref: "#/components/schemas/MerchantOrder" } } }
+        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
         "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "409": { $ref: "common.v1.yaml#/components/responses/Conflict" }
+        "422": { $ref: "common.v1.yaml#/components/responses/UnprocessableContent" }
+        "503":
+          description: pricing-service could not price the order; nothing was stored, retry with the same key
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
     get:
-      summary: The merchant's orders (portal and API)
+      summary: The caller's merchant's orders, newest first (MERCHANT portal user or MERCHANT_API)
+      description: |
+        Only the orders of the merchant in the access token; there is no merchant id parameter, so one merchant
+        cannot list another's orders. A suspended merchant can still read its history. The filters combine: an
+        order must match all of them, and paging counts only matching orders. 403 MERCHANT_ID_MISSING when the
+        token names no merchant; 400 INVALID_DATE_RANGE when from is not before to.
       tags: [Merchant API]
+      security: [{ keycloak: [] }, { bearerAuth: [] }]
       parameters:
+        - { name: status, in: query, schema: { $ref: "common.v1.yaml#/components/schemas/ParcelStatus" } }
+        - name: from
+          in: query
+          description: Orders created at or after this instant (ISO 8601, e.g. 2026-11-01T00:00:00Z).
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          description: Orders created before this instant.
+          schema: { type: string, format: date-time }
+        - name: orderRef
+          in: query
+          description: |
+            Orders whose merchantOrderRef contains this text, ignoring case (for example "1001" finds "WEB-1001").
+            Surrounding spaces are ignored and an empty value means no search. "%" and "_" are matched as
+            ordinary characters, not as wildcards. Added in a backwards-compatible way: clients that do not send
+            it are unaffected.
+          schema: { type: string, maxLength: 100, example: WEB-1001 }
         - $ref: "common.v1.yaml#/components/parameters/Page"
         - $ref: "common.v1.yaml#/components/parameters/Size"
-        - { name: status, in: query, schema: { $ref: "common.v1.yaml#/components/schemas/ParcelStatus" } }
       responses:
-        "200": { description: Page of orders, content: { application/json: { schema: { $ref: "#/components/schemas/ParcelPage" } } } }
+        "200": { description: Page of orders, content: { application/json: { schema: { $ref: "#/components/schemas/MerchantOrderPage" } } } }
+        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
   /api/v1/parcels/meta/whoami:
     get:
       summary: Smoke test (gateway → service → JWT)
@@ -160,16 +221,37 @@ components:
         notes: { type: string, maxLength: 300 }
     MerchantOrderRequest:
       type: object
+      description: There is no merchant id field; any merchantId sent is ignored.
       required: [merchantOrderRef, pickup, dropoff, recipient, weightKg, sizeClass]
       properties:
-        merchantOrderRef: { type: string, maxLength: 100 }
+        merchantOrderRef: { type: string, minLength: 1, maxLength: 100, description: The merchant's own order number. }
         pickup: { $ref: "common.v1.yaml#/components/schemas/Address" }
         dropoff: { $ref: "common.v1.yaml#/components/schemas/Address" }
         recipient: { $ref: "#/components/schemas/Contact" }
         weightKg: { type: number, exclusiveMinimum: 0, maximum: 100 }
         sizeClass: { $ref: "common.v1.yaml#/components/schemas/SizeClass" }
         serviceLevel: { type: string, enum: [STANDARD, EXPRESS, SAME_DAY], default: STANDARD }
-        codAmount: { type: number, minimum: 0 }
+        codAmount: { type: number, minimum: 0, description: Cash to collect; it changes the fee and is not stored. }
+    MerchantOrder:
+      description: A parcel created through the merchant order API.
+      allOf:
+        - { $ref: "#/components/schemas/Parcel" }
+        - type: object
+          required: [id, trackingNumber, status, source, merchantOrderRef, pickup, dropoff, recipient, weightKg,
+                     sizeClass, fee, createdAt]
+          properties:
+            source: { const: MERCHANT }
+            merchantOrderRef: { type: string, minLength: 1 }
+            serviceLevel: { type: string, enum: [STANDARD, EXPRESS, SAME_DAY] }
+    MerchantOrderPage:
+      type: object
+      required: [content, page]
+      properties:
+        content: { type: array, items: { $ref: "#/components/schemas/MerchantOrder" } }
+        page:
+          allOf:
+            - { $ref: "common.v1.yaml#/components/schemas/PageMeta" }
+            - { required: [page, size, totalElements, totalPages] }
     StatusUpdateRequest:
       type: object
       required: [toStatus]

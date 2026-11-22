@@ -6,6 +6,7 @@ import lk.swiftdrop.events.common.Types.ActorRole;
 import lk.swiftdrop.events.merchant.MerchantLifecycleChanged;
 import lk.swiftdrop.merchant.application.port.out.ApiCredentialRepository;
 import lk.swiftdrop.merchant.application.port.out.IdentityProvisioner;
+import lk.swiftdrop.merchant.application.port.out.MerchantMetrics;
 import lk.swiftdrop.merchant.application.port.out.MerchantRepository;
 import lk.swiftdrop.merchant.domain.model.ApiCredential;
 import lk.swiftdrop.merchant.domain.exception.BrNumberAlreadyRegisteredException;
@@ -38,18 +39,29 @@ public class MerchantOnboardingService {
     private final ApiCredentialRepository credentials;
     private final IdentityProvisioner identity;
     private final OutboxWriter outbox;
+    private final MerchantMetrics metrics;
     private final TransactionOperations transaction;
     private final Clock clock;
 
     public MerchantOnboardingService(MerchantRepository merchants, ApiCredentialRepository credentials,
-                                     IdentityProvisioner identity, OutboxWriter outbox,
+                                     IdentityProvisioner identity, OutboxWriter outbox, MerchantMetrics metrics,
                                      TransactionOperations transaction, Clock clock) {
         this.merchants = merchants;
         this.credentials = credentials;
         this.identity = identity;
         this.outbox = outbox;
+        this.metrics = metrics;
         this.transaction = transaction;
         this.clock = clock;
+    }
+
+    /** A stored change and the status it replaced, so it is counted only once it has committed. */
+    private record Change(MerchantStatus from, Merchant merchant) {
+    }
+
+    private Merchant committed(Change change) {
+        metrics.statusChanged(change.from(), change.merchant().status());
+        return change.merchant();
     }
 
     /**
@@ -60,7 +72,7 @@ public class MerchantOnboardingService {
      * @throws BrNumberAlreadyRegisteredException when another active application uses the number
      */
     public Merchant register(AuthenticatedUser applicant, BusinessDetails business) {
-        return transaction.execute(status -> {
+        return committed(transaction.execute(status -> {
             if (merchants.existsActiveByOwner(applicant.id())) {
                 throw new MerchantApplicationExistsException();
             }
@@ -71,8 +83,8 @@ public class MerchantOnboardingService {
             Merchant merchant = merchants.save(Merchant.register(applicant.id(), business, clock.instant()));
             // The applicant does not hold the MERCHANT role yet: they apply from an ordinary account.
             outbox.publish(toEvent(merchant, null, new Actor(applicant.id(), ActorRole.CUSTOMER)));
-            return merchant;
-        });
+            return new Change(null, merchant);
+        }));
     }
 
     /**
@@ -95,7 +107,7 @@ public class MerchantOnboardingService {
         String clientId = identity.provisionClient(pending.id());
         identity.grantMerchantRole(pending.ownerUserId(), pending.id());
 
-        return transaction.execute(status -> {
+        return committed(transaction.execute(status -> {
             // Reloaded inside the transaction: another admin may have decided in the meantime.
             Merchant current = merchants.findById(merchantId).orElseThrow(MerchantNotFoundException::new);
             Merchant approved = merchants.save(current.approve(admin.id(), clock.instant()));
@@ -103,8 +115,8 @@ public class MerchantOnboardingService {
                 credentials.save(ApiCredential.issue(approved.id(), clientId, clock.instant()));
             }
             outbox.publish(toEvent(approved, current.status(), new Actor(admin.id(), ActorRole.ADMIN)));
-            return approved;
-        });
+            return new Change(current.status(), approved);
+        }));
     }
 
     /** Turns down a PENDING application with a reason the applicant can read. */
@@ -118,12 +130,12 @@ public class MerchantOnboardingService {
     }
 
     private Merchant decide(AuthenticatedUser admin, UUID merchantId, UnaryOperator<Merchant> decision) {
-        return transaction.execute(status -> {
+        return committed(transaction.execute(status -> {
             Merchant current = merchants.findById(merchantId).orElseThrow(MerchantNotFoundException::new);
             Merchant decided = merchants.save(decision.apply(current));
             outbox.publish(toEvent(decided, current.status(), new Actor(admin.id(), ActorRole.ADMIN)));
-            return decided;
-        });
+            return new Change(current.status(), decided);
+        }));
     }
 
     private static MerchantLifecycleChanged toEvent(Merchant merchant, MerchantStatus previous, Actor changedBy) {

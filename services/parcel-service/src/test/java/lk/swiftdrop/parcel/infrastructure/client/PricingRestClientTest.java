@@ -1,8 +1,14 @@
 package lk.swiftdrop.parcel.infrastructure.client;
 
 import lk.swiftdrop.parcel.PricingStub;
+import lk.swiftdrop.events.common.Types.ServiceLevel;
+import lk.swiftdrop.events.common.Types.SizeClass;
+import lk.swiftdrop.parcel.application.exception.OrderNotPriceableException;
 import lk.swiftdrop.parcel.application.exception.PricingUnavailableException;
+import lk.swiftdrop.parcel.application.model.MerchantQuoteRequest;
 import lk.swiftdrop.parcel.application.model.Quote;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -11,6 +17,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
@@ -134,5 +141,152 @@ class PricingRestClientTest {
         }
 
         assertThat(pricing.calls()).hasSize(5);
+    }
+
+    // --- merchant orders: POST /api/v1/pricing/quotes
+
+    private static final MerchantQuoteRequest ORDER = new MerchantQuoteRequest("Colombo 03", "Colombo", "Kandy",
+            "Kandy", new BigDecimal("2.0"), SizeClass.S, ServiceLevel.EXPRESS, new BigDecimal("4500"));
+    private static final String REFUSAL = """
+            {"type":"about:blank","title":"Unprocessable Content","status":422,"code":"DISTRICT_NOT_SERVICED",
+             "detail":"Mullaitivu is not in a serviced zone."}""";
+
+    @Test
+    void anOrderIsPricedFromWhatItSendsIncludingCod() {
+        Quote quote = client.quote(ORDER);
+
+        assertThat(quote.fee().amount()).isEqualByComparingTo("650.00");
+        assertThat(quote.fromZone()).isEqualTo("WP-COL");
+        assertThat(quote.quoteId()).isNotNull();
+        JsonNode sent = JsonMapper.builder().build().readTree(pricing.calls().getFirst().body());
+        assertThat(pricing.calls().getFirst().path()).isEqualTo("/api/v1/pricing/quotes");
+        assertThat(sent.get("fromDistrict").asString()).isEqualTo("Colombo");
+        assertThat(sent.get("toCity").asString()).isEqualTo("Kandy");
+        assertThat(sent.get("weightKg").decimalValue()).isEqualByComparingTo("2.0");
+        assertThat(sent.get("sizeClass").asString()).isEqualTo("S");
+        assertThat(sent.get("serviceLevel").asString()).isEqualTo("EXPRESS");
+        assertThat(sent.get("codAmount").decimalValue()).isEqualByComparingTo("4500");
+    }
+
+    @Test
+    void anOrderQuoteNeverCarriesTheMerchantsTokenButKeepsTheCorrelationId() {
+        Jwt merchantToken = Jwt.withTokenValue("merchant-access-token").header("alg", "none")
+                .subject("service-account-merchant-a1").claim("merchant_id", "merchant-a1").build();
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(merchantToken));
+        MDC.put("correlationId", "corr-order-7");
+
+        client.quote(ORDER);
+
+        assertThat(pricing.calls()).singleElement().satisfies(call -> {
+            assertThat(call.path()).isEqualTo("/api/v1/pricing/quotes");
+            assertThat(call.authorization()).as("no credentials for the public quote endpoint").isNull();
+            assertThat(call.correlationId()).isEqualTo("corr-order-7");
+        });
+    }
+
+    @Test
+    void aCustomerQuoteCheckStillRelaysTheTokenAfterAnOrderQuote() {
+        pricing.validQuote(quoteId, EXPIRES_AT);
+        Jwt jwt = Jwt.withTokenValue("caller-token").header("alg", "none").subject("cust-1").build();
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
+
+        client.quote(ORDER);
+        client.findQuote(quoteId);
+
+        assertThat(pricing.calls()).hasSize(2);
+        assertThat(pricing.calls().get(0).authorization()).isNull();
+        assertThat(pricing.calls().get(1).path()).isEqualTo("/api/v1/pricing/quotes/" + quoteId);
+        assertThat(pricing.calls().get(1).authorization()).isEqualTo("Bearer caller-token");
+    }
+
+    @Test
+    void aRefusalPassesOnPricingsCodeAndDetail() {
+        pricing.answerNewQuotes(422, REFUSAL);
+
+        assertThatThrownBy(() -> client.quote(ORDER))
+                .isInstanceOfSatisfying(OrderNotPriceableException.class, e -> {
+                    assertThat(e.status().value()).isEqualTo(422);
+                    assertThat(e.code()).isEqualTo("DISTRICT_NOT_SERVICED");
+                    assertThat(e.getMessage()).isEqualTo("Mullaitivu is not in a serviced zone.");
+                });
+    }
+
+    @Test
+    void aBadRequestFromPricingIsAlsoARefusalOfTheOrder() {
+        pricing.answerNewQuotes(400, "{\"code\":\"VALIDATION_FAILED\",\"detail\":\"weightKg is too large\"}");
+
+        assertThatThrownBy(() -> client.quote(ORDER))
+                .isInstanceOfSatisfying(OrderNotPriceableException.class,
+                        e -> assertThat(e.code()).isEqualTo("VALIDATION_FAILED"));
+    }
+
+    @Test
+    void aRefusalWithoutABodyStillHasACode() {
+        pricing.answerNewQuotes(422, "");
+
+        assertThatThrownBy(() -> client.quote(ORDER))
+                .isInstanceOfSatisfying(OrderNotPriceableException.class,
+                        e -> assertThat(e.code()).isEqualTo(OrderNotPriceableException.DEFAULT_CODE));
+    }
+
+    @Test
+    void refusalsAreAnswersAndNeverOpenTheCircuit() {
+        client = new PricingRestClient(properties(pricing.baseUrl(), 4, 2));
+        pricing.answerNewQuotes(422, REFUSAL);
+        for (int i = 0; i < 6; i++) {
+            assertThatThrownBy(() -> client.quote(ORDER)).isInstanceOf(OrderNotPriceableException.class);
+        }
+
+        pricing.reset();
+
+        assertThat(client.quote(ORDER).fee().amount()).isEqualByComparingTo("650.00");
+    }
+
+    @Test
+    void aServerErrorMeansPricingIsUnavailableForAnOrder() {
+        pricing.answerNewQuotes(500, "{}");
+
+        assertThatThrownBy(() -> client.quote(ORDER))
+                .isInstanceOfSatisfying(PricingUnavailableException.class,
+                        e -> assertThat(e.status().value()).isEqualTo(503));
+    }
+
+    @Test
+    void aSlowPricingServiceTimesOutAsUnavailable() {
+        pricing.slowNewQuotes(Duration.ofSeconds(2));
+
+        assertThatThrownBy(() -> client.quote(ORDER)).isInstanceOf(PricingUnavailableException.class);
+    }
+
+    @Test
+    void anIncompleteQuoteIsUnavailableNotAZeroFee() {
+        pricing.answerNewQuotes(200, "{\"quoteId\":\"" + UUID.randomUUID() + "\"}");
+
+        assertThatThrownBy(() -> client.quote(ORDER)).isInstanceOf(PricingUnavailableException.class);
+    }
+
+    @Test
+    void onceTheCircuitOpensOrdersFailFastWithoutCallingPricing() {
+        client = new PricingRestClient(properties(pricing.baseUrl(), 2, 2));
+        pricing.answerNewQuotes(500, "{}");
+        for (int i = 0; i < 2; i++) {
+            assertThatThrownBy(() -> client.quote(ORDER)).isInstanceOf(PricingUnavailableException.class);
+        }
+        int callsBefore = pricing.calls().size();
+
+        assertThatThrownBy(() -> client.quote(ORDER)).isInstanceOf(PricingUnavailableException.class);
+        assertThat(pricing.calls()).hasSize(callsBefore);
+    }
+
+    @Test
+    void ordersAndQuoteChecksShareOneCircuit() {
+        client = new PricingRestClient(properties(pricing.baseUrl(), 2, 2));
+        pricing.answerNewQuotes(500, "{}");
+        for (int i = 0; i < 2; i++) {
+            assertThatThrownBy(() -> client.quote(ORDER)).isInstanceOf(PricingUnavailableException.class);
+        }
+
+        // a customer booking now fails fast too: pricing-service is plainly down
+        assertThatThrownBy(() -> client.findQuote(quoteId)).isInstanceOf(PricingUnavailableException.class);
     }
 }

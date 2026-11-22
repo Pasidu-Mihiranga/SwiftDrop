@@ -10,7 +10,13 @@ vi.mock("@/auth", () => ({ auth: authMock }));
 vi.mock("@/lib/gateway", () => ({ gatewayFetch: gatewayFetchMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 
-import { approveMerchant, registerMerchant, rejectMerchant, suspendMerchant } from "@/lib/merchant-actions";
+import {
+  approveMerchant,
+  registerMerchant,
+  rejectMerchant,
+  rotateCredentials,
+  suspendMerchant,
+} from "@/lib/merchant-actions";
 
 const IDLE = { status: "idle" } as const;
 const MERCHANT_ID = "7e726c28-4a72-4fea-9ec1-c56b08262ddc";
@@ -225,5 +231,86 @@ describe("admin decisions", () => {
     respondProblem(403, { code: "FORBIDDEN", detail: "Access is denied." });
 
     expect((await approveMerchant(IDLE, form({ merchantId: MERCHANT_ID }))).message).toBe("Access is denied.");
+  });
+});
+
+describe("rotateCredentials", () => {
+  const CREDENTIALS = {
+    clientId: `merchant-${MERCHANT_ID}`,
+    clientSecret: "s3cr3t-value",
+    tokenUrl: "http://localhost:8180/realms/swiftdrop/protocol/openid-connect/token",
+  };
+  const confirmed = () => form({ confirm: "on" });
+
+  it("returns the new credentials once, from merchant-service, with nothing else sent", async () => {
+    signedInAs("CUSTOMER", "MERCHANT");
+    gatewayFetchMock.mockResolvedValue(new Response(JSON.stringify(CREDENTIALS), { status: 200 }));
+
+    const state = await rotateCredentials(IDLE, confirmed());
+
+    expect(state).toEqual({ status: "ok", credentials: CREDENTIALS });
+    expect(sentRequest().path).toBe("/api/v1/merchants/me/credentials/rotate");
+    expect(sentRequest().init).toEqual({ method: "POST" });
+  });
+
+  it("needs the box ticked, because the old secret stops working", async () => {
+    signedInAs("MERCHANT");
+
+    const state = await rotateCredentials(IDLE, form({}));
+
+    expect(state.status).toBe("error");
+    expect(state.message).toMatch(/Tick the box/);
+    expect(gatewayFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("is refused to someone who is not a merchant", async () => {
+    signedInAs("CUSTOMER");
+
+    const state = await rotateCredentials(IDLE, confirmed());
+
+    expect(state).toEqual({ status: "error", message: "Sign in as a merchant to manage API credentials." });
+    expect(gatewayFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("explains a suspended merchant in plain words", async () => {
+    signedInAs("MERCHANT");
+    respondProblem(422, { code: "MERCHANT_NOT_APPROVED", detail: "Merchant is SUSPENDED" });
+
+    const state = await rotateCredentials(IDLE, confirmed());
+
+    expect(state.status).toBe("error");
+    expect(state.message).toMatch(/suspended/);
+    expect(state.credentials).toBeUndefined();
+  });
+
+  it("says retrying is safe when Keycloak did not confirm", async () => {
+    signedInAs("MERCHANT");
+    respondProblem(503, { code: "IDENTITY_PROVIDER_UNAVAILABLE" });
+
+    expect((await rotateCredentials(IDLE, confirmed())).message).toMatch(/safe to retry/);
+  });
+
+  it("falls back to the service's own detail for an unknown problem", async () => {
+    signedInAs("MERCHANT");
+    respondProblem(409, { code: "SOMETHING_NEW", detail: "Something new happened" });
+
+    expect((await rotateCredentials(IDLE, confirmed())).message).toBe("Something new happened");
+  });
+
+  it("reports an unreachable service", async () => {
+    signedInAs("MERCHANT");
+    gatewayFetchMock.mockRejectedValue(new TypeError("fetch failed"));
+
+    expect((await rotateCredentials(IDLE, confirmed())).message).toMatch(/unreachable/);
+  });
+
+  it("shows no credentials when the answer is incomplete", async () => {
+    signedInAs("MERCHANT");
+    gatewayFetchMock.mockResolvedValue(new Response(JSON.stringify({ clientId: CREDENTIALS.clientId }), { status: 200 }));
+
+    const state = await rotateCredentials(IDLE, confirmed());
+
+    expect(state.status).toBe("error");
+    expect(state.credentials).toBeUndefined();
   });
 });

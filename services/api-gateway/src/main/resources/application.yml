@@ -33,6 +33,32 @@ spring:
                 allow-credentials: true
                 max-age: 3600
           routes:
+            # OpenAPI documents, one per Java service, for the Swagger UI below. Each service serves
+            # its own at /v3/api-docs; here it is reachable as /api-docs/<service>.
+            - id: user-service-api-docs
+              uri: ${USER_SERVICE_URL:http://localhost:8081}
+              predicates: [Path=/api-docs/user-service]
+              filters: [SetPath=/v3/api-docs]
+            - id: merchant-service-api-docs
+              uri: ${MERCHANT_SERVICE_URL:http://localhost:8082}
+              predicates: [Path=/api-docs/merchant-service]
+              filters: [SetPath=/v3/api-docs]
+            - id: pricing-service-api-docs
+              uri: ${PRICING_SERVICE_URL:http://localhost:8083}
+              predicates: [Path=/api-docs/pricing-service]
+              filters: [SetPath=/v3/api-docs]
+            - id: parcel-service-api-docs
+              uri: ${PARCEL_SERVICE_URL:http://localhost:8084}
+              predicates: [Path=/api-docs/parcel-service]
+              filters: [SetPath=/v3/api-docs]
+            - id: dispatch-service-api-docs
+              uri: ${DISPATCH_SERVICE_URL:http://localhost:8085}
+              predicates: [Path=/api-docs/dispatch-service]
+              filters: [SetPath=/v3/api-docs]
+            - id: reporting-service-api-docs
+              uri: ${REPORTING_SERVICE_URL:http://localhost:8086}
+              predicates: [Path=/api-docs/reporting-service]
+              filters: [SetPath=/v3/api-docs]
             - id: user-service
               uri: ${USER_SERVICE_URL:http://localhost:8081}
               predicates:
@@ -93,6 +119,12 @@ swiftdrop:
       - /api/v1/assistant/**         # assistant serves anonymous users with public tools only
       - /mcp/**                      # MCP server authenticates its own clients
       - /ws/tracking/**              # Socket.IO authenticates in its handshake
+      # API documentation (turn off with API_DOCS_ENABLED=false). The documents describe the
+      # API; calling it from the Swagger UI still needs a token.
+      - /swagger-ui.html
+      - /swagger-ui/**
+      - /webjars/swagger-ui/**
+      - /api-docs/**
     # Requests per minute per caller; over the limit the gateway answers 429 RATE_LIMITED.
     rate-limit:
       enabled: ${GATEWAY_RATE_LIMIT_ENABLED:true}
@@ -100,6 +132,24 @@ swiftdrop:
       anonymous-per-minute: ${GATEWAY_RATE_LIMIT_ANON_PER_MINUTE:60}        # per client IP
       # Address prefixes whose X-Forwarded-For is believed (web server, ingress). Comma-separated.
       trusted-proxies: ${GATEWAY_TRUSTED_PROXIES:127.0.0.1,0:0:0:0:0:0:0:1}
+
+# One Swagger UI for the whole API at /swagger-ui.html, with a document per service to choose from.
+springdoc:
+  api-docs:
+    enabled: ${API_DOCS_ENABLED:true}
+    # The gateway's own document (it has no controllers) stays out of the way of /api-docs/<service>.
+    path: /api-docs/gateway
+  swagger-ui:
+    enabled: ${API_DOCS_ENABLED:true}
+    path: /swagger-ui.html
+    urls-primary-name: merchant-service
+    urls:
+      - { name: merchant-service, url: /api-docs/merchant-service }
+      - { name: parcel-service, url: /api-docs/parcel-service }
+      - { name: pricing-service, url: /api-docs/pricing-service }
+      - { name: user-service, url: /api-docs/user-service }
+      - { name: dispatch-service, url: /api-docs/dispatch-service }
+      - { name: reporting-service, url: /api-docs/reporting-service }
 
 server:
   port: ${PORT:8080}

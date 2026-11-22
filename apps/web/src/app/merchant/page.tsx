@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { auth } from "@/auth";
+import { MerchantNav } from "@/components/merchant-nav";
 import { LiveToasts } from "@/components/tracking/live-toasts";
 import { gatewayFetch } from "@/lib/gateway";
 
@@ -56,6 +57,7 @@ export default async function MerchantHome() {
   return (
     <div className="space-y-5">
       <LiveToasts />
+      <MerchantNav current="/merchant" />
 
       {/* Header matching PR #36 */}
       <header className="flex flex-wrap items-end justify-between gap-4">
@@ -75,6 +77,12 @@ export default async function MerchantHome() {
         <div className="flex flex-wrap items-center gap-2">
           <Link href="/merchant/register" className="btn-secondary py-2 text-xs">
             Onboarding status
+          </Link>
+          <Link href="/merchant/orders" className="btn-secondary py-2 text-xs">
+            Orders
+          </Link>
+          <Link href="/merchant/credentials" className="btn-secondary py-2 text-xs">
+            API credentials
           </Link>
           <Link href="/merchant/webhooks" className="btn-primary py-2 text-xs">
             Manage webhooks &amp; logs

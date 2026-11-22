@@ -77,9 +77,16 @@ class KeycloakAdminAdapterTest {
                 .andRespond(withStatus(HttpStatus.NO_CONTENT));
     }
 
+    /** The machine client gets MERCHANT_API and loses the default roles that would make it a CUSTOMER. */
     private void expectServiceAccountWithMerchantApi() {
         expectGet(ADMIN + "/clients/client-uuid/service-account-user", "{\"id\":\"sa-1\"}");
         expectRoleMapping("sa-1", "MERCHANT_API", "role-api");
+        expectGet(ADMIN + "/roles/default-roles-swiftdrop", "{\"id\":\"role-default\",\"name\":\"default-roles-swiftdrop\"}");
+        server.expect(once(), requestTo(ADMIN + "/users/sa-1/role-mappings/realm"))
+                .andExpect(method(HttpMethod.DELETE))
+                .andExpect(jsonPath("$[0].id").value("role-default"))
+                .andExpect(jsonPath("$[0].name").value("default-roles-swiftdrop"))
+                .andRespond(withStatus(HttpStatus.NO_CONTENT));
     }
 
     @Test

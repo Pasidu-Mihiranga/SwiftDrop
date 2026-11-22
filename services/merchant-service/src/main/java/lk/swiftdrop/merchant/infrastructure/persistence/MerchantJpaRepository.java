@@ -14,6 +14,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -104,5 +106,17 @@ public class MerchantJpaRepository implements MerchantRepository {
         Page<MerchantEntity> found = rows.findByStatus(status, PageRequest.of(page, size, OLDEST_FIRST));
         return new PagedResult<>(found.map(MerchantEntityMapper::toDomain).getContent(), found.getNumber(),
                 found.getSize(), found.getTotalElements(), found.getTotalPages());
+    }
+
+    @Override
+    public Map<MerchantStatus, Long> countByStatus() {
+        Map<MerchantStatus, Long> counts = new EnumMap<>(MerchantStatus.class);
+        for (MerchantStatus status : MerchantStatus.values()) {
+            counts.put(status, 0L);
+        }
+        for (SpringDataMerchantRepository.StatusCount row : rows.countGroupedByStatus()) {
+            counts.put(row.getStatus(), row.getTotal());
+        }
+        return counts;
     }
 }

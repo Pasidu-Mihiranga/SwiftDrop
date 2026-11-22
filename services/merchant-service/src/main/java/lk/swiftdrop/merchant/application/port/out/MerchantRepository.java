@@ -4,6 +4,7 @@ import lk.swiftdrop.merchant.application.model.PagedResult;
 import lk.swiftdrop.merchant.domain.model.Merchant;
 import lk.swiftdrop.merchant.domain.model.MerchantStatus;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -36,4 +37,11 @@ public interface MerchantRepository {
 
     /** One page of applications in one status, oldest first: the order an admin works through the queue. */
     PagedResult<Merchant> findByStatus(MerchantStatus status, int page, int size);
+
+    /**
+     * How many applications are in each status, for monitoring. Every status is present, with 0
+     * when none is in it. Rejected applications stay as history, so an owner who applied again
+     * counts once as REJECTED and once in their current status.
+     */
+    Map<MerchantStatus, Long> countByStatus();
 }
