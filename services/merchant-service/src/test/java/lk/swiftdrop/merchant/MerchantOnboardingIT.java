@@ -6,6 +6,7 @@ import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SchemaLocation;
 import com.networknt.schema.SchemaValidatorsConfig;
 import com.networknt.schema.SpecVersion;
+import io.micrometer.core.instrument.MeterRegistry;
 import lk.swiftdrop.common.security.AuthenticatedUser;
 import lk.swiftdrop.merchant.application.command.MerchantOnboardingService;
 import lk.swiftdrop.merchant.application.model.PagedResult;
@@ -81,6 +82,8 @@ class MerchantOnboardingIT {
     private TransactionOperations transaction;
     @Autowired
     private JdbcTemplate jdbc;
+    @Autowired
+    private MeterRegistry meters;
     /** Keycloak itself is exercised by KeycloakAdminAdapterIT; here it only has to succeed. */
     @MockitoBean
     private IdentityProvisioner identity;
@@ -194,6 +197,30 @@ class MerchantOnboardingIT {
         assertThat(second.status()).isEqualTo(MerchantStatus.PENDING);
         assertThat(queries.mine("user-1").id()).isEqualTo(second.id());
         assertThat(count("SELECT count(*) FROM merchant WHERE owner_user_id = 'user-1'")).isEqualTo(2);
+    }
+
+    @Test
+    void theMonitoringCountsComeFromTheDatabaseAndEveryStatusIsPresent() {
+        assertThat(repository.countByStatus()).containsOnlyKeys(MerchantStatus.values())
+                .allSatisfy((status, total) -> assertThat(total).isZero());
+        double registeredBefore = meters.get("merchant.status.changes").tag("from", "NONE").tag("to", "PENDING")
+                .counter().count();
+
+        Merchant approved = onboarding.register(MerchantFixtures.user("user-1"), business("PV10001"));
+        Merchant rejected = onboarding.register(MerchantFixtures.user("user-2"), business("PV10002"));
+        Merchant suspended = onboarding.register(MerchantFixtures.user("user-3"), business("PV10003"));
+        onboarding.register(MerchantFixtures.user("user-4"), business("PV10004"));
+        onboarding.approve(ADMIN, approved.id());
+        onboarding.reject(ADMIN, rejected.id(), "Incomplete");
+        onboarding.approve(ADMIN, suspended.id());
+        onboarding.suspend(ADMIN, suspended.id());
+
+        assertThat(repository.countByStatus()).containsExactlyInAnyOrderEntriesOf(Map.of(
+                MerchantStatus.PENDING, 1L, MerchantStatus.APPROVED, 1L,
+                MerchantStatus.REJECTED, 1L, MerchantStatus.SUSPENDED, 1L));
+        assertThat(meters.get("merchant.status.changes").tag("from", "NONE").tag("to", "PENDING").counter().count())
+                .isEqualTo(registeredBefore + 4);
+        assertThat(meters.get("merchant.applications").tag("status", "SUSPENDED").gauge().value()).isNotNaN();
     }
 
     @Test

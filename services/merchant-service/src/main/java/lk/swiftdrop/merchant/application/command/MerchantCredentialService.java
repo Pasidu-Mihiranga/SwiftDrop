@@ -5,6 +5,7 @@ import lk.swiftdrop.merchant.application.exception.ApiCredentialNotFoundExceptio
 import lk.swiftdrop.merchant.application.model.RotatedCredential;
 import lk.swiftdrop.merchant.application.port.out.ApiCredentialRepository;
 import lk.swiftdrop.merchant.application.port.out.IdentityProvisioner;
+import lk.swiftdrop.merchant.application.port.out.MerchantMetrics;
 import lk.swiftdrop.merchant.application.port.out.MerchantRepository;
 import lk.swiftdrop.merchant.domain.exception.MerchantNotApprovedException;
 import lk.swiftdrop.merchant.domain.exception.MerchantNotFoundException;
@@ -33,14 +34,17 @@ public class MerchantCredentialService {
     private final MerchantRepository merchants;
     private final ApiCredentialRepository credentials;
     private final IdentityProvisioner identity;
+    private final MerchantMetrics metrics;
     private final TransactionOperations transaction;
     private final Clock clock;
 
     public MerchantCredentialService(MerchantRepository merchants, ApiCredentialRepository credentials,
-                                     IdentityProvisioner identity, TransactionOperations transaction, Clock clock) {
+                                     IdentityProvisioner identity, MerchantMetrics metrics,
+                                     TransactionOperations transaction, Clock clock) {
         this.merchants = merchants;
         this.credentials = credentials;
         this.identity = identity;
+        this.metrics = metrics;
         this.transaction = transaction;
         this.clock = clock;
     }
@@ -82,6 +86,8 @@ public class MerchantCredentialService {
             String secret = identity.regenerateClientSecret(credential.keycloakClientId());
             return new RotatedCredential(credential.keycloakClientId(), secret);
         });
+        // Counted once the transaction has committed and Keycloak has issued the new secret.
+        metrics.credentialRotated();
         log.info("API credential {} rotated for merchant {}", rotated.clientId(), merchantId);
         return rotated;
     }

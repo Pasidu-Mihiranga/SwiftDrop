@@ -7,6 +7,7 @@ import lk.swiftdrop.merchant.application.exception.IdentityProviderUnavailableEx
 import lk.swiftdrop.merchant.application.model.RotatedCredential;
 import lk.swiftdrop.merchant.application.port.out.ApiCredentialRepository;
 import lk.swiftdrop.merchant.application.port.out.IdentityProvisioner;
+import lk.swiftdrop.merchant.application.port.out.MerchantMetrics;
 import lk.swiftdrop.merchant.application.port.out.MerchantRepository;
 import lk.swiftdrop.merchant.domain.exception.MerchantNotApprovedException;
 import lk.swiftdrop.merchant.domain.exception.MerchantNotFoundException;
@@ -53,6 +54,8 @@ class MerchantCredentialServiceTest {
     private ApiCredentialRepository credentials;
     @Mock
     private IdentityProvisioner identity;
+    @Mock
+    private MerchantMetrics metrics;
 
     private MerchantCredentialService service;
     private Merchant approved;
@@ -60,7 +63,7 @@ class MerchantCredentialServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new MerchantCredentialService(merchants, credentials, identity,
+        service = new MerchantCredentialService(merchants, credentials, identity, metrics,
                 TransactionOperations.withoutTransaction(), CLOCK);
         approved = MerchantFixtures.stored(MerchantFixtures.pending().approve("admin-1", NOW));
         credential = ApiCredential.issue(approved.id(), "merchant-" + approved.id(), NOW);
@@ -97,6 +100,26 @@ class MerchantCredentialServiceTest {
         assertThat(saved.getValue().id()).isEqualTo(credential.id());
         assertThat(saved.getValue().rotatedAt()).isEqualTo(ROTATED_AT);
         assertThat(saved.getValue().toString()).doesNotContain(NEW_SECRET);
+    }
+
+    @Test
+    void aRotationIsCountedOnlyOnceKeycloakHasIssuedTheSecret() {
+        stored(approved, credential);
+        when(identity.regenerateClientSecret(credential.keycloakClientId())).thenReturn(NEW_SECRET);
+
+        service.rotate(owner());
+
+        verify(metrics).credentialRotated();
+    }
+
+    @Test
+    void aFailedRotationIsNotCounted() {
+        stored(approved, credential);
+        when(identity.regenerateClientSecret(any()))
+                .thenThrow(new IdentityProviderUnavailableException("The identity provider is not reachable right now"));
+
+        assertThatThrownBy(() -> service.rotate(owner())).isInstanceOf(IdentityProviderUnavailableException.class);
+        verifyNoInteractions(metrics);
     }
 
     @Test
