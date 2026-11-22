@@ -10,6 +10,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lk.swiftdrop.events.common.Types.ActorRole;
+import lk.swiftdrop.events.common.Types.FailureReason;
+import lk.swiftdrop.events.common.Types.Location;
 import lk.swiftdrop.events.common.Types.ParcelStatus;
 
 import java.time.Instant;
@@ -48,6 +50,34 @@ public class ParcelStatusHistoryEntity {
     @Column(name = "occurred_at", nullable = false, updatable = false)
     private Instant occurredAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "failure_reason", length = 30, updatable = false)
+    private FailureReason failureReason;
+
+    @Column(name = "proof_type", length = 20, updatable = false)
+    private String proofType;
+
+    @Column(name = "proof_id", length = 64, updatable = false)
+    private String proofId;
+
+    @Column(name = "received_by", length = 100, updatable = false)
+    private String receivedBy;
+
+    @Column(name = "lat", precision = 9, scale = 6, updatable = false)
+    private Double latitude;
+
+    @Column(name = "lng", precision = 9, scale = 6, updatable = false)
+    private Double longitude;
+
+    @Column(name = "location_city", length = 120, updatable = false)
+    private String locationCity;
+
+    @Column(name = "location_district", length = 120, updatable = false)
+    private String locationDistrict;
+
+    @Column(name = "location_zone_code", length = 80, updatable = false)
+    private String locationZoneCode;
+
     protected ParcelStatusHistoryEntity() {
         // for JPA
     }
@@ -62,6 +92,24 @@ public class ParcelStatusHistoryEntity {
         this.actorRole = actorRole;
         this.note = note;
         this.occurredAt = occurredAt;
+    }
+
+    ParcelStatusHistoryEntity(ParcelEntity parcel, StatusChangeData data) {
+        this(parcel, data.fromStatus(), data.toStatus(), data.actorId(), data.actorRole(), data.note(), data.occurredAt());
+        this.failureReason = data.failureReason();
+        this.proofType = data.proofType();
+        this.proofId = data.proofId();
+        this.receivedBy = data.receivedBy();
+        if (data.location() != null) {
+            this.locationCity = data.location().city();
+            this.locationDistrict = data.location().district();
+            this.locationZoneCode = data.location().zoneCode();
+        }
+    }
+
+    record StatusChangeData(ParcelStatus fromStatus, ParcelStatus toStatus, String actorId, ActorRole actorRole,
+                            String note, Instant occurredAt, FailureReason failureReason, String proofType,
+                            String proofId, String receivedBy, Location location) {
     }
 
     ParcelStatus getFromStatus() {
@@ -86,5 +134,14 @@ public class ParcelStatusHistoryEntity {
 
     Instant getOccurredAt() {
         return occurredAt;
+    }
+
+    FailureReason getFailureReason() { return failureReason; }
+    String getProofType() { return proofType; }
+    String getProofId() { return proofId; }
+    String getReceivedBy() { return receivedBy; }
+    Location getLocation() {
+        if (locationCity == null && locationDistrict == null && locationZoneCode == null) return null;
+        return new Location(locationCity, locationDistrict, locationZoneCode);
     }
 }

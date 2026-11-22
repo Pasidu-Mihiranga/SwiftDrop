@@ -1,6 +1,8 @@
 package lk.swiftdrop.parcel.domain.model;
 
 import lk.swiftdrop.events.common.Types.ActorRole;
+import lk.swiftdrop.events.common.Types.FailureReason;
+import lk.swiftdrop.events.common.Types.Location;
 import lk.swiftdrop.events.common.Types.ParcelSource;
 import lk.swiftdrop.events.common.Types.ParcelStatus;
 import lk.swiftdrop.parcel.domain.exception.ParcelNotCancellableException;
@@ -78,5 +80,27 @@ public record Parcel(UUID id, TrackingNumber trackingNumber, ParcelSource source
         extended.add(new StatusChange(status, ParcelStatus.CANCELLED, actorId, actorRole, null, now));
         return new Parcel(id, trackingNumber, source, customerId, merchantId, merchantOrderRef, details,
                 ParcelStatus.CANCELLED, courierId, extended, createdAt, now, version);
+    }
+
+    public Parcel changeStatus(ParcelStatus target, String actorId, ActorRole actorRole, String note,
+                               FailureReason failureReason, String proofType, String proofId, String receivedBy,
+                               Location location, Instant now) {
+        ParcelStatusTransitions.validate(status, target);
+        if (target == ParcelStatus.FAILED && failureReason == null) {
+            throw new IllegalArgumentException("A failure reason is required");
+        }
+        if (target == ParcelStatus.DELIVERED && proofType == null) {
+            throw new IllegalArgumentException("Delivery proof is required");
+        }
+        List<StatusChange> extended = new ArrayList<>(history);
+        extended.add(new StatusChange(status, target, actorId, actorRole, note, now, failureReason,
+                proofType, proofId, receivedBy, location));
+        return new Parcel(id, trackingNumber, source, customerId, merchantId, merchantOrderRef, details,
+                target, courierId, extended, createdAt, now, version);
+    }
+
+    public Parcel assignCourier(String assignedCourierId, Instant now) {
+        return new Parcel(id, trackingNumber, source, customerId, merchantId, merchantOrderRef, details,
+                status, assignedCourierId, history, createdAt, now, version);
     }
 }

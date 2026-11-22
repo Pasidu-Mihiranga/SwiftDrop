@@ -33,6 +33,11 @@ public final class ParcelAccessPolicy {
         return isOwningCustomer(parcel, caller);
     }
 
+    /** Only the assigned courier or operational staff may change the lifecycle. */
+    public static boolean canUpdateStatus(Parcel parcel, AuthenticatedUser caller) {
+        return isAssignedCourier(parcel, caller) || caller.hasRole(Roles.ADMIN);
+    }
+
     private static boolean isOwningCustomer(Parcel parcel, AuthenticatedUser caller) {
         return caller.hasRole(Roles.CUSTOMER) && caller.id().equals(parcel.customerId());
     }

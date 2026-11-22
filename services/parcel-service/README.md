@@ -90,3 +90,17 @@ mvn -pl services/parcel-service -am verify   # unit + Testcontainers integration
 ```
 
 Coverage report: `services/parcel-service/target/site/jacoco/index.html`.
+
+## Courier status and delivery proof (M4)
+
+Assigned couriers can advance a parcel through the documented lifecycle at
+`PATCH /api/v1/courier/parcels/{parcelId}/status`. The service validates transitions,
+failure reasons and delivery proof, then saves the parcel, append-only history and
+`ParcelStatusChanged` outbox event in one transaction. Dispatch assignment events update
+the copied `courier_id` idempotently.
+
+For photo proof, request a presigned URL from
+`POST /api/v1/courier/parcels/{parcelId}/proof-upload-url` with a JPEG or PNG content type
+and size between 1 byte and 5 MB, upload directly to RustFS, then include the returned
+`proofId` when marking the parcel `DELIVERED`. `S3_ENDPOINT` is the service-to-storage
+endpoint; `S3_PUBLIC_ENDPOINT` is the browser-visible endpoint embedded in presigned URLs.

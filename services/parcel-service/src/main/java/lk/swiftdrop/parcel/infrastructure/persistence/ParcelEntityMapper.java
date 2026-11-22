@@ -50,8 +50,10 @@ final class ParcelEntityMapper {
         entity.setUpdatedAt(parcel.updatedAt());
         parcel.history().stream()
                 .skip(entity.getHistory().size())
-                .map(change -> new ParcelStatusHistoryEntity(entity, change.fromStatus(), change.toStatus(),
-                        change.actorId(), change.actorRole(), change.note(), change.occurredAt()))
+                .map(change -> new ParcelStatusHistoryEntity(entity, new ParcelStatusHistoryEntity.StatusChangeData(
+                        change.fromStatus(), change.toStatus(), change.actorId(), change.actorRole(), change.note(),
+                        change.occurredAt(), change.failureReason(), change.proofType(), change.proofId(),
+                        change.receivedBy(), change.location())))
                 .forEach(entity.getHistory()::add);
     }
 
@@ -72,6 +74,7 @@ final class ParcelEntityMapper {
 
     private static StatusChange toDomain(ParcelStatusHistoryEntity row) {
         return new StatusChange(row.getFromStatus(), row.getToStatus(), row.getActorId(), row.getActorRole(),
-                row.getNote(), row.getOccurredAt());
+                row.getNote(), row.getOccurredAt(), row.getFailureReason(), row.getProofType(), row.getProofId(),
+                row.getReceivedBy(), row.getLocation());
     }
 }

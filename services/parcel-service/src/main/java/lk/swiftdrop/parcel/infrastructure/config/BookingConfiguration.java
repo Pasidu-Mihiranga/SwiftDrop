@@ -13,7 +13,7 @@ import java.time.Clock;
 
 /** Wires the plain-Java domain objects and the settings that come from the environment. */
 @Configuration
-@EnableConfigurationProperties(PricingProperties.class)
+@EnableConfigurationProperties({PricingProperties.class, ProofStorageConfiguration.class})
 public class BookingConfiguration {
 
     @Bean

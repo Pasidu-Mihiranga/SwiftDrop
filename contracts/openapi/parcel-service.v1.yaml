@@ -90,6 +90,16 @@ paths:
       summary: Pre-signed URL to upload a proof-of-delivery photo (JPEG/PNG, ≤5 MB)
       tags: [Courier]
       parameters: [{ $ref: "#/components/parameters/ParcelId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [contentType, sizeBytes]
+              properties:
+                contentType: { type: string, enum: [image/jpeg, image/png] }
+                sizeBytes: { type: integer, format: int64, minimum: 1, maximum: 5242880 }
       responses:
         "200":
           description: Upload instructions
@@ -101,6 +111,27 @@ paths:
                   proofId: { type: string }
                   uploadUrl: { type: string, format: uri }
                   expiresAt: { type: string, format: date-time }
+  /api/v1/courier/parcels/{parcelId}/proof/{proofId}:
+    get:
+      summary: Short-lived private URL for a delivery proof photo
+      tags: [Courier]
+      parameters:
+        - { $ref: "#/components/parameters/ParcelId" }
+        - { name: proofId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: Presigned download URL, content: { text/plain: { schema: { type: string, format: uri } } } }
+        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
+  /api/v1/dispatcher/parcels/{parcelId}/reattempt:
+    post:
+      summary: Return a failed parcel to out-for-delivery
+      tags: [Dispatcher]
+      parameters:
+        - { $ref: "#/components/parameters/ParcelId" }
+        - { name: note, in: query, required: false, schema: { type: string, maxLength: 500 } }
+      responses:
+        "200": { description: Reattempted, content: { application/json: { schema: { $ref: "#/components/schemas/Parcel" } } } }
+        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
+        "422": { description: Parcel is not in FAILED state }
   /api/v1/merchant/orders:
     post:
       summary: Merchant system creates a delivery order (MERCHANT_API, OAuth2 client credentials)
@@ -273,6 +304,9 @@ components:
         toStatus: { $ref: "common.v1.yaml#/components/schemas/ParcelStatus" }
         note: { type: string }
         failureReason: { type: string }
+        proofType: { type: string, enum: [NAME, PHOTO, SIGNATURE] }
+        proofId: { type: string }
+        receivedBy: { type: string }
         actorRole: { type: string }
         occurredAt: { type: string, format: date-time }
     Parcel:

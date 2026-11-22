@@ -29,4 +29,6 @@ config:
   DB_NAME: parcels_db
   DB_USER: parcel_svc
   S3_ENDPOINT: http://object-storage:9000
+  # Must be reachable by the browser; override for the cluster's RustFS ingress or service.
+  S3_PUBLIC_ENDPOINT: http://object-storage:9000
   S3_BUCKET_PROOFS: swiftdrop-proofs
