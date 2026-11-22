@@ -15,54 +15,70 @@ paths:
         roles from the token again, because Keycloak is their source of truth; the name and phone are left alone.
       responses:
         "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Profile" } } } }
-        "401": { description: No or invalid token }
-        "403": { description: Not a person role }
-        "409": { description: "EMAIL_ALREADY_LINKED: the e-mail belongs to another profile" }
-        "422": { description: "EMAIL_REQUIRED: the token has no e-mail claim" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { description: Not a person role, content: { application/problem+json: { schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" } } } }
+        "409": { description: "EMAIL_ALREADY_LINKED: the e-mail belongs to another profile", content: { application/problem+json: { schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" } } } }
+        "422": { description: "EMAIL_REQUIRED: the token has no e-mail claim", content: { application/problem+json: { schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" } } } }
     put:
       summary: Replace name and phone (omit phone to remove it)
       requestBody:
+        required: true
         content:
           application/json:
             schema:
               type: object
               required: [fullName]
               properties:
-                fullName: { type: string, minLength: 1, maxLength: 100 }
+                fullName: { type: string, minLength: 1, maxLength: 100, description: Must contain a non-blank character. }
                 phone: { type: string, pattern: "^(\\+94|0)7[0-9]{8}$", description: "Stored as E.164 (+947XXXXXXXX), encrypted at rest" }
       responses:
         "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/Profile" } } } }
-        "400": { description: VALIDATION_FAILED (field names only; submitted values are never echoed) }
+        "400": { description: VALIDATION_FAILED (field names only; submitted values are never echoed), content: { application/problem+json: { schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" } } } }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { description: Not a person role, content: { application/problem+json: { schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" } } } }
   /api/v1/users/me/addresses:
     get:
       summary: The caller's saved addresses, default first then oldest first
       responses:
         "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/SavedAddress" } } } } }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
     post:
       summary: Save an address (the first one becomes the default; at most 10)
-      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/AddressRequest" } } } }
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AddressRequest" } } } }
       responses:
-        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/SavedAddress" } } } }
-        "400": { description: "VALIDATION_FAILED or INVALID_ADDRESS (lat and lng must be given together); values are never echoed" }
-        "422": { description: "ADDRESS_LIMIT_REACHED: the book already holds 10 addresses" }
+        "201":
+          description: Created
+          headers:
+            Location: { description: "/api/v1/users/me/addresses/{addressId}", schema: { type: string } }
+          content: { application/json: { schema: { $ref: "#/components/schemas/SavedAddress" } } }
+        "400": { description: "VALIDATION_FAILED or INVALID_ADDRESS (lat and lng must be given together); values are never echoed", content: { application/problem+json: { schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" } } } }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "422": { description: "ADDRESS_LIMIT_REACHED: the book already holds 10 addresses", content: { application/problem+json: { schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" } } } }
   /api/v1/users/me/addresses/{addressId}:
     parameters: [{ name: addressId, in: path, required: true, schema: { type: string, format: uuid } }]
     put:
       summary: "Replace an address; isDefault: true moves the default here (false never removes it)"
-      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/AddressRequest" } } } }
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AddressRequest" } } } }
       responses:
         "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/SavedAddress" } } } }
-        "404": { description: "ADDRESS_NOT_FOUND: unknown id or another person's address (indistinguishable)" }
-        "409": { description: "ADDRESS_BOOK_CHANGED: two changes to the default at the same time" }
+        "400": { description: "VALIDATION_FAILED or INVALID_ADDRESS; values are never echoed", content: { application/problem+json: { schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" } } } }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "404": { description: "ADDRESS_NOT_FOUND: unknown id or another person's address (indistinguishable)", content: { application/problem+json: { schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" } } } }
+        "409": { description: "ADDRESS_BOOK_CHANGED: two changes to the default at the same time", content: { application/problem+json: { schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" } } } }
     delete:
       summary: Delete an address; deleting the default promotes the oldest remaining one
       responses:
         "204": { description: Deleted }
-        "404": { description: "ADDRESS_NOT_FOUND: unknown id or another person's address (indistinguishable)" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "404": { description: "ADDRESS_NOT_FOUND: unknown id or another person's address (indistinguishable)", content: { application/problem+json: { schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" } } } }
   /api/v1/admin/users:
-    get: { summary: Search users (ADMIN), responses: { "200": { description: OK } } }
+    get: { summary: "Search users (ADMIN). Planned; not implemented yet.", responses: { "200": { description: OK } } }
     post:
-      summary: Create a courier or dispatcher account (ADMIN)
+      summary: "Create a courier or dispatcher account (ADMIN). Planned; not implemented yet."
       requestBody:
         content:
           application/json:
@@ -76,7 +92,7 @@ paths:
                 role: { type: string, enum: [COURIER, DISPATCHER, ADMIN] }
       responses: { "201": { description: "Created; a temporary password is emailed" } }
   /api/v1/admin/users/{userId}:
-    patch: { summary: Enable/disable user or change roles (ADMIN), parameters: [{ name: userId, in: path, required: true, schema: { type: string } }], responses: { "200": { description: OK } } }
+    patch: { summary: "Enable/disable user or change roles (ADMIN). Planned; not implemented yet.", parameters: [{ name: userId, in: path, required: true, schema: { type: string } }], responses: { "200": { description: OK } } }
   /api/v1/admin/couriers:
     get:
       summary: "Couriers with vehicle, home zone and capacity (DISPATCHER, ADMIN)"
@@ -88,13 +104,15 @@ paths:
         - { name: assignable, in: query, required: false, schema: { type: boolean }, description: "true = enabled, details complete and active" }
       responses:
         "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Courier" } } } } }
-        "403": { description: Not DISPATCHER or ADMIN }
-        "503": { description: "IDENTITY_PROVIDER_UNAVAILABLE: Keycloak could not be reached" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { description: Not DISPATCHER or ADMIN, content: { application/problem+json: { schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" } } } }
+        "503": { description: "IDENTITY_PROVIDER_UNAVAILABLE: Keycloak could not be reached", content: { application/problem+json: { schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" } } } }
   /api/v1/admin/couriers/{courierId}:
     put:
       summary: "Set a courier's vehicle, home zone, daily capacity and availability (ADMIN)"
       parameters: [{ name: courierId, in: path, required: true, schema: { type: string }, description: Keycloak subject of the courier }]
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -107,9 +125,18 @@ paths:
                 active: { type: boolean, default: true, description: "false takes the courier off dispatch" }
       responses:
         "200": { description: Saved, content: { application/json: { schema: { $ref: "#/components/schemas/Courier" } } } }
-        "400": { description: VALIDATION_FAILED }
-        "403": { description: Not ADMIN }
-        "404": { description: "COURIER_NOT_FOUND: no Keycloak user with role COURIER has this id" }
+        "400": { description: VALIDATION_FAILED, content: { application/problem+json: { schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" } } } }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { description: Not ADMIN, content: { application/problem+json: { schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" } } } }
+        "404": { description: "COURIER_NOT_FOUND: no Keycloak user with role COURIER has this id", content: { application/problem+json: { schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" } } } }
+        "422": { description: "COURIER_EMAIL_MISSING: the courier has no e-mail address in Keycloak yet", content: { application/problem+json: { schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" } } } }
+        "503": { description: "IDENTITY_PROVIDER_UNAVAILABLE: Keycloak could not be reached", content: { application/problem+json: { schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" } } } }
+  /api/v1/users/meta/whoami:
+    get:
+      summary: Smoke test (gateway → service → JWT)
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "common.v1.yaml#/components/schemas/WhoAmI" } } } }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
 components:
   schemas:
     Profile:
@@ -133,6 +160,8 @@ components:
           properties:
             label: { type: string, maxLength: 40, example: Home }
             isDefault: { type: boolean, description: "true makes this the default address" }
+            lat: { minimum: -90, maximum: 90, description: Give lat and lng together or neither. }
+            lng: { minimum: -180, maximum: 180 }
     SavedAddress:
       description: One saved address, returned only to its owner. line1 and line2 are encrypted at rest.
       allOf:
