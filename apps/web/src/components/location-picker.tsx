@@ -22,6 +22,8 @@ interface LocationPickerProps {
   point?: GeoPick;
   /** Called only once the server has said which district the point is in. */
   onPick: (point: GeoPick, located: LocatedPoint) => void;
+  /** Custom height CSS class for the map container (defaults to "h-56"). */
+  heightClass?: string;
 }
 
 type Status = "idle" | "locating" | "failed";
@@ -34,7 +36,15 @@ type Status = "idle" | "locating" | "failed";
  * point and a district that disagree. The district list beside it stays the primary,
  * keyboard-accessible way to fill the form; the map only adds precision.
  */
-export function LocationPicker({ id, purpose, tileUrl, attribution, point, onPick }: LocationPickerProps) {
+export function LocationPicker({
+  id,
+  purpose,
+  tileUrl,
+  attribution,
+  point,
+  onPick,
+  heightClass = "h-56",
+}: LocationPickerProps) {
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState<string>();
 
@@ -54,12 +64,12 @@ export function LocationPicker({ id, purpose, tileUrl, attribution, point, onPic
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 flex flex-col h-full">
       <p id={`${id}-hint`} className="text-xs text-slate-600">
         Tap the map at the exact {purpose} point. The district is filled in for you.
       </p>
       <div
-        className="h-56 w-full overflow-hidden rounded-md border border-slate-200"
+        className={`${heightClass} w-full flex-1 overflow-hidden rounded-md border border-slate-200`}
         role="group"
         aria-label={`Map for the ${purpose} point`}
         aria-describedby={`${id}-hint`}
