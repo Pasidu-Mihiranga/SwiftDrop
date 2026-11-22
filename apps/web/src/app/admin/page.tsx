@@ -194,6 +194,19 @@ export default async function AdminHome() {
             {isAdmin && (
               <>
                 <Link
+                  href="/admin/merchants"
+                  className="group rounded-xl border border-slate-200 p-4 transition hover:border-brand-500 hover:bg-brand-50/20"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-slate-900 group-hover:text-brand-700">Merchant approvals</span>
+                    <span className="status-pill-neutral">M7</span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Review applications from online stores, and suspend a merchant whose API access should stop.
+                  </p>
+                </Link>
+
+                <Link
                   href="/admin/webhooks"
                   className="group rounded-xl border border-slate-200 p-4 transition hover:border-brand-500 hover:bg-brand-50/20"
                 >

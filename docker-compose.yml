@@ -369,6 +369,8 @@ services:
       DB_NAME: merchants_db
       DB_USER: merchant_svc
       PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY}
+      KEYCLOAK_INTERNAL_URL: http://keycloak:8080
+      KC_MERCHANT_SERVICE_CLIENT_SECRET: ${KC_MERCHANT_SERVICE_CLIENT_SECRET}
 
   pricing-service:
     <<: *app

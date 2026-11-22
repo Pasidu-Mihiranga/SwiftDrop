@@ -1,13 +1,12 @@
 package lk.swiftdrop.merchant.application.query;
 
+import lk.swiftdrop.merchant.application.model.PagedResult;
 import lk.swiftdrop.merchant.application.port.out.MerchantRepository;
 import lk.swiftdrop.merchant.domain.exception.MerchantNotFoundException;
 import lk.swiftdrop.merchant.domain.model.Merchant;
 import lk.swiftdrop.merchant.domain.model.MerchantStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 /** Read side of onboarding: the applicant's own status and the admin approval queue. */
 @Service
@@ -29,7 +28,8 @@ public class MerchantQueryService {
         return merchants.findLatestByOwner(ownerUserId).orElseThrow(MerchantNotFoundException::new);
     }
 
-    public List<Merchant> byStatus(MerchantStatus status) {
-        return merchants.findByStatus(status);
+    /** One page of applications in one status, oldest first. */
+    public PagedResult<Merchant> byStatus(MerchantStatus status, int page, int size) {
+        return merchants.findByStatus(status, page, size);
     }
 }

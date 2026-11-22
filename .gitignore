@@ -72,3 +72,6 @@ doc/test-reports/java/
 doc/test-reports/node/
 doc/test-reports/python/
 doc/test-reports/e2e/
+
+# --- Google OAuth client secrets (keep local, never commit) ---
+client_secret_*.json
