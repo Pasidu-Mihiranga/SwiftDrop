@@ -40,6 +40,13 @@ describe("accessFor", () => {
     expect(accessFor("/admin/dispatch", ["DISPATCHER"])).toBe("allowed");
   });
 
+  it("keeps account management to administrators", () => {
+    expect(accessFor("/admin/users", ["ADMIN"])).toBe("allowed");
+    expect(accessFor("/admin/users", ["DISPATCHER"])).toBe("forbidden");
+    expect(accessFor("/admin/users", ["COURIER"])).toBe("forbidden");
+    expect(accessFor("/admin/users", undefined)).toBe("login-required");
+  });
+
   it("still asks an anonymous visitor to sign in before pricing configuration", () => {
     expect(accessFor("/admin/pricing/zones", undefined)).toBe("login-required");
   });
@@ -78,6 +85,7 @@ describe("adminNavigationFor", () => {
       "/admin/reports",
       "/admin/dispatch",
       "/admin/couriers",
+      "/admin/users",
       "/admin/pricing/zones",
       "/admin/pricing/rate-cards",
       "/admin/pricing/remote-areas",
@@ -104,6 +112,7 @@ describe("adminNavigationFor", () => {
       "/admin/reports",
       "/admin/dispatch",
       "/admin/couriers",
+      "/admin/users",
       "/admin/pricing/zones",
       "/admin/pricing/rate-cards",
       "/admin/pricing/remote-areas",

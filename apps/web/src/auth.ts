@@ -30,9 +30,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async jwt({ token, account }) {
       if (account?.access_token) {
-        // First sign-in: keep Keycloak's tokens server-side only.
+        // First sign-in: keep Keycloak's tokens server-side only. Without a database adapter Auth.js
+        // gives the user a random id, so `sub` is set to Keycloak's own user id (the provider account id).
         return {
           ...token,
+          sub: account.providerAccountId || token.sub,
           accessToken: account.access_token,
           refreshToken: account.refresh_token,
           idToken: account.id_token,
