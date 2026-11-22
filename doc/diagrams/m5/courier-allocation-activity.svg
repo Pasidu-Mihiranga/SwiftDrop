@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE svg
+  PUBLIC '-//W3C//DTD SVG 1.0//EN'
+  'http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd'>
+<svg width="480" height="570" preserveAspectRatio="xMinYMin meet" viewBox="0 0 480 570" xmlns="http://www.w3.org/2000/svg" version="1.0" fill-rule="evenodd" xmlns:xlink="http://www.w3.org/1999/xlink">
+	<title>...</title>
+	<desc>...</desc>
+	<clipPath id="clip">
+		<rect x="0" y="0" width="480" height="570"/>
+	</clipPath>
+	<g id="group" transform="scale(1,-1) translate(0,-570)" style="clip-path: url(#clip)">
+		<g transform="">
+			<circle cx="225" cy="562" r="6" style="stroke: rgb(9%,16%,30%); stroke-linecap: butt; stroke-width: 1; fill: rgb(9%,16%,30%); fill-rule: evenodd;"/>
+			<path d="M 225,556 L 225,541 Z" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1.3;"/>
+			<polygon points="225 541, 228.3042 547.1711, 221.6958 547.1711" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1; fill: rgb(4%,36%,84%); fill-rule: evenodd;"/>
+			<rect x="40" y="509" width="370" height="32" rx="7" ry="0" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1; fill: rgb(93%,96%,100%); fill-rule: evenodd;"/>
+			<text x="139.405" y="522" style="font-family: Helvetica; font-size: 10px;fill: rgb(9%,16%,30%); stroke:none;" transform="translate(0,1044) scale(1,-1)">Select unassigned parcel / existing run</text>
+			<path d="M 225,509 L 225,487 Z" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1.3;"/>
+			<polygon points="225 487, 228.3042 493.1711, 221.6958 493.1711" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1; fill: rgb(4%,36%,84%); fill-rule: evenodd;"/>
+			<rect x="40" y="455" width="370" height="32" rx="7" ry="0" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1; fill: rgb(93%,96%,100%); fill-rule: evenodd;"/>
+			<text x="139.125" y="468" style="font-family: Helvetica; font-size: 10px;fill: rgb(9%,16%,30%); stroke:none;" transform="translate(0,936) scale(1,-1)">Inspect zone matches and courier load</text>
+			<path d="M 225,455 L 225,433 Z" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1.3;"/>
+			<polygon points="225 433, 228.3042 439.1711, 221.6958 439.1711" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1; fill: rgb(4%,36%,84%); fill-rule: evenodd;"/>
+			<rect x="40" y="401" width="370" height="32" rx="7" ry="0" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1; fill: rgb(93%,96%,100%); fill-rule: evenodd;"/>
+			<text x="163.59" y="414" style="font-family: Helvetica; font-size: 10px;fill: rgb(9%,16%,30%); stroke:none;" transform="translate(0,828) scale(1,-1)">Choose courier and confirm</text>
+			<path d="M 225,401 L 225,379 Z" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1.3;"/>
+			<polygon points="225 379, 228.3042 385.1711, 221.6958 385.1711" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1; fill: rgb(4%,36%,84%); fill-rule: evenodd;"/>
+			<rect x="40" y="347" width="370" height="32" rx="7" ry="0" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1; fill: rgb(93%,96%,100%); fill-rule: evenodd;"/>
+			<text x="149.685" y="360" style="font-family: Helvetica; font-size: 10px;fill: rgb(9%,16%,30%); stroke:none;" transform="translate(0,720) scale(1,-1)">Validate role, courier and run date</text>
+			<path d="M 225,347 L 225,325 Z" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1.3;"/>
+			<polygon points="225 325, 228.3042 331.1711, 221.6958 331.1711" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1; fill: rgb(4%,36%,84%); fill-rule: evenodd;"/>
+			<rect x="40" y="293" width="370" height="32" rx="7" ry="0" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1; fill: rgb(93%,96%,100%); fill-rule: evenodd;"/>
+			<text x="141.35500000000002" y="306" style="font-family: Helvetica; font-size: 10px;fill: rgb(9%,16%,30%); stroke:none;" transform="translate(0,612) scale(1,-1)">Lock parcel; inspect current allocation</text>
+			<path d="M 225,293 L 225,277 Z" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1.3;"/>
+			<polygon points="225 277, 228.3042 283.1711, 221.6958 283.1711" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1; fill: rgb(4%,36%,84%); fill-rule: evenodd;"/>
+			<polygon points="225 277, 307 255, 225 233, 143 255" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1; fill: rgb(93%,96%,100%); fill-rule: evenodd;"/>
+			<text x="187.7355" y="252" style="font-family: Helvetica; font-size: 9px;fill: rgb(9%,16%,30%); stroke:none;" transform="translate(0,504) scale(1,-1)">Allocation conflict?</text>
+			<path d="M 307,255 L 447,255 Z" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1.3;"/>
+			<polygon points="447 255, 440.8289 258.3042, 440.8289 251.6958" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1; fill: rgb(4%,36%,84%); fill-rule: evenodd;"/>
+			<text x="326.084" y="267" style="font-family: Helvetica; font-size: 8px;fill: rgb(9%,16%,30%); stroke:none;" transform="translate(0,534) scale(1,-1)">Yes: 409 / choose again</text>
+			<path d="M 447,255 L 447,417 Z" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1;"/>
+			<path d="M 447,417 L 410,417 Z" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1.3;"/>
+			<polygon points="410 417, 416.1711 413.6958, 416.1711 420.3042" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1; fill: rgb(4%,36%,84%); fill-rule: evenodd;"/>
+			<path d="M 225,233 L 225,211 Z" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1.3;"/>
+			<polygon points="225 211, 228.3042 217.1711, 221.6958 217.1711" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1; fill: rgb(4%,36%,84%); fill-rule: evenodd;"/>
+			<text x="235.888" y="218" style="font-family: Helvetica; font-size: 8px;fill: rgb(9%,16%,30%); stroke:none;" transform="translate(0,436) scale(1,-1)">No</text>
+			<rect x="40" y="179" width="370" height="32" rx="7" ry="0" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1; fill: rgb(93%,96%,100%); fill-rule: evenodd;"/>
+			<text x="129.53" y="192" style="font-family: Helvetica; font-size: 10px;fill: rgb(9%,16%,30%); stroke:none;" transform="translate(0,384) scale(1,-1)">Save allocation + outbox in one transaction</text>
+			<path d="M 225,179 L 225,157 Z" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1.3;"/>
+			<polygon points="225 157, 228.3042 163.1711, 221.6958 163.1711" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1; fill: rgb(4%,36%,84%); fill-rule: evenodd;"/>
+			<rect x="40" y="125" width="370" height="32" rx="7" ry="0" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1; fill: rgb(93%,96%,100%); fill-rule: evenodd;"/>
+			<text x="139.96" y="138" style="font-family: Helvetica; font-size: 10px;fill: rgb(9%,16%,30%); stroke:none;" transform="translate(0,276) scale(1,-1)">Publish ParcelAssigned through Kafka</text>
+			<path d="M 225,125 L 225,103 Z" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1.3;"/>
+			<polygon points="225 103, 228.3042 109.1711, 221.6958 109.1711" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1; fill: rgb(4%,36%,84%); fill-rule: evenodd;"/>
+			<rect x="40" y="71" width="370" height="32" rx="7" ry="0" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1; fill: rgb(93%,96%,100%); fill-rule: evenodd;"/>
+			<text x="123.01" y="84" style="font-family: Helvetica; font-size: 10px;fill: rgb(9%,16%,30%); stroke:none;" transform="translate(0,168) scale(1,-1)">Refresh workloads, board and own run sheets</text>
+			<path d="M 225,71 L 225,40 Z" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1.3;"/>
+			<polygon points="225 40, 228.3042 46.17108, 221.6958 46.17108" style="stroke: rgb(4%,36%,84%); stroke-linecap: butt; stroke-width: 1; fill: rgb(4%,36%,84%); fill-rule: evenodd;"/>
+			<circle cx="225" cy="31" r="9" style="stroke: rgb(9%,16%,30%); stroke-linecap: butt; stroke-width: 1; fill: none; fill-rule: evenodd;"/>
+			<circle cx="225" cy="31" r="5" style="stroke: rgb(9%,16%,30%); stroke-linecap: butt; stroke-width: 1; fill: rgb(9%,16%,30%); fill-rule: evenodd;"/>
+		</g>
+	</g>
+</svg>

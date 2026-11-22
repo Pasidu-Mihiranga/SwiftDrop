@@ -23,11 +23,17 @@ spring:
     enabled: true
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:${KAFKA_HOST_PORT:9092}}
+    listener:
+      ack-mode: record
     producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
       acks: all
       properties:
         enable.idempotence: true
     consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       group-id: dispatch-service
       auto-offset-reset: earliest
       enable-auto-commit: false
@@ -65,3 +71,8 @@ springdoc:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
+
+swiftdrop:
+  dispatch:
+    time-zone: ${DISPATCH_TIME_ZONE:Asia/Colombo}
+    user-service-url: ${USER_SERVICE_URL:http://localhost:8081}
