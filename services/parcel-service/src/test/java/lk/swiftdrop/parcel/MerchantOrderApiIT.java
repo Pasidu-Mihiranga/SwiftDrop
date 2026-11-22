@@ -7,6 +7,7 @@ import lk.swiftdrop.parcel.domain.model.MerchantStatus;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
@@ -74,6 +75,8 @@ class MerchantOrderApiIT {
     private JdbcTemplate jdbc;
     @Autowired
     private MerchantStatusCache merchants;
+    @Autowired
+    private MeterRegistry meters;
 
     @DynamicPropertySource
     static void pricing(DynamicPropertyRegistry registry) {
@@ -271,6 +274,36 @@ class MerchantOrderApiIT {
         assertThat(portal.get("content").get(0).get("merchantOrderRef").asString()).isEqualTo("WEB-1002");
         assertThat(merchantB.get("content")).as("merchant A's WEB-1002 is never shown to merchant B").isEmpty();
         send(get(ORDERS).with(systemOf(MERCHANT_A)).param("orderRef", "x".repeat(101)), 400);
+    }
+
+    @Test
+    void eachOrderRequestIsCountedOnceUnderHowItEnded() throws Exception {
+        Map<String, Double> before = orderCounts();
+
+        order(systemOf(MERCHANT_A), "order-key-m-1", ORDER.formatted("M-1"), 201);
+        order(systemOf(MERCHANT_A), "order-key-m-1", ORDER.formatted("M-1"), 200);
+        order(systemOf(MERCHANT_A), "order-key-m-1", ORDER.formatted("M-2"), 409);
+        merchants.apply(new MerchantStanding(MERCHANT_B, MerchantStatus.SUSPENDED, "Shop b2", null,
+                Instant.parse("2026-11-02T00:00:00Z")));
+        order(systemOf(MERCHANT_B), "order-key-m-2", ORDER.formatted("M-3"), 403);
+        // Refused before the order logic: counted by the HTTP metrics, not as an order outcome.
+        send(post(ORDERS).with(systemOf(MERCHANT_A)).contentType(MediaType.APPLICATION_JSON)
+                .content(ORDER.formatted("M-4")), 400);
+
+        Map<String, Double> after = orderCounts();
+        assertThat(after.get("created") - before.get("created")).isEqualTo(1);
+        assertThat(after.get("replayed") - before.get("replayed")).isEqualTo(1);
+        assertThat(after.get("idempotency_conflict") - before.get("idempotency_conflict")).isEqualTo(1);
+        assertThat(after.get("not_approved") - before.get("not_approved")).isEqualTo(1);
+        assertThat(after.values().stream().mapToDouble(Double::doubleValue).sum()
+                - before.values().stream().mapToDouble(Double::doubleValue).sum()).as("four counted, one not").isEqualTo(4);
+    }
+
+    private Map<String, Double> orderCounts() {
+        Map<String, Double> counts = new java.util.HashMap<>();
+        meters.get("parcel.merchant.orders").counters()
+                .forEach(counter -> counts.put(counter.getId().getTag("outcome"), counter.count()));
+        return counts;
     }
 
     @Test
