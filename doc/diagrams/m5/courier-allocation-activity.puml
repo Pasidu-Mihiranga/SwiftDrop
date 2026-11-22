@@ -1,0 +1,20 @@
+@startuml
+start
+:Select unassigned parcel or existing run;
+repeat
+  :Inspect courier workloads and zone matches;
+  :Choose courier and confirm;
+  :Validate role, courier availability and run date;
+  :Lock parcel and inspect allocation;
+  if (Allocation conflict?) then (yes)
+    :Return 409 problem+json;
+  else (no)
+    :Write assignment and ParcelAssigned outbox;
+    :Commit one database transaction;
+    :Relay ParcelAssigned to Kafka;
+    :Refresh workload, board and own run sheets;
+    stop
+  endif
+repeat while (Choose again?) is (yes) not (no)
+stop
+@enduml

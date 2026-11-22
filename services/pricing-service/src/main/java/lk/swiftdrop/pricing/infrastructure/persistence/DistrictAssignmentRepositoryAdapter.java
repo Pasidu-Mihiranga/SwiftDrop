@@ -12,11 +12,9 @@ import java.util.Optional;
 class DistrictAssignmentRepositoryAdapter implements DistrictAssignmentRepository {
 
     private final DistrictZoneJpaRepository districts;
-    private final ZoneJpaRepository zones;
 
-    DistrictAssignmentRepositoryAdapter(DistrictZoneJpaRepository districts, ZoneJpaRepository zones) {
+    DistrictAssignmentRepositoryAdapter(DistrictZoneJpaRepository districts) {
         this.districts = districts;
-        this.zones = zones;
     }
 
     @Override
@@ -37,19 +35,5 @@ class DistrictAssignmentRepositoryAdapter implements DistrictAssignmentRepositor
                 .map(DistrictZoneEntity::getZone)
                 .filter(ZoneEntity::isActive)
                 .map(zone -> ZoneCode.of(zone.getCode()));
-    }
-
-    @Override
-    public Optional<DistrictAssignment> assign(String district, ZoneCode zoneCode) {
-        String normalised = district.strip();
-        return zones.findByCode(zoneCode.value()).map(zone -> {
-            DistrictZoneEntity entity = districts.findByDistrictIgnoreCase(normalised)
-                    .map(existing -> {
-                        existing.moveTo(zone);
-                        return existing;
-                    })
-                    .orElseGet(() -> new DistrictZoneEntity(normalised, zone));
-            return PricingPersistenceMapper.toDomain(districts.save(entity));
-        });
     }
 }

@@ -1,7 +1,11 @@
 package lk.swiftdrop.pricing.domain.policy;
 
+import lk.swiftdrop.pricing.domain.model.DistanceBand;
 import lk.swiftdrop.pricing.domain.model.DistanceRate;
 import lk.swiftdrop.pricing.domain.model.InsuranceBand;
+import lk.swiftdrop.pricing.domain.model.PricingSettings;
+import lk.swiftdrop.pricing.domain.model.SameDayVehicle;
+import lk.swiftdrop.pricing.domain.model.SpecialHandlingOption;
 import lk.swiftdrop.pricing.domain.model.LaneDistance;
 import lk.swiftdrop.pricing.domain.model.MerchantAgreement;
 import lk.swiftdrop.pricing.domain.model.RateCard;
@@ -64,12 +68,23 @@ public record PricingContext(Parcel parcel, Rates rates) {
     public record Rates(RateCard card, List<WeightTier> weightTiers,
                         RemoteAreaSurcharge originRemoteArea, RemoteAreaSurcharge destinationRemoteArea,
                         List<InsuranceBand> insuranceBands, MerchantAgreement merchantAgreement,
-                        DistanceRate distanceRate, LaneDistance laneDistance) {
+                        DistanceRate distanceRate, LaneDistance laneDistance,
+                        DistanceBand distanceBand, PricingSettings settings,
+                        List<SpecialHandlingOption> specialHandling, SameDayVehicle vehicle) {
 
         public Rates {
             Objects.requireNonNull(card, "card");
             weightTiers = weightTiers == null ? List.of() : List.copyOf(weightTiers);
             insuranceBands = insuranceBands == null ? List.of() : List.copyOf(insuranceBands);
+            specialHandling = specialHandling == null ? List.of() : List.copyOf(specialHandling);
+        }
+
+        /** Everything up to a measured lane, with no band, settings, extras or vehicle configured. */
+        public Rates(RateCard card, List<WeightTier> weightTiers, RemoteAreaSurcharge originRemoteArea,
+                     RemoteAreaSurcharge destinationRemoteArea, List<InsuranceBand> insuranceBands,
+                     MerchantAgreement merchantAgreement, DistanceRate distanceRate, LaneDistance laneDistance) {
+            this(card, weightTiers, originRemoteArea, destinationRemoteArea, insuranceBands, merchantAgreement,
+                    distanceRate, laneDistance, null, null, List.of(), null);
         }
 
         /** A lane priced by a single per-kilogram rate, with no surcharges configured. */

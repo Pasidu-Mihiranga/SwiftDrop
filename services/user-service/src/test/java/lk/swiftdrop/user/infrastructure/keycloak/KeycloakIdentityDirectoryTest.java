@@ -70,7 +70,8 @@ class KeycloakIdentityDirectoryTest {
         RestClient.Builder builder = RestClient.builder().baseUrl("http://kc");
         keycloak = MockRestServiceServer.bindTo(builder).build();
         clock = new MovableClock();
-        directory = new KeycloakIdentityDirectory(builder.build(), "swiftdrop", "user-service-admin", "s3cret", clock);
+        directory = new KeycloakIdentityDirectory(
+                new KeycloakAdminClient(builder.build(), "swiftdrop", "user-service-admin", "s3cret", clock));
     }
 
     private static String token(String value) {
@@ -195,8 +196,8 @@ class KeycloakIdentityDirectoryTest {
 
     @Test
     void doesNotCallKeycloakWithoutAClientSecret() {
-        KeycloakIdentityDirectory unconfigured = new KeycloakIdentityDirectory(
-                RestClient.builder().baseUrl("http://kc").build(), "swiftdrop", "user-service-admin", " ", clock);
+        KeycloakIdentityDirectory unconfigured = new KeycloakIdentityDirectory(new KeycloakAdminClient(
+                RestClient.builder().baseUrl("http://kc").build(), "swiftdrop", "user-service-admin", " ", clock));
 
         assertThatThrownBy(() -> unconfigured.usersWithRole(UserRole.COURIER))
                 .isInstanceOf(IdentityProviderUnavailableException.class)

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { MerchantRegisterForm } from "@/components/merchant-register-form";
 import { districtsFromZones } from "@/lib/addresses";
 import { formatAddress, formatDateTime, statusLabel, statusPillClass, type Merchant } from "@/lib/merchant";
@@ -15,20 +16,31 @@ export default async function MerchantRegisterPage() {
   const districts = districtsFromZones(zones);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-bold">Become a SwiftDrop merchant</h1>
-        <p className="text-slate-600">
+    <div className="mx-auto max-w-3xl space-y-5">
+      <header>
+        <nav aria-label="Breadcrumb" className="text-xs text-slate-500">
+          <Link href="/" className="hover:text-slate-800">
+            SwiftDrop
+          </Link>
+          <span className="mx-1.5 text-slate-300">/</span>
+          <span className="text-slate-700">Merchant onboarding</span>
+        </nav>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
+          Become a SwiftDrop merchant
+        </h1>
+        <p className="mt-1 text-sm text-slate-600">
           Register your business to create deliveries from your online store through our API. An administrator
           reviews every application before API access is granted.
         </p>
-      </div>
+      </header>
 
       {application ? <ApplicationStatus application={application} /> : null}
 
       {!application || application.status === "REJECTED" ? (
-        <section className="card space-y-3">
-          <h2 className="font-semibold">{application ? "Correct your details and apply again" : "Your application"}</h2>
+        <section className="space-y-3 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6">
+          <h2 className="font-semibold text-slate-900">
+            {application ? "Correct your details and apply again" : "Your application"}
+          </h2>
           <MerchantRegisterForm districts={districts} previous={application ?? undefined} />
         </section>
       ) : null}

@@ -88,9 +88,18 @@ swiftdrop:
       - /api/v1/tracking/public/**   # public tracking page (PII-masked)
       - /api/v1/pricing/quotes       # fee estimate before signing up
       - /api/v1/pricing/zones
+      - /api/v1/pricing/special-handling   # options shown on the public quote form
+      - /api/v1/pricing/locate             # map point to district for the quote form
       - /api/v1/assistant/**         # assistant serves anonymous users with public tools only
       - /mcp/**                      # MCP server authenticates its own clients
       - /ws/tracking/**              # Socket.IO authenticates in its handshake
+    # Requests per minute per caller; over the limit the gateway answers 429 RATE_LIMITED.
+    rate-limit:
+      enabled: ${GATEWAY_RATE_LIMIT_ENABLED:true}
+      authenticated-per-minute: ${GATEWAY_RATE_LIMIT_USER_PER_MINUTE:300}   # per Keycloak user
+      anonymous-per-minute: ${GATEWAY_RATE_LIMIT_ANON_PER_MINUTE:60}        # per client IP
+      # Address prefixes whose X-Forwarded-For is believed (web server, ingress). Comma-separated.
+      trusted-proxies: ${GATEWAY_TRUSTED_PROXIES:127.0.0.1,0:0:0:0:0:0:0:1}
 
 server:
   port: ${PORT:8080}

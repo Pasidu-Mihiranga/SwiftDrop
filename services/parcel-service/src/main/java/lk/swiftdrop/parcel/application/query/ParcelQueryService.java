@@ -39,4 +39,14 @@ public class ParcelQueryService {
                 .filter(found -> ParcelAccessPolicy.canView(found, caller))
                 .orElseThrow(() -> ResourceNotFoundException.of("Parcel", parcelId));
     }
+
+    /**
+     * Parcel details for generating a receipt. Only owner, merchant or staff may download a receipt.
+     * Unauthorized callers receive a 404 so that existence is never leaked.
+     */
+    public Parcel getForReceipt(AuthenticatedUser caller, UUID parcelId) {
+        return parcels.findById(parcelId)
+                .filter(found -> ParcelAccessPolicy.canViewReceipt(found, caller))
+                .orElseThrow(() -> ResourceNotFoundException.of("Parcel", parcelId));
+    }
 }

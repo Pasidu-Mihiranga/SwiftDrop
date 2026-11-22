@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -39,16 +40,17 @@ public class LaneDistanceService {
     }
 
     /**
-     * How far the job is, or empty when it is not a same-day job or cannot be measured.
+     * How far the job is, or empty when it cannot be measured.
      *
      * @param origin      the pickup point, or null to fall back to the district's centre
      * @param destination the drop-off point, or null to fall back to the district's centre
      */
     public Optional<LaneDistance> measure(ServiceLevel serviceLevel, String fromDistrict, String toDistrict,
                                           GeoPoint origin, GeoPoint destination, LocalDate quoteDate) {
-        if (serviceLevel != ServiceLevel.SAME_DAY) {
-            return Optional.empty();
-        }
+        // Every service level is measured now: same-day is priced per kilometre, and the others
+        // need the distance to pick a line-haul band and a transit time. The service level is
+        // kept in the signature because callers already pass it and a future level may not.
+        Objects.requireNonNull(serviceLevel, "serviceLevel");
         Optional<GeoPoint> from = origin != null ? Optional.of(origin) : centre(fromDistrict);
         Optional<GeoPoint> to = destination != null ? Optional.of(destination) : centre(toDistrict);
         if (from.isEmpty() || to.isEmpty()) {

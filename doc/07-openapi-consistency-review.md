@@ -13,7 +13,7 @@ agreement and gateway exposure.
 | `merchant-service.v1.yaml` | 1.0.0-draft | Implemented and contract-tested (`OpenApiContractTest`, ITs) |
 | `parcel-service.v1.yaml` | 1.0.0-draft | Customer booking implemented; courier, receipt and merchant-order operations not yet on this branch |
 | `pricing-service.v1.yaml` | 1.0.0 | Implemented |
-| `user-service.v1.yaml` | 1.0.0-draft | Profile, address book and courier directory implemented; `/admin/users` planned |
+| `user-service.v1.yaml` | 1.0.0-draft | Profile, address book and courier directory implemented; `/admin/users` arrived from `dev` (M1) when it was merged in |
 | `dispatch-service.v1.yaml` | 1.0.0-draft | Draft; only `meta/whoami` exists |
 | `tracking-service.v1.yaml` | 1.0.0-draft | Draft; only `meta/whoami` exists |
 | `notification-service.v1.yaml` | 1.0.0-draft | Draft; only `meta/whoami` exists |
@@ -63,7 +63,7 @@ The API gateway has no spec of its own. Its routes and public paths are in
 | 4 | user-service | `POST /users/me/addresses` returns a `Location` header that was not documented | Documented it |
 | 5 | user-service | `PUT /admin/couriers/{id}` can return 422 COURIER_EMAIL_MISSING and 503 IDENTITY_PROVIDER_UNAVAILABLE (it reads Keycloak); neither was documented | Documented both |
 | 6 | user-service | `lat`/`lng` ranges (±90/±180) enforced in code were missing from AddressRequest | Added the ranges |
-| 7 | user-service | `GET/POST /admin/users` and `PATCH /admin/users/{id}` are documented but not implemented | Marked "Planned; not implemented yet" (nothing removed) |
+| 7 | user-service | `GET/POST /admin/users` and `PATCH /admin/users/{id}` were documented but not implemented on this branch | Marked "planned" at first. After `origin/dev` was merged, M1's implementation and full definitions replaced the label. The `search` parameter's description is now quoted, because its unquoted comma made the spec invalid OpenAPI |
 | 8 | parcel-service | `POST /parcels` was missing its `Location` header, 401, 403 (CUSTOMER only) and 503 PRICING_UNAVAILABLE | Added them, with a description of QUOTE_EXPIRED and QUOTE_MISMATCH |
 | 9 | parcel-service | `/parcels/mine` had no 400/401/403, `/parcels/{id}` no 401, and `/cancel` no 401/404/409 | Added them; 404 is also the answer for parcels the caller does not own; 409 PARCEL_MODIFIED |
 | 10 | parcel-service | `quoteId` was a plain string, but the code requires a UUID | `format: uuid` |
@@ -114,3 +114,20 @@ broken.
   against `contracts/openapi`. The `OpenApiContract` helper could be reused there.
 - **`courierId` in the parcel response.** The schema says `[string, null]`, but the service leaves the field out
   rather than sending null. Clients should treat a missing field as null.
+
+## After merging `origin/dev`
+
+`origin/dev` (merged at `502612e`) adds real implementations for dispatch, notification, webhook and tracking
+endpoints, and for user-service's `/admin/users`. The "Draft; only `meta/whoami` exists" rows above describe this
+branch before that merge. The same audit, re-run on the merged tree, found:
+- All 11 specs pass `openapi-spec-validator`, and every `$ref` resolves.
+- The new operations repeat the gaps corrected above for M7's own endpoints:
+  - no 401;
+  - errors described in plain text, with no problem+json body;
+  - request bodies not marked required.
+
+  This affects `/admin/users*`, dispatch, notification and webhook endpoints. Their owners (M1, M5, M8, M9)
+  should apply the same conventions.
+- `GET /api/v1/parcels`, which arrived from `dev`, is implemented but not yet in `parcel-service.v1.yaml`. Every
+  other implemented route is in a spec, apart from the `meta/whoami` endpoints covered by the convention in
+  `common.v1.yaml`.
