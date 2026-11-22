@@ -221,9 +221,16 @@ export function FeeEstimateWidget({
       </div>
 
       {coverageError ? (
-        <p role="alert" className="notice-warning">
-          {coverageError}
-        </p>
+        <div role="alert" className="notice-warning flex items-center justify-between gap-2">
+          <span>{coverageError}</span>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="text-xs font-semibold underline hover:text-slate-900"
+          >
+            Retry
+          </button>
+        </div>
       ) : null}
 
       <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.8fr)_minmax(0,1.2fr)] items-start">
@@ -604,7 +611,7 @@ export function FeeEstimateWidget({
                   <select
                     id="sizeClass"
                     name="sizeClass"
-                    className="input bg-white text-sm"
+                    className="input text-sm"
                     value={values.sizeClass}
                     onChange={(event) => update("sizeClass", event.target.value)}
                     aria-invalid={Boolean(errors.sizeClass)}
@@ -682,7 +689,7 @@ export function FeeEstimateWidget({
                   <select
                     id="serviceLevel"
                     name="serviceLevel"
-                    className="input bg-white text-sm"
+                    className="input text-sm"
                     value={values.serviceLevel}
                     onChange={(event) => update("serviceLevel", event.target.value)}
                     aria-invalid={Boolean(errors.serviceLevel)}
@@ -772,7 +779,7 @@ export function FeeEstimateWidget({
                     <select
                       id="vehicleType"
                       name="vehicleType"
-                      className="input bg-white text-sm"
+                      className="input text-sm"
                       value={values.vehicleType}
                       onChange={(event) => update("vehicleType", event.target.value)}
                       aria-invalid={Boolean(errors.vehicleType)}

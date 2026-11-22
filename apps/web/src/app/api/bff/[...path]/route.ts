@@ -23,7 +23,13 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     const value = request.headers.get(name);
     if (value) outgoing.set(name, value);
   }
-  const token = await accessToken(request.headers);
+  const isPublicPath =
+    target.startsWith("api/v1/pricing/zones") ||
+    target.startsWith("api/v1/pricing/special-handling") ||
+    target.startsWith("api/v1/pricing/locate") ||
+    target.startsWith("api/v1/tracking/public");
+
+  const token = isPublicPath ? undefined : await accessToken(request.headers);
   if (token) outgoing.set("authorization", `Bearer ${token}`);
 
   const hasBody = !["GET", "HEAD"].includes(request.method);
