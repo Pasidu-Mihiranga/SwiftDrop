@@ -105,6 +105,27 @@ paths:
         "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
         "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
         "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+  /api/v1/reports/rebuild:
+    post:
+      tags: [reports]
+      operationId: rebuildReports
+      summary: Rebuild the reports from the event log (ADMIN)
+      description: |
+        Empties the projections and the reporting consumers' idempotency records, then sends every
+        consumer back to the start of its topic. Returns at once; the reports fill in again as the
+        replay catches up (watch reporting_events_processed_total and consumer lag). Events that
+        arrive meanwhile are applied once. Only events the topics still retain can be replayed.
+      responses:
+        "202":
+          description: Rebuild started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [REBUILDING] }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
   /api/v1/reports/meta/whoami:
     get:
       tags: [reports]

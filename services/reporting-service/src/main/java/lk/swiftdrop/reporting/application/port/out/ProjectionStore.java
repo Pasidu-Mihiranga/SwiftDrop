@@ -31,6 +31,12 @@ public interface ProjectionStore {
     /** Rebuilds both rollups for one day from the facts, holding a lock on that day meanwhile. */
     void recomputeDay(LocalDate day);
 
+    /**
+     * Empties the read model and forgets which events were applied, so every event can be applied
+     * again. Runs in its own transaction.
+     */
+    void clear();
+
     record CreatedFact(UUID parcelId, String trackingNumber, String zoneCode, String source, String merchantId,
                        Instant createdAt, LocalDate createdDate) {
     }
