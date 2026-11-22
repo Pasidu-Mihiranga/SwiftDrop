@@ -1,4 +1,4 @@
-package lk.swiftdrop.user.infrastructure.crypto;
+package lk.swiftdrop.common.pii;
 
 import org.junit.jupiter.api.Test;
 

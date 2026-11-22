@@ -1,15 +1,15 @@
-package lk.swiftdrop.parcel.infrastructure.crypto;
+package lk.swiftdrop.common.pii;
 
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
-import org.springframework.stereotype.Component;
 
 /**
  * JPA converter for columns that hold personal data. Entities keep the plain value in memory; the
- * database only ever sees the ciphertext. Hibernate obtains this converter from Spring, so the key
- * is injected rather than read from a static field.
+ * database only ever sees the ciphertext. {@link PiiAutoConfiguration} registers it as a Spring bean,
+ * so Hibernate obtains it from Spring with the key injected rather than read from a static field.
+ * Services with structured values (an address stored as one encrypted JSON value) write their own
+ * converter on top of {@link PiiCipher}.
  */
-@Component
 @Converter
 public class EncryptedStringConverter implements AttributeConverter<String, String> {
 

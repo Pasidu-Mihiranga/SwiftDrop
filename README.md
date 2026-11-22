@@ -147,7 +147,8 @@ pnpm new-service --type nest --name chat-service --port 8093 --route chat --mong
   Inject the caller as `AuthenticatedUser` (Java), `@CurrentUser()` (Nest) or `Depends(current_user)` (FastAPI).
 - **Errors:** RFC 9457 `application/problem+json` with `code`, `traceId`, `timestamp`; never stack traces or personal data.
 - **Correlation:** `X-Correlation-Id` is created at the gateway and copied into logs and events.
-- **Rate limiting:** the gateway allows 300 requests a minute per signed-in user and 60 per IP for anonymous callers (`GATEWAY_RATE_LIMIT_*`), then answers `429 RATE_LIMITED` with `Retry-After`. The web server passes the visitor IP on, and the gateway believes `X-Forwarded-For` only from `GATEWAY_TRUSTED_PROXIES`.
+- **Rate limiting:** Spring Cloud Gateway `RequestRateLimiter` with token buckets in Redis, shared by every gateway replica: 300 requests a minute per signed-in user or merchant API client (`client_id`), 60 per IP for anonymous callers (`GATEWAY_RATE_LIMIT_*`). Over the limit the gateway answers `429` with `Retry-After`; if Redis is down, requests are let through. The web server passes the visitor IP on, and the gateway believes `X-Forwarded-For` only from `GATEWAY_TRUSTED_PROXIES`.
+- **Unavailable services:** when the service behind a route cannot be reached, the gateway answers `503` problem+json (`SERVICE_UNAVAILABLE`) without naming the service.
 - **Logs:** one JSON object per line (`@timestamp, level, service, message, correlationId, traceId`); emails, phones,
   passwords and tokens are masked automatically.
 - **Events:** published only through the outbox (`OutboxWriter.publish(...)`), consumed idempotently.

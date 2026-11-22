@@ -21,6 +21,10 @@
             <groupId>lk.swiftdrop</groupId>
             <artifactId>swiftdrop-common-security</artifactId>
         </dependency>
+        <dependency>
+            <groupId>lk.swiftdrop</groupId>
+            <artifactId>swiftdrop-pii</artifactId>
+        </dependency>
         <!-- Kafka events: contracts + transactional outbox + idempotent consumers -->
         <dependency>
             <groupId>lk.swiftdrop</groupId>

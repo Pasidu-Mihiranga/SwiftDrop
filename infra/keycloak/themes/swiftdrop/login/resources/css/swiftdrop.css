@@ -1,0 +1,29 @@
+/* SwiftDrop brand on top of keycloak.v2 (PatternFly 5). Colours match apps/web globals.css. */
+:root {
+    --swiftdrop-brand-600: #0b5ed7;
+    --swiftdrop-brand-700: #0a4aa8;
+    --swiftdrop-brand-50: #eef7ff;
+    --keycloak-card-top-color: var(--swiftdrop-brand-600);
+    --pf-v5-global--primary-color--100: var(--swiftdrop-brand-600);
+    --pf-v5-global--primary-color--200: var(--swiftdrop-brand-700);
+    --pf-v5-global--link--Color: var(--swiftdrop-brand-600);
+    --pf-v5-global--link--Color--hover: var(--swiftdrop-brand-700);
+}
+
+/* Plain light background instead of the Keycloak artwork. */
+.login-pf body {
+    background: var(--swiftdrop-brand-50);
+}
+
+/* The realm display name ("SwiftDrop") above the card, in the brand colour. */
+#kc-header-wrapper {
+    color: var(--swiftdrop-brand-700) !important; /* keycloak.v2 sets white with !important */
+    text-transform: none;
+    letter-spacing: -0.02em;
+    font-size: 2rem;
+    font-weight: 600;
+}
+
+.pf-v5-c-login__main {
+    border-radius: 12px;
+}
