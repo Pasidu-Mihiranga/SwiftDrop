@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ORDER_REF_MAX_LENGTH,
   csvCell,
   exportFileName,
   filterSearch,
@@ -51,6 +52,22 @@ describe("parseOrdersQuery", () => {
   it("accepts a single-day range", () => {
     expect(parseOrdersQuery({ from: "2026-11-21", to: "2026-11-21" }).error).toBeUndefined();
   });
+
+  it("reads an order-reference search, trimmed, alongside the other filters", () => {
+    expect(parseOrdersQuery({ orderRef: "  WEB-1001 ", status: "CREATED", page: "1" })).toEqual({
+      filter: { status: "CREATED", orderRef: "WEB-1001" },
+      page: 1,
+    });
+  });
+
+  it("treats a blank search as no search", () => {
+    expect(parseOrdersQuery({ orderRef: "   " }).filter).toEqual({});
+  });
+
+  it("reports a search longer than any stored reference", () => {
+    expect(parseOrdersQuery({ orderRef: "x".repeat(ORDER_REF_MAX_LENGTH) }).error).toBeUndefined();
+    expect(parseOrdersQuery({ orderRef: "x".repeat(ORDER_REF_MAX_LENGTH + 1) }).error).toMatch(/at most 100/);
+  });
 });
 
 describe("ordersApiQuery", () => {
@@ -73,11 +90,22 @@ describe("ordersApiQuery", () => {
   it("sends no filter the merchant did not choose", () => {
     expect(ordersApiQuery({}, 0, 100).toString()).toBe("page=0&size=100");
   });
+
+  it("sends the order-reference search as typed, encoded for the address", () => {
+    const query = ordersApiQuery({ orderRef: "SALE 50%&more", status: "CREATED" }, 0, 20);
+
+    expect(query.get("orderRef")).toBe("SALE 50%&more");
+    expect(query.toString()).toBe("page=0&size=20&status=CREATED&orderRef=SALE+50%25%26more");
+  });
 });
 
 describe("filterSearch", () => {
   it("keeps the filters in the dashboard's own links", () => {
     expect(filterSearch({ status: "DELIVERED", from: "2026-11-01" }, 3)).toBe("?status=DELIVERED&from=2026-11-01&page=3");
+  });
+
+  it("keeps the search in the page and export links, so paging stays within the results", () => {
+    expect(filterSearch({ orderRef: "WEB-10", status: "CREATED" }, 2)).toBe("?status=CREATED&orderRef=WEB-10&page=2");
   });
 
   it("is empty with no filters on the first page", () => {

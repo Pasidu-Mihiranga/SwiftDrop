@@ -50,6 +50,25 @@ describe("GET /merchant/orders/export", () => {
     expect(new TextDecoder().decode(bytes)).toContain("SD261121THPJ1AY,WEB-1001,CREATED");
   });
 
+  it("exports only the orders matching the order-reference search", async () => {
+    authMock.mockResolvedValue({ user: { roles: ["MERCHANT"] } });
+    fetchAllMyOrdersMock.mockResolvedValue({ orders: [ORDER], truncated: false });
+
+    const response = await GET(request("?orderRef=%20WEB-10%20&status=CREATED"));
+
+    expect(response.status).toBe(200);
+    expect(fetchAllMyOrdersMock).toHaveBeenCalledWith({ status: "CREATED", orderRef: "WEB-10" });
+  });
+
+  it("rejects a search longer than any order reference", async () => {
+    authMock.mockResolvedValue({ user: { roles: ["MERCHANT"] } });
+
+    const response = await GET(request(`?orderRef=${"x".repeat(101)}`));
+
+    expect(response.status).toBe(400);
+    expect(fetchAllMyOrdersMock).not.toHaveBeenCalled();
+  });
+
   it("is refused to anyone who is not a merchant", async () => {
     authMock.mockResolvedValue({ user: { roles: ["CUSTOMER"] } });
 

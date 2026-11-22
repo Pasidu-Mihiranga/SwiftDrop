@@ -52,11 +52,18 @@ export const EXPORT_PAGE_SIZE = 100;
 /** An export stops here rather than reading without end; the file says so when it was cut short. */
 export const EXPORT_MAX_ROWS = 10_000;
 
-/** The filters as the merchant chose them: dates are calendar days in Sri Lanka (YYYY-MM-DD). */
+/** Same limit as parcel-service (Parcel.MAX_ORDER_REF_LENGTH): no stored reference is longer. */
+export const ORDER_REF_MAX_LENGTH = 100;
+
+/**
+ * The filters as the merchant chose them: dates are calendar days in Sri Lanka (YYYY-MM-DD), and
+ * orderRef is part of the merchant's own order reference, matched ignoring case.
+ */
 export interface OrderFilter {
   status?: ParcelStatus;
   from?: string;
   to?: string;
+  orderRef?: string;
 }
 
 export type OrdersQuery = { filter: OrderFilter; page: number; error?: string };
@@ -98,16 +105,26 @@ function isCalendarDay(value: string | undefined): value is string {
  * Reads the filters and page from the address bar. Anything unexpected is dropped rather than
  * failing the page; a "from" day after the "to" day is reported so the merchant can fix it.
  */
-export function parseOrdersQuery(params: { status?: string; from?: string; to?: string; page?: string }): OrdersQuery {
+export function parseOrdersQuery(params: {
+  status?: string;
+  from?: string;
+  to?: string;
+  orderRef?: string;
+  page?: string;
+}): OrdersQuery {
   const filter: OrderFilter = {};
   if (isParcelStatus(params.status)) filter.status = params.status;
   if (isCalendarDay(params.from)) filter.from = params.from;
   if (isCalendarDay(params.to)) filter.to = params.to;
+  const orderRef = typeof params.orderRef === "string" ? params.orderRef.trim() : "";
+  if (orderRef) filter.orderRef = orderRef;
 
   const page = Number.parseInt(params.page ?? "", 10);
   const query: OrdersQuery = { filter, page: Number.isInteger(page) && page >= 0 ? page : 0 };
   if (filter.from && filter.to && filter.from > filter.to) {
     query.error = "The 'from' date must be on or before the 'to' date.";
+  } else if (orderRef.length > ORDER_REF_MAX_LENGTH) {
+    query.error = `Search for at most ${ORDER_REF_MAX_LENGTH} characters of an order reference.`;
   }
   return query;
 }
@@ -130,6 +147,7 @@ export function ordersApiQuery(filter: OrderFilter, page: number, size: number):
   if (filter.status) query.set("status", filter.status);
   if (filter.from) query.set("from", new Date(`${filter.from}T00:00:00${COLOMBO_OFFSET}`).toISOString());
   if (filter.to) query.set("to", new Date(`${nextDay(filter.to)}T00:00:00${COLOMBO_OFFSET}`).toISOString());
+  if (filter.orderRef) query.set("orderRef", filter.orderRef);
   return query;
 }
 
@@ -139,6 +157,7 @@ export function filterSearch(filter: OrderFilter, page?: number): string {
   if (filter.status) query.set("status", filter.status);
   if (filter.from) query.set("from", filter.from);
   if (filter.to) query.set("to", filter.to);
+  if (filter.orderRef) query.set("orderRef", filter.orderRef);
   if (page && page > 0) query.set("page", String(page));
   const text = query.toString();
   return text ? `?${text}` : "";

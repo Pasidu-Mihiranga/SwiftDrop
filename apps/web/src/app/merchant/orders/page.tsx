@@ -3,6 +3,7 @@ import { MerchantNav } from "@/components/merchant-nav";
 import { formatDateTime } from "@/lib/merchant";
 import { fetchMyOrders } from "@/lib/merchant-api";
 import {
+  ORDER_REF_MAX_LENGTH,
   PARCEL_STATUSES,
   filterSearch,
   formatFee,
@@ -24,7 +25,7 @@ export const metadata = { title: "Orders" };
 export default async function MerchantOrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; from?: string; to?: string; page?: string }>;
+  searchParams: Promise<{ status?: string; from?: string; to?: string; orderRef?: string; page?: string }>;
 }) {
   const { filter, page, error } = parseOrdersQuery(await searchParams);
 
@@ -37,7 +38,7 @@ export default async function MerchantOrdersPage({
       loadError = "We could not load your orders just now. Please try again shortly.";
     }
   }
-  const filtered = Boolean(filter.status || filter.from || filter.to);
+  const filtered = Boolean(filter.status || filter.from || filter.to || filter.orderRef);
 
   return (
     <div className="space-y-6">
@@ -99,10 +100,32 @@ export default async function MerchantOrdersPage({
   );
 }
 
-/** A GET form, so the filters live in the address bar and can be bookmarked or shared. */
+/**
+ * A GET form, so the filters live in the address bar and can be bookmarked or shared. Applying it
+ * starts again from the first page, because the page number is not one of its fields.
+ */
 function FilterForm({ filter }: { filter: OrderFilter }) {
   return (
-    <form method="get" action="/merchant/orders" className="card grid gap-4 sm:grid-cols-4 sm:items-end" aria-label="Filter orders">
+    <form
+      method="get"
+      action="/merchant/orders"
+      className="card grid gap-4 sm:grid-cols-2 lg:grid-cols-5 lg:items-end"
+      aria-label="Filter orders"
+    >
+      <div className="space-y-1">
+        <label className="block text-sm font-medium text-slate-700" htmlFor="orderRef">Order reference</label>
+        <input
+          id="orderRef"
+          name="orderRef"
+          type="search"
+          className="input"
+          placeholder="e.g. WEB-1001"
+          maxLength={ORDER_REF_MAX_LENGTH}
+          defaultValue={filter.orderRef ?? ""}
+          aria-describedby="orderRef-hint"
+        />
+        <p id="orderRef-hint" className="text-xs text-slate-500">Part of your own order number</p>
+      </div>
       <div className="space-y-1">
         <label className="block text-sm font-medium text-slate-700" htmlFor="status">Status</label>
         <select id="status" name="status" className="input" defaultValue={filter.status ?? ""}>

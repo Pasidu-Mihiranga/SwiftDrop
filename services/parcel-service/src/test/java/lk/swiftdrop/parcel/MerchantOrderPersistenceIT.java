@@ -448,6 +448,46 @@ class MerchantOrderPersistenceIT {
                 .singleElement().satisfies(p -> assertThat(p.merchantOrderRef()).isEqualTo("B-0"));
     }
 
+    @Test
+    void anOrderRefSearchFindsPartOfTheReferenceIgnoringCaseWithinTheMerchantsOwnOrdersOnly() {
+        cache.apply(standing(MERCHANT_A, MerchantStatus.APPROVED, T0));
+        cache.apply(standing(MERCHANT_B, MerchantStatus.APPROVED, T0));
+        String[] refs = {"WEB-1001", "web-1002", "POS-2001", "SALE_50%", "SALEX50Y"};
+        for (int i = 0; i < refs.length; i++) {
+            orders.create(apiClientOf(MERCHANT_A), new IdempotencyKey("idem-key-s-" + i), order(refs[i]));
+        }
+        // Merchant B uses a reference that merchant A's search would match.
+        orders.create(apiClientOf(MERCHANT_B), new IdempotencyKey("idem-key-s-b"), order("WEB-1001"));
+
+        assertThat(refsFound(MERCHANT_A, "web-100", null, 0, 20)).containsExactlyInAnyOrder("WEB-1001", "web-1002");
+        assertThat(refsFound(MERCHANT_A, "1001", null, 0, 20)).containsExactly("WEB-1001");
+        assertThat(refsFound(MERCHANT_A, "pos", null, 0, 20)).containsExactly("POS-2001");
+        assertThat(refsFound(MERCHANT_A, "NOPE", null, 0, 20)).isEmpty();
+
+        // "%" and "_" are ordinary characters, not LIKE wildcards: "SALEX50Y" must not match "SALE_50%".
+        assertThat(refsFound(MERCHANT_A, "SALE_50%", null, 0, 20)).containsExactly("SALE_50%");
+        assertThat(refsFound(MERCHANT_A, "%", null, 0, 20)).containsExactly("SALE_50%");
+        assertThat(refsFound(MERCHANT_A, "_", null, 0, 20)).containsExactly("SALE_50%");
+
+        // Combined with the other filters, and paged over the matching orders only.
+        assertThat(refsFound(MERCHANT_A, "web", ParcelStatus.CREATED, 0, 20)).hasSize(2);
+        assertThat(refsFound(MERCHANT_A, "web", ParcelStatus.DELIVERED, 0, 20)).isEmpty();
+        PagedResult<Parcel> firstPage = orders.list(apiClientOf(MERCHANT_A),
+                new MerchantOrderFilter(null, T0.minusSeconds(86_400 * 365L), null, "web"), 0, 1);
+        assertThat(firstPage.totalElements()).isEqualTo(2);
+        assertThat(firstPage.totalPages()).isEqualTo(2);
+        assertThat(refsFound(MERCHANT_A, "web", null, 1, 1)).hasSize(1);
+
+        // Merchant B's search never reaches merchant A's orders.
+        assertThat(refsFound(MERCHANT_B, "web", null, 0, 20)).containsExactly("WEB-1001");
+        assertThat(refsFound(MERCHANT_B, "POS", null, 0, 20)).isEmpty();
+    }
+
+    private List<String> refsFound(String merchantId, String orderRef, ParcelStatus status, int page, int size) {
+        return orders.list(apiClientOf(merchantId), new MerchantOrderFilter(status, null, null, orderRef), page, size)
+                .content().stream().map(Parcel::merchantOrderRef).toList();
+    }
+
     /** Starts every task at the same moment and waits for all of them. */
     private static <T> List<T> runTogether(List<Callable<T>> tasks) throws Exception {
         ExecutorService pool = Executors.newFixedThreadPool(tasks.size());
