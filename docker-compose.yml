@@ -460,6 +460,26 @@ services:
     volumes:
       - ./secrets:/run/secrets/swiftdrop:ro
 
+  # Demo online store for M8: creates orders through the merchant API and receives signed webhooks.
+  # Register http://merchant-simulator:4000/webhooks in the merchant portal, then paste the signing
+  # secret on the simulator's page (or set MERCHANT_SIMULATOR_WEBHOOK_SECRET).
+  merchant-simulator:
+    profiles: ["apps"]
+    restart: unless-stopped
+    mem_limit: 128m
+    build: { context: ., dockerfile: tools/merchant-simulator/Dockerfile }
+    environment:
+      GATEWAY_URL: http://api-gateway:8080
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+      MERCHANT_CLIENT_ID: ${MERCHANT_SIMULATOR_CLIENT_ID:-merchant-demo}
+      MERCHANT_CLIENT_SECRET: ${MERCHANT_SIMULATOR_CLIENT_SECRET:-${KC_DEMO_MERCHANT_CLIENT_SECRET}}
+      WEBHOOK_SECRET: ${MERCHANT_SIMULATOR_WEBHOOK_SECRET:-}
+      PUBLIC_WEBHOOK_URL: http://merchant-simulator:4000/webhooks
+    ports: ["${MERCHANT_SIMULATOR_HOST_PORT:-4010}:4000"]
+    depends_on:
+      keycloak: { condition: service_healthy }
+
   web:
     <<: *app
     build: { context: ., dockerfile: apps/web/Dockerfile }
