@@ -2,6 +2,7 @@ package lk.swiftdrop.parcel.infrastructure.persistence;
 
 import lk.swiftdrop.events.common.Types.Money;
 import lk.swiftdrop.parcel.domain.model.BookingDetails;
+import lk.swiftdrop.parcel.domain.model.GeoPoint;
 import lk.swiftdrop.parcel.domain.model.Parcel;
 import lk.swiftdrop.parcel.domain.model.Recipient;
 import lk.swiftdrop.parcel.domain.model.StatusChange;
@@ -51,7 +52,10 @@ final class ParcelEntityMapper {
         parcel.history().stream()
                 .skip(entity.getHistory().size())
                 .map(change -> new ParcelStatusHistoryEntity(entity, change.fromStatus(), change.toStatus(),
-                        change.actorId(), change.actorRole(), change.note(), change.occurredAt()))
+                        change.actorId(), change.actorRole(), change.note(), change.occurredAt(),
+                        change.failureReason(), change.proofId(),
+                        change.position() == null ? null : change.position().lat(),
+                        change.position() == null ? null : change.position().lng()))
                 .forEach(entity.getHistory()::add);
     }
 
@@ -71,7 +75,8 @@ final class ParcelEntityMapper {
     }
 
     private static StatusChange toDomain(ParcelStatusHistoryEntity row) {
+        GeoPoint position = row.getLat() == null || row.getLng() == null ? null : new GeoPoint(row.getLat(), row.getLng());
         return new StatusChange(row.getFromStatus(), row.getToStatus(), row.getActorId(), row.getActorRole(),
-                row.getNote(), row.getOccurredAt());
+                row.getNote(), row.getOccurredAt(), row.getFailureReason(), row.getProofId(), position);
     }
 }

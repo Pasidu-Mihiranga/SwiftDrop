@@ -2,7 +2,18 @@ package lk.swiftdrop.parcel.domain.state;
 
 import lk.swiftdrop.events.common.Types.ParcelStatus;
 
-/** Factory and concrete state implementations kept together to make the transition graph explicit. */
+/**
+ * The parcel lifecycle (design: parcel state diagram, M4):
+ * <pre>
+ * CREATED          -> PICKED_UP | CANCELLED
+ * PICKED_UP        -> IN_TRANSIT
+ * IN_TRANSIT       -> OUT_FOR_DELIVERY
+ * OUT_FOR_DELIVERY -> DELIVERED | FAILED
+ * FAILED           -> OUT_FOR_DELIVERY   (a re-attempt, decided by dispatch)
+ * DELIVERED, CANCELLED: final
+ * </pre>
+ * The factory and the states are kept together so the whole graph reads in one place.
+ */
 public final class ParcelStates {
     private ParcelStates() { }
 

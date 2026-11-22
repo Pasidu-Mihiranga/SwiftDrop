@@ -1,15 +1,21 @@
 package lk.swiftdrop.parcel.domain.state;
 
 import lk.swiftdrop.events.common.Types.ParcelStatus;
-import lk.swiftdrop.common.web.error.BusinessRuleViolationException;
+import lk.swiftdrop.parcel.domain.exception.InvalidStatusTransitionException;
 
 /** State pattern for the parcel lifecycle. Each concrete state owns its legal successors. */
 public interface ParcelState {
+
     ParcelStatus status();
+
+    /**
+     * The state the parcel moves into.
+     *
+     * @throws InvalidStatusTransitionException when this state does not allow the step
+     */
     ParcelState transitionTo(ParcelStatus target);
 
     default ParcelState reject(ParcelStatus target) {
-        throw new BusinessRuleViolationException("INVALID_STATUS_TRANSITION",
-                "Parcel cannot move from " + status() + " to " + target + ".");
+        throw new InvalidStatusTransitionException(status(), target);
     }
 }

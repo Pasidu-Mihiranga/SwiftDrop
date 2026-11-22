@@ -10,8 +10,10 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lk.swiftdrop.events.common.Types.ActorRole;
+import lk.swiftdrop.events.common.Types.FailureReason;
 import lk.swiftdrop.events.common.Types.ParcelStatus;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -48,12 +50,26 @@ public class ParcelStatusHistoryEntity {
     @Column(name = "occurred_at", nullable = false, updatable = false)
     private Instant occurredAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "failure_reason", length = 30, updatable = false)
+    private FailureReason failureReason;
+
+    @Column(name = "proof_id", length = 64, updatable = false)
+    private String proofId;
+
+    @Column(precision = 9, scale = 6, updatable = false)
+    private BigDecimal lat;
+
+    @Column(precision = 9, scale = 6, updatable = false)
+    private BigDecimal lng;
+
     protected ParcelStatusHistoryEntity() {
         // for JPA
     }
 
     ParcelStatusHistoryEntity(ParcelEntity parcel, ParcelStatus fromStatus, ParcelStatus toStatus, String actorId,
-                              ActorRole actorRole, String note, Instant occurredAt) {
+                              ActorRole actorRole, String note, Instant occurredAt, FailureReason failureReason,
+                              String proofId, BigDecimal lat, BigDecimal lng) {
         this.id = UUID.randomUUID();
         this.parcel = parcel;
         this.fromStatus = fromStatus;
@@ -62,6 +78,10 @@ public class ParcelStatusHistoryEntity {
         this.actorRole = actorRole;
         this.note = note;
         this.occurredAt = occurredAt;
+        this.failureReason = failureReason;
+        this.proofId = proofId;
+        this.lat = lat;
+        this.lng = lng;
     }
 
     ParcelStatus getFromStatus() {
@@ -86,5 +106,21 @@ public class ParcelStatusHistoryEntity {
 
     Instant getOccurredAt() {
         return occurredAt;
+    }
+
+    FailureReason getFailureReason() {
+        return failureReason;
+    }
+
+    String getProofId() {
+        return proofId;
+    }
+
+    BigDecimal getLat() {
+        return lat;
+    }
+
+    BigDecimal getLng() {
+        return lng;
     }
 }

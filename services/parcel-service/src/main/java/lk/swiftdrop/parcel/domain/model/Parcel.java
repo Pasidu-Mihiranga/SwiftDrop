@@ -1,9 +1,14 @@
 package lk.swiftdrop.parcel.domain.model;
 
 import lk.swiftdrop.events.common.Types.ActorRole;
+import lk.swiftdrop.events.common.Types.FailureReason;
 import lk.swiftdrop.events.common.Types.ParcelSource;
 import lk.swiftdrop.events.common.Types.ParcelStatus;
+import lk.swiftdrop.parcel.domain.exception.DeliveryProofRequiredException;
+import lk.swiftdrop.parcel.domain.exception.FailureReasonRequiredException;
+import lk.swiftdrop.parcel.domain.exception.InvalidStatusTransitionException;
 import lk.swiftdrop.parcel.domain.exception.ParcelNotCancellableException;
+import lk.swiftdrop.parcel.domain.state.ParcelStates;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -78,5 +83,50 @@ public record Parcel(UUID id, TrackingNumber trackingNumber, ParcelSource source
         extended.add(new StatusChange(status, ParcelStatus.CANCELLED, actorId, actorRole, null, now));
         return new Parcel(id, trackingNumber, source, customerId, merchantId, merchantOrderRef, details,
                 ParcelStatus.CANCELLED, courierId, extended, createdAt, now, version);
+    }
+
+    /**
+     * A courier or dispatcher moves the parcel to its next status (M4). The lifecycle decides which
+     * steps exist; a failure needs a reason and a delivery needs complete proof. Cancelling has its
+     * own rules and goes through {@link #cancel}.
+     *
+     * @throws InvalidStatusTransitionException when the lifecycle does not allow the step
+     * @throws FailureReasonRequiredException   when FAILED comes without a reason
+     * @throws DeliveryProofRequiredException   when DELIVERED comes without complete proof
+     */
+    public Parcel changeStatus(ParcelStatus target, String actorId, ActorRole actorRole, String note,
+                               FailureReason failureReason, ProofOfDelivery proof, GeoPoint position, Instant now) {
+        if (target == ParcelStatus.CANCELLED) {
+            throw new InvalidStatusTransitionException("A parcel is cancelled by its customer, not through a status update.");
+        }
+        ParcelStates.of(status).transitionTo(target);
+        if (target == ParcelStatus.FAILED && failureReason == null) {
+            throw new FailureReasonRequiredException();
+        }
+        if (target == ParcelStatus.DELIVERED) {
+            if (proof == null || proof.type() == null) {
+                throw new DeliveryProofRequiredException("A delivery needs proof: the recipient's name, or a photo or signature.");
+            }
+            if (!proof.isComplete()) {
+                throw new DeliveryProofRequiredException(proof.type() == ProofOfDelivery.Type.NAME
+                        ? "Enter the name of the person who received the parcel."
+                        : "Upload the " + proof.type().name().toLowerCase() + " first.");
+            }
+        }
+        List<StatusChange> extended = new ArrayList<>(history);
+        extended.add(new StatusChange(status, target, actorId, actorRole, note, now,
+                target == ParcelStatus.FAILED ? failureReason : null,
+                proof == null ? null : proof.proofId(), position));
+        return new Parcel(id, trackingNumber, source, customerId, merchantId, merchantOrderRef, details,
+                target, courierId, extended, createdAt, now, version);
+    }
+
+    /** Dispatch assigned (or reassigned) the parcel to a courier. Its status does not change. */
+    public Parcel assignCourier(String newCourierId, Instant now) {
+        if (newCourierId == null || newCourierId.isBlank()) {
+            throw new IllegalArgumentException("An assignment needs the courier id");
+        }
+        return new Parcel(id, trackingNumber, source, customerId, merchantId, merchantOrderRef, details,
+                status, newCourierId, history, createdAt, now, version);
     }
 }
