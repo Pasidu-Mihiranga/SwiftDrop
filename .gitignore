@@ -69,3 +69,6 @@ infra/helm/charts/*/charts/*.tgz
 doc/test-reports/java/
 doc/test-reports/node/
 doc/test-reports/python/
+
+# --- Google OAuth client secrets (keep local, never commit) ---
+client_secret_*.json
