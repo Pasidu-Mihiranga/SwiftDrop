@@ -396,6 +396,7 @@ class MerchantOrderControllerTest {
                         .param("status", "DELIVERED")
                         .param("from", "2026-11-01T00:00:00Z")
                         .param("to", "2026-11-20T00:00:00Z")
+                        .param("orderRef", "  web-10  ")
                         .param("page", "2").param("size", "5")
                         .param("merchantId", "00000000-0000-4000-8000-0000000000b2"))
                 .andExpect(status().isOk())
@@ -407,7 +408,28 @@ class MerchantOrderControllerTest {
         verify(orders).list(caller.capture(), filter.capture(), eq(2), eq(5));
         assertThat(caller.getValue().merchantId()).contains(MERCHANT);
         assertThat(filter.getValue()).isEqualTo(new MerchantOrderFilter(ParcelStatus.DELIVERED,
-                Instant.parse("2026-11-01T00:00:00Z"), Instant.parse("2026-11-20T00:00:00Z")));
+                Instant.parse("2026-11-01T00:00:00Z"), Instant.parse("2026-11-20T00:00:00Z"), "web-10"));
+    }
+
+    @Test
+    void anEmptyOrderRefSearchesForNothing() throws Exception {
+        when(orders.list(any(), any(), anyInt(), anyInt())).thenReturn(new PagedResult<>(List.of(), 0, 20, 0, 0));
+
+        mvc.perform(get(ORDERS).with(merchantSystem()).param("orderRef", "   ")).andExpect(status().isOk());
+
+        verify(orders).list(any(), eq(MerchantOrderFilter.none()), eq(0), eq(20));
+    }
+
+    @Test
+    void anOrderRefLongerThanAnyStoredReferenceIs400() throws Exception {
+        when(orders.list(any(), any(), anyInt(), anyInt())).thenReturn(new PagedResult<>(List.of(), 0, 20, 0, 0));
+
+        mvc.perform(get(ORDERS).with(merchantSystem()).param("orderRef", "x".repeat(Parcel.MAX_ORDER_REF_LENGTH)))
+                .andExpect(status().isOk());
+
+        mvc.perform(get(ORDERS).with(merchantSystem()).param("orderRef", "x".repeat(Parcel.MAX_ORDER_REF_LENGTH + 1)))
+                .andExpect(status().isBadRequest());
+        verify(orders).list(any(), any(), anyInt(), anyInt());
     }
 
     @Test
