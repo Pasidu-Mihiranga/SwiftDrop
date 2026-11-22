@@ -7,6 +7,8 @@ import lk.swiftdrop.events.common.Types.Location;
 import lk.swiftdrop.events.parcel.ParcelCreated;
 import lk.swiftdrop.outbox.OutboxWriter;
 import lk.swiftdrop.parcel.application.exception.MerchantAccessDeniedException;
+import lk.swiftdrop.parcel.application.exception.OrderNotPriceableException;
+import lk.swiftdrop.parcel.application.exception.PricingUnavailableException;
 import lk.swiftdrop.parcel.application.model.MerchantOrderFilter;
 import lk.swiftdrop.parcel.application.model.MerchantOrderResult;
 import lk.swiftdrop.parcel.application.model.MerchantQuoteRequest;
@@ -14,6 +16,8 @@ import lk.swiftdrop.parcel.application.model.PagedResult;
 import lk.swiftdrop.parcel.application.model.Quote;
 import lk.swiftdrop.parcel.application.port.out.DuplicateIdempotencyKeyException;
 import lk.swiftdrop.parcel.application.port.out.IdempotencyStore;
+import lk.swiftdrop.parcel.application.port.out.MerchantOrderMetrics;
+import lk.swiftdrop.parcel.application.port.out.MerchantOrderMetrics.Outcome;
 import lk.swiftdrop.parcel.application.port.out.MerchantStatusCache;
 import lk.swiftdrop.parcel.application.port.out.ParcelRepository;
 import lk.swiftdrop.parcel.application.port.out.QuotePort;
@@ -62,29 +66,71 @@ public class MerchantOrderService {
     private final ParcelRepository parcels;
     private final TrackingNumberFactory trackingNumbers;
     private final OutboxWriter outbox;
+    private final MerchantOrderMetrics metrics;
     private final TransactionOperations transaction;
     private final Clock clock;
 
+    /** The 409 answered when a concurrent request with the same key has not finished. */
+    static final String KEY_IN_PROGRESS = "IDEMPOTENCY_KEY_IN_PROGRESS";
+
     public MerchantOrderService(MerchantStatusCache merchants, IdempotencyStore idempotency, QuotePort pricing,
                                 ParcelRepository parcels, TrackingNumberFactory trackingNumbers, OutboxWriter outbox,
-                                TransactionOperations transaction, Clock clock) {
+                                MerchantOrderMetrics metrics, TransactionOperations transaction, Clock clock) {
         this.merchants = merchants;
         this.idempotency = idempotency;
         this.pricing = pricing;
         this.parcels = parcels;
         this.trackingNumbers = trackingNumbers;
         this.outbox = outbox;
+        this.metrics = metrics;
         this.transaction = transaction;
         this.clock = clock;
     }
 
     /**
+     * Every request is counted once, with how it ended (see {@link MerchantOrderMetrics.Outcome}); a
+     * new order only once its transaction has committed.
+     *
      * @throws MerchantAccessDeniedException  403 when the token names no merchant or it is not APPROVED
      * @throws IdempotencyKeyReusedException  409 when the key was used for a different order
-     * @throws lk.swiftdrop.parcel.application.exception.PricingUnavailableException 503, nothing stored
-     * @throws lk.swiftdrop.parcel.application.exception.OrderNotPriceableException  422, nothing stored
+     * @throws PricingUnavailableException    503, nothing stored
+     * @throws OrderNotPriceableException     422, nothing stored
      */
     public MerchantOrderResult create(AuthenticatedUser caller, IdempotencyKey key, MerchantOrderCommand order) {
+        MerchantOrderResult result;
+        try {
+            result = createOrReplay(caller, key, order);
+        } catch (RuntimeException refused) {
+            metrics.orderRequest(outcomeOf(refused));
+            throw refused;
+        }
+        metrics.orderRequest(result.replayed() ? Outcome.REPLAYED : Outcome.CREATED);
+        return result;
+    }
+
+    /** How a refused request ended, for the metrics. Subclasses are checked before their parents. */
+    static Outcome outcomeOf(RuntimeException refused) {
+        if (refused instanceof IdempotencyKeyReusedException) {
+            return Outcome.IDEMPOTENCY_CONFLICT;
+        }
+        if (refused instanceof ConflictException conflict && KEY_IN_PROGRESS.equals(conflict.code())) {
+            return Outcome.IDEMPOTENCY_IN_PROGRESS;
+        }
+        if (refused instanceof MerchantAccessDeniedException denied) {
+            return MerchantAccessDeniedException.NO_MERCHANT.equals(denied.code())
+                    ? Outcome.NO_MERCHANT : Outcome.NOT_APPROVED;
+        }
+        if (refused instanceof OrderNotPriceableException) {
+            return Outcome.NOT_PRICEABLE;
+        }
+        if (refused instanceof PricingUnavailableException) {
+            return Outcome.PRICING_UNAVAILABLE;
+        }
+        return Outcome.FAILED;
+    }
+
+    private MerchantOrderResult createOrReplay(AuthenticatedUser caller, IdempotencyKey key,
+                                               MerchantOrderCommand order) {
         String merchantId = merchantOf(caller);
         // Checked first so a merchant that is not approved never reaches pricing; checked again at persistence.
         merchants.find(merchantId)
@@ -104,7 +150,7 @@ public class MerchantOrderService {
         } catch (DuplicateIdempotencyKeyException lostTheRace) {
             // The winner has committed; answer exactly as a later retry would be answered.
             return resolveExisting(merchantId, key, requestHash).orElseThrow(() -> new ConflictException(
-                    "IDEMPOTENCY_KEY_IN_PROGRESS",
+                    KEY_IN_PROGRESS,
                     "Another request with this Idempotency-Key did not finish. Retry with the same key."));
         }
     }

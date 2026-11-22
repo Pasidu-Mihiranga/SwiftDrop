@@ -18,6 +18,8 @@ import lk.swiftdrop.parcel.application.model.MerchantQuoteRequest;
 import lk.swiftdrop.parcel.application.model.PagedResult;
 import lk.swiftdrop.parcel.application.port.out.DuplicateIdempotencyKeyException;
 import lk.swiftdrop.parcel.application.port.out.IdempotencyStore;
+import lk.swiftdrop.parcel.application.port.out.MerchantOrderMetrics;
+import lk.swiftdrop.parcel.application.port.out.MerchantOrderMetrics.Outcome;
 import lk.swiftdrop.parcel.application.port.out.MerchantStatusCache;
 import lk.swiftdrop.parcel.application.port.out.ParcelRepository;
 import lk.swiftdrop.parcel.application.port.out.QuotePort;
@@ -59,6 +61,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -88,6 +91,8 @@ class MerchantOrderServiceTest {
     private ParcelRepository parcels;
     @Mock
     private OutboxWriter outbox;
+    @Mock
+    private MerchantOrderMetrics metrics;
 
     private final RecordingTransactions transactions = new RecordingTransactions();
     private MerchantOrderService service;
@@ -113,7 +118,7 @@ class MerchantOrderServiceTest {
     @BeforeEach
     void setUp() {
         service = new MerchantOrderService(merchants, idempotency, pricing, parcels,
-                new TrackingNumberFactory(CLOCK, new Random(7)), outbox, transactions, CLOCK);
+                new TrackingNumberFactory(CLOCK, new Random(7)), outbox, metrics, transactions, CLOCK);
         lenient().when(merchants.find(MERCHANT)).thenReturn(Optional.of(APPROVED));
         lenient().when(merchants.findForOrder(MERCHANT)).thenReturn(Optional.of(APPROVED));
         lenient().when(idempotency.find(anyString(), any())).thenReturn(Optional.empty());
@@ -404,6 +409,85 @@ class MerchantOrderServiceTest {
                     assertThat(e.code()).isEqualTo("DISTRICT_NOT_SERVICED");
                 });
         assertNothingWritten();
+    }
+
+    // --- metrics: every request counted once, with how it ended
+
+    @Test
+    void aNewOrderIsCountedAsCreatedOnceItHasCommitted() {
+        service.create(API_CLIENT, KEY, order());
+
+        verify(metrics).orderRequest(Outcome.CREATED);
+        verifyNoMoreInteractions(metrics);
+        assertThat(transactions.committed).isEqualTo(1);
+    }
+
+    @Test
+    void aRetryWithTheSameKeyAndBodyIsCountedAsAReplay() {
+        Parcel original = existingOrderOf(MERCHANT);
+        when(idempotency.find(MERCHANT, KEY)).thenReturn(Optional.of(recordFor(original, RequestFingerprint.of(order()))));
+        when(parcels.findById(original.id())).thenReturn(Optional.of(original));
+
+        service.create(API_CLIENT, KEY, order());
+
+        verify(metrics).orderRequest(Outcome.REPLAYED);
+        verifyNoMoreInteractions(metrics);
+    }
+
+    @Test
+    void losingARaceWithTheSameBodyIsCountedAsAReplayNotACreation() {
+        Parcel winner = existingOrderOf(MERCHANT);
+        when(idempotency.find(MERCHANT, KEY))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(recordFor(winner, RequestFingerprint.of(order()))));
+        doThrow(new DuplicateIdempotencyKeyException(null)).when(idempotency).save(any());
+        when(parcels.findById(winner.id())).thenReturn(Optional.of(winner));
+
+        service.create(API_CLIENT, KEY, order());
+
+        verify(metrics).orderRequest(Outcome.REPLAYED);
+        verifyNoMoreInteractions(metrics);
+    }
+
+    @Test
+    void aRefusedRequestIsCountedWithWhyAndStillRefused() {
+        Parcel original = existingOrderOf(MERCHANT);
+        when(idempotency.find(MERCHANT, KEY)).thenReturn(Optional.of(recordFor(original, "f".repeat(64))));
+
+        assertThatThrownBy(() -> service.create(API_CLIENT, KEY, order()))
+                .isInstanceOf(IdempotencyKeyReusedException.class);
+
+        verify(metrics).orderRequest(Outcome.IDEMPOTENCY_CONFLICT);
+        verifyNoMoreInteractions(metrics);
+    }
+
+    @Test
+    void anUnavailablePricingServiceIsCountedAsSuch() {
+        when(pricing.quote(any())).thenThrow(new PricingUnavailableException(new RuntimeException("timeout")));
+
+        assertThatThrownBy(() -> service.create(API_CLIENT, KEY, order())).isInstanceOf(PricingUnavailableException.class);
+
+        verify(metrics).orderRequest(Outcome.PRICING_UNAVAILABLE);
+    }
+
+    @Test
+    void eachRefusalMapsToItsOwnOutcome() {
+        assertThat(MerchantOrderService.outcomeOf(new IdempotencyKeyReusedException()))
+                .isEqualTo(Outcome.IDEMPOTENCY_CONFLICT);
+        assertThat(MerchantOrderService.outcomeOf(new ConflictException("IDEMPOTENCY_KEY_IN_PROGRESS", "retry")))
+                .isEqualTo(Outcome.IDEMPOTENCY_IN_PROGRESS);
+        assertThat(MerchantOrderService.outcomeOf(new ConflictException("PARCEL_MODIFIED", "changed")))
+                .as("another conflict is not an idempotency one").isEqualTo(Outcome.FAILED);
+        assertThat(MerchantOrderService.outcomeOf(MerchantAccessDeniedException.notApproved()))
+                .isEqualTo(Outcome.NOT_APPROVED);
+        assertThat(MerchantOrderService.outcomeOf(MerchantAccessDeniedException.noMerchant()))
+                .isEqualTo(Outcome.NO_MERCHANT);
+        assertThat(MerchantOrderService.outcomeOf(new OrderNotPriceableException("DISTRICT_NOT_SERVICED", "No")))
+                .isEqualTo(Outcome.NOT_PRICEABLE);
+        assertThat(MerchantOrderService.outcomeOf(new PricingUnavailableException(new RuntimeException("x"))))
+                .isEqualTo(Outcome.PRICING_UNAVAILABLE);
+        assertThat(MerchantOrderService.outcomeOf(new IllegalStateException("database down")))
+                .isEqualTo(Outcome.FAILED);
     }
 
     // --- listing
