@@ -4,6 +4,7 @@ packages:
   - services/*
   - libs/node/*
   - tools/merchant-simulator
+  - tests/e2e
 
 # Packages allowed to run install scripts (pnpm blocks them by default).
 onlyBuiltDependencies:

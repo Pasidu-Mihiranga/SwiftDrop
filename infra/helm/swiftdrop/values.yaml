@@ -35,7 +35,7 @@ global:
 # Secrets created outside Git. Only names are stored here.
 secrets:
   # Application credentials: DB_PASSWORD, REDIS_PASSWORD, MONGO_URI, REDIS_URL,
-  # PII_ENCRYPTION_KEY, S3 keys, LLM keys.
+  # PII_ENCRYPTION_KEY, S3 keys, LLM keys, ASSISTANT_VAULT_SECRET.
   app: swiftdrop-app-secrets
   # Web app only: AUTH_SECRET, AUTH_KEYCLOAK_SECRET.
   web: swiftdrop-web-secrets

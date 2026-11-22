@@ -51,7 +51,7 @@ async def test_the_same_tools_are_listed_with_their_schemas():
             tools = {t.name: t for t in (await client.list_tools()).tools}
             assert list(tools) == ["track_parcel", "estimate_delivery_fee", "list_service_zones", "list_my_parcels",
                                    "get_parcel_details"]
-            assert tools["estimate_delivery_fee"].input_schema["required"] == ["from_district", "to_district", "weight_kg"]
+            assert tools["estimate_delivery_fee"].input_schema["required"] == ["from_city", "to_city", "weight_kg"]
             tracked = await client.call_tool("track_parcel", {"tracking_number": "SD261020K7Q2M9X"})
     assert not tracked.is_error
     assert tracked.structured_content["result"]["recipient"] == "K*** P."

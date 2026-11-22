@@ -19,6 +19,7 @@ Event-driven reporting projections: deliveries per day, success/failure rates, c
 | `GET /reports/success-rate?from&to[&zone]` | Delivered vs failed attempts and the rate |
 | `GET /reports/zones?from&to` | Totals per dropoff zone |
 | `GET /reports/couriers?from&to` | Delivered / failed per courier, most deliveries first |
+| `POST /reports/rebuild` | ADMIN only: empty the projections and replay the topics (202) |
 
 The admin dashboard at `/admin/reports` in the web app (`apps/web/src/app/admin/reports`) is built on these
 endpoints: period presets or a custom range, a zone filter, headline figures compared with the previous
@@ -51,9 +52,11 @@ event ─► processed_event (drop duplicates)
 - **Bad records.** Malformed JSON, a wrong event type or an unknown `eventVersion` is skipped at once;
   other failures are retried with backoff (about 35 s) and then skipped. Skips are logged with the
   record position and event id (never the payload) and counted in `reporting_events_rejected_total`.
-- **Rebuilding.** The tables are derived data. To rebuild, stop the service, truncate `parcel_fact`,
-  `status_transition`, both stats tables and the `reporting-*` rows of `processed_event`, reset the
-  consumer group to the earliest offset, and start it again.
+- **Rebuilding.** The tables are derived data. An ADMIN can rebuild them with
+  `POST /api/v1/reports/rebuild`: it empties the projections and the `reporting-*` rows of
+  `processed_event`, then seeks every listener to the start of its topic. It is safe while events keep
+  arriving (an event applied during the rebuild is recorded, so its replayed copy is a duplicate), and
+  only events the topics still retain come back, so keep the parcel topics' retention long enough.
 
 ## Metrics (`/actuator/prometheus`)
 

@@ -72,6 +72,9 @@ table { font-size: 9.5pt; border: 1px solid #d9dde4; }
 thead { display: table-header-group; }
 tr, li, dl.layers, .two-col > div { break-inside: avoid; }
 p, li { orphans: 3; widows: 3; }
+/* A grid section cannot be split across pages cleanly; the long safety table needs block flow. */
+#assistant-safety { display: block; }
+#assistant-safety > * + * { margin-top: 4mm; }
 header.hero footer { margin-top: 10mm; padding-top: 3mm; font-size: 9pt; max-width: 175mm; }
 </style>
 """
