@@ -31,7 +31,11 @@ Rules:
 _GUEST = """The user is not signed in. They can track any parcel by tracking number and get fee estimates.
 For their own parcels or parcel details, ask them to sign in."""
 
-_SIGNED_IN = """The user is signed in. list_my_parcels and get_parcel_details return only their own parcels."""
+_SIGNED_IN = """The user is signed in. list_my_parcels and get_parcel_details return only their own parcels.
+When they ask about "my parcel" or "my parcels" without a tracking number, call list_my_parcels first; do
+not ask for a tracking number. If exactly one parcel is still on its way, give its status and use
+track_parcel with its tracking number for the latest events. If several are, list them briefly (tracking
+number, status, destination) and ask which one they mean. If they have none, say so."""
 
 
 def system_prompt(user: AuthenticatedUser | None) -> str:
