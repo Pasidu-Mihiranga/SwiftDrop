@@ -81,15 +81,34 @@ paths:
         content:
           application/json:
             schema: { $ref: "#/components/schemas/StatusUpdateRequest" }
+      description: |
+        Only the courier the parcel is assigned to (from dispatch's ParcelAssigned), or staff. Another courier
+        gets 404, as for a missing parcel. A failed delivery is sent out again by dispatch (reattempt), not by
+        the courier. Writes the history row and ParcelStatusChanged in one transaction.
       responses:
         "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/Parcel" } } } }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
         "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
-        "422": { description: Invalid transition (e.g. CREATED → DELIVERED) or missing proof/reason }
+        "422": { description: "INVALID_STATUS_TRANSITION (e.g. CREATED to DELIVERED), FAILURE_REASON_REQUIRED, DELIVERY_PROOF_REQUIRED or PROOF_NOT_FOUND" }
   /api/v1/courier/parcels/{parcelId}/proof-upload-url:
     post:
       summary: Pre-signed URL to upload a proof-of-delivery photo (JPEG/PNG, ≤5 MB)
+      description: |
+        For the assigned courier (or staff). The phone then PUTs the file straight to `uploadUrl` with the
+        same Content-Type, and sends `proofId` in the status update that proves the delivery. Keys are random
+        and the bucket is private.
       tags: [Courier]
       parameters: [{ $ref: "#/components/parameters/ParcelId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [contentType, sizeBytes]
+              properties:
+                contentType: { type: string, enum: [image/jpeg, image/png] }
+                sizeBytes: { type: integer, minimum: 1, maximum: 5242880 }
       responses:
         "200":
           description: Upload instructions
@@ -101,6 +120,53 @@ paths:
                   proofId: { type: string }
                   uploadUrl: { type: string, format: uri }
                   expiresAt: { type: string, format: date-time }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
+        "422": { description: "PROOF_TYPE_NOT_ALLOWED or PROOF_TOO_LARGE" }
+  /api/v1/courier/parcels/{parcelId}/proofs/{proofId}:
+    get:
+      summary: Short-lived link to view a proof-of-delivery file (anyone who may see the parcel)
+      tags: [Courier]
+      parameters:
+        - { $ref: "#/components/parameters/ParcelId" }
+        - { name: proofId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Download link
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url: { type: string, format: uri }
+                  expiresAt: { type: string, format: date-time }
+        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
+  /api/v1/courier/parcels:
+    get:
+      summary: The parcels assigned to the calling courier, newest first (COURIER)
+      tags: [Courier]
+      parameters:
+        - { name: status, in: query, required: false, schema: { $ref: "common.v1.yaml#/components/schemas/ParcelStatus" } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: size, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/ParcelPage" } } } }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+  /api/v1/parcels/{parcelId}/reattempt:
+    post:
+      summary: Send a failed delivery out again, FAILED to OUT_FOR_DELIVERY (DISPATCHER, ADMIN)
+      tags: [Dispatch]
+      parameters: [{ $ref: "#/components/parameters/ParcelId" }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { type: object, properties: { note: { type: string, maxLength: 500 } } }
+      responses:
+        "200": { description: Sent out again, content: { application/json: { schema: { $ref: "#/components/schemas/Parcel" } } } }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
+        "422": { description: "INVALID_STATUS_TRANSITION: the parcel has not failed" }
   /api/v1/merchant/orders:
     post:
       summary: Merchant system creates a delivery order (MERCHANT_API, OAuth2 client credentials)
