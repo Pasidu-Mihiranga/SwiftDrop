@@ -6,7 +6,9 @@ import { gatewayUrl } from "@/lib/keycloak";
  * Backend-for-frontend proxy: browser code calls /api/bff/api/v1/... and this handler forwards the
  * request to the gateway with the user's access token, so tokens never reach browser JavaScript.
  */
-const FORWARDED_REQUEST_HEADERS = ["content-type", "accept", "x-correlation-id", "idempotency-key"];
+// x-forwarded-for keeps the browser's address visible behind the BFF, so per-client limits (such as the
+// assistant's guest rate limit) count each visitor rather than this server.
+const FORWARDED_REQUEST_HEADERS = ["content-type", "accept", "x-correlation-id", "idempotency-key", "x-forwarded-for"];
 const FORWARDED_RESPONSE_HEADERS = ["content-type", "x-correlation-id", "content-disposition", "www-authenticate"];
 
 async function proxy(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }): Promise<Response> {
