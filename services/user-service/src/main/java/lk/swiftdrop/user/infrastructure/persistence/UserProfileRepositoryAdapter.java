@@ -48,7 +48,7 @@ class UserProfileRepositoryAdapter implements UserProfileRepository {
         UserProfileEntity entity = profiles.findById(profile.id()).orElseThrow(
                 () -> new IllegalStateException("Profile " + profile.id() + " disappeared while being saved"));
         entity.apply(profile.email(), profile.fullName(),
-                profile.phoneNumber().map(PhoneNumber::value).orElse(null), profile.roles());
+                profile.phoneNumber().map(PhoneNumber::value).orElse(null), profile.status(), profile.roles());
         try {
             return toDomain(profiles.saveAndFlush(entity));
         } catch (DataIntegrityViolationException e) {

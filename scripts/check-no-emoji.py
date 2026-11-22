@@ -39,7 +39,7 @@ def scan_text(label: str, text: str) -> list[str]:
 
 
 def tracked_files() -> list[str]:
-    output = subprocess.run(["git", "ls-files"], capture_output=True, text=True, check=True).stdout
+    output = subprocess.run(["git", "-c", "core.quotepath=off", "ls-files"], capture_output=True, text=True, check=True, encoding="utf-8").stdout
     return [f for f in output.splitlines() if f and not f.lower().endswith(BINARY_EXTENSIONS)]
 
 
@@ -62,7 +62,7 @@ def main() -> int:
             try:
                 with open(path, encoding="utf-8") as handle:
                     problems += scan_text(path, handle.read())
-            except (UnicodeDecodeError, FileNotFoundError):
+            except (UnicodeDecodeError, FileNotFoundError, OSError):
                 continue
 
     if problems:
