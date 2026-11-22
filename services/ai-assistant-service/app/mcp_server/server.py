@@ -19,7 +19,7 @@ from swiftdrop_common import AuthenticatedUser, InvalidTokenError, JwtVerifier
 
 INSTRUCTIONS = (
     "SwiftDrop parcel delivery in Sri Lanka. Track a parcel by tracking number, estimate a delivery fee between "
-    "districts, and list service zones without signing in. Send a SwiftDrop access token as a bearer token to "
+    "two towns, and list service zones without signing in. Send a SwiftDrop access token as a bearer token to "
     "list and open your own parcels. Personal data in results is masked."
 )
 
@@ -55,11 +55,11 @@ def build_mcp_server(registry: ToolRegistry, verifier: JwtVerifier,
     async def track_parcel(tracking_number: str, ctx: Context) -> dict[str, Any]:
         return await run("track_parcel", {"tracking_number": tracking_number}, ctx)
 
-    async def estimate_delivery_fee(from_district: str, to_district: str, weight_kg: float, ctx: Context,
+    async def estimate_delivery_fee(from_city: str, to_city: str, weight_kg: float, ctx: Context,
                                     size_class: Literal["S", "M", "L", "XL"] = "S",
                                     service_level: Literal["STANDARD", "EXPRESS"] = "STANDARD") -> dict[str, Any]:
         return await run("estimate_delivery_fee", {
-            "from_district": from_district, "to_district": to_district, "weight_kg": weight_kg,
+            "from_city": from_city, "to_city": to_city, "weight_kg": weight_kg,
             "size_class": size_class, "service_level": service_level}, ctx)
 
     async def list_service_zones(ctx: Context) -> dict[str, Any]:

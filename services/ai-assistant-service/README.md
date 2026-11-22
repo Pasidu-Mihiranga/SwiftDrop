@@ -29,10 +29,17 @@ SD..."), `token` (answer text), `error`, and finally `done` with the `conversati
 | Tool | Who | Calls |
 |---|---|---|
 | `track_parcel` | everyone | `GET /api/v1/tracking/public/{n}` |
-| `estimate_delivery_fee` | everyone | `POST /api/v1/pricing/quotes` |
+| `estimate_delivery_fee` | everyone | `GET /api/v1/pricing/zones`, then `POST /api/v1/pricing/quotes` |
 | `list_service_zones` | everyone | `GET /api/v1/pricing/zones` |
 | `list_my_parcels` | signed in | `GET /api/v1/parcels/mine` |
 | `get_parcel_details` | signed in | `GET /api/v1/parcels/{id}` |
+
+`estimate_delivery_fee(from_city, to_city, weight_kg, size_class)` takes places as people name them.
+`app/tools/places.py` resolves each one to a district: a district from pricing-service's live zone list,
+then a table of about 170 towns ("Nugegoda" to Colombo, "Peradeniya" to Kandy), then a close spelling
+when only one candidate is close. A place it cannot place is an `UNKNOWN_PLACE` error (the model asks
+for the district), and a district outside the active zones is `DISTRICT_NOT_SERVICED`. The table only
+says which district a town is in; what is served, and at what price, always comes from pricing-service.
 
 Until pricing-, parcel- and tracking-service are deployed, these tools return an "unavailable" or "not
 found" error, which the assistant explains to the user.
