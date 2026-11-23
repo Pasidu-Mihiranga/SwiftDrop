@@ -1,6 +1,7 @@
 package lk.swiftdrop.parcel.infrastructure.crypto;
 
 import jakarta.persistence.AttributeConverter;
+import lk.swiftdrop.common.pii.PiiCipher;
 import jakarta.persistence.Converter;
 import lk.swiftdrop.parcel.domain.model.Address;
 import org.springframework.stereotype.Component;

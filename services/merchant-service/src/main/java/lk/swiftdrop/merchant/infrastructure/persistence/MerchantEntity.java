@@ -11,7 +11,7 @@ import jakarta.persistence.Version;
 import lk.swiftdrop.merchant.domain.model.MerchantStatus;
 import lk.swiftdrop.merchant.domain.model.PickupAddress;
 import lk.swiftdrop.merchant.infrastructure.crypto.EncryptedPickupAddressConverter;
-import lk.swiftdrop.merchant.infrastructure.crypto.EncryptedStringConverter;
+import lk.swiftdrop.common.pii.EncryptedStringConverter;
 
 import java.time.Instant;
 import java.util.UUID;

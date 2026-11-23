@@ -8,7 +8,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
-import lk.swiftdrop.user.infrastructure.crypto.EncryptedStringConverter;
+import lk.swiftdrop.common.pii.EncryptedStringConverter;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
