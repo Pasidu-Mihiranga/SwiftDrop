@@ -23,4 +23,21 @@ describe("mapConfig", () => {
       "OpenStreetMap",
     );
   });
+
+  it("offers address search only when the deployment turns it on", () => {
+    const tiles = "https://tiles.example/{z}/{x}/{y}.png";
+
+    expect(mapConfig({ MAP_TILE_URL: tiles })?.addressSearch).toBeUndefined();
+    expect(mapConfig({ MAP_TILE_URL: tiles, ADDRESS_SEARCH_ENABLED: "" })?.addressSearch).toBeUndefined();
+    expect(mapConfig({ MAP_TILE_URL: tiles, ADDRESS_SEARCH_ENABLED: "false" })?.addressSearch).toBeUndefined();
+    expect(mapConfig({ MAP_TILE_URL: tiles, ADDRESS_SEARCH_ENABLED: " TRUE " })?.addressSearch?.attribution).toContain(
+      "OpenStreetMap",
+    );
+    expect(
+      mapConfig({ MAP_TILE_URL: tiles, ADDRESS_SEARCH_ENABLED: "true", ADDRESS_SEARCH_ATTRIBUTION: "Search by Example" })
+        ?.addressSearch,
+    ).toEqual({ attribution: "Search by Example" });
+    // Search lives on the map, so without tiles there is nothing to show it on.
+    expect(mapConfig({ ADDRESS_SEARCH_ENABLED: "true" })).toBeUndefined();
+  });
 });

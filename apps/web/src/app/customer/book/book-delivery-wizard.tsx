@@ -442,6 +442,7 @@ export function BookDeliveryWizard({
               purpose="collection"
               tileUrl={map.tileUrl}
               attribution={map.attribution}
+              search={map.addressSearch}
               point={form.fromPoint}
               district={form.pickupDistrict}
               isMaximized={isPickupMapMax}
@@ -660,6 +661,7 @@ export function BookDeliveryWizard({
                     purpose="delivery"
                     tileUrl={map.tileUrl}
                     attribution={map.attribution}
+                    search={map.addressSearch}
                     point={form.toPoint}
                     district={form.dropoffDistrict}
                     isMaximized={isDropoffMapMax}
@@ -1417,12 +1419,14 @@ function BookingMapPanel({
   onMaximizeChange,
   onClose,
   onPick,
+  search,
 }: {
   id: string;
   title: string;
   purpose: "collection" | "delivery";
   tileUrl: string;
   attribution: string;
+  search?: { attribution: string };
   point?: GeoPick;
   district: string;
   isMaximized: boolean;
@@ -1478,6 +1482,7 @@ function BookingMapPanel({
               purpose={purpose}
               tileUrl={tileUrl}
               attribution={attribution}
+              search={search}
               point={point}
               onPick={onPick}
               heightClass="h-full min-h-[50vh]"
@@ -1511,6 +1516,7 @@ function BookingMapPanel({
         purpose={purpose}
         tileUrl={tileUrl}
         attribution={attribution}
+        search={search}
         point={point}
         onPick={onPick}
         heightClass="h-56"

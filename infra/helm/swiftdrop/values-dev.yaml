@@ -92,6 +92,8 @@ web:
     # Map on /quote. The public OpenStreetMap tiles are acceptable for a dev cluster only.
     MAP_TILE_URL: https://tile.openstreetmap.org/{z}/{x}/{y}.png
     MAP_TILE_ATTRIBUTION: Map data (c) OpenStreetMap contributors
+    # Search box on the maps; "true" only together with pricing-service's GEOCODER_URL.
+    ADDRESS_SEARCH_ENABLED: "false"
 api-gateway:
   enabled: true
   config:

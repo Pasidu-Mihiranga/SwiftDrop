@@ -409,7 +409,15 @@ services:
   pricing-service:
     <<: *app
     build: { context: ., dockerfile: services/pricing-service/Dockerfile }
-    environment: { <<: *java-env, DB_NAME: pricing_db, DB_USER: pricing_svc, OSRM_URL: "${OSRM_URL:-}" }
+    environment:
+      <<: *java-env
+      DB_NAME: pricing_db
+      DB_USER: pricing_svc
+      OSRM_URL: "${OSRM_URL:-}"
+      # Address search; blank turns it off (see .env.example).
+      GEOCODER_URL: "${GEOCODER_URL:-}"
+      GEOCODER_USER_AGENT: "${GEOCODER_USER_AGENT:-SwiftDrop-pricing/1.0}"
+      GEOCODER_EMAIL: "${GEOCODER_EMAIL:-}"
 
   parcel-service:
     <<: *app
@@ -533,6 +541,8 @@ services:
       GATEWAY_URL: http://api-gateway:8080
       MAP_TILE_URL: ${MAP_TILE_URL:-}
       MAP_TILE_ATTRIBUTION: ${MAP_TILE_ATTRIBUTION:-}
+      # The search box shows only when pricing-service has a geocoder.
+      ADDRESS_SEARCH_ENABLED: ${GEOCODER_URL:+true}
     ports: ["${WEB_HOST_PORT:-3000}:3000"]
 
 volumes:

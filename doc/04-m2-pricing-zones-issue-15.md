@@ -376,8 +376,17 @@ mapping cannot be changed from the admin dashboard or the API.
       (NULL, so no change until an admin sets one). From the cut-off, in the quote zone's local
       time, a SAME_DAY quote is refused with 422 `SAME_DAY_CUTOFF_PASSED`, before the lane is
       measured; standard and express are unaffected.
-- [ ] Not built: free-text address search (needs an external geocoder whose terms and data
-      handling must be agreed first).
+- [x] Free-text address search on the quote and booking maps: public
+      `GET /api/v1/pricing/address-search?q=` (gateway and service public paths, contract,
+      `Cache-Control: no-store`). pricing-service asks a Nominatim-compatible geocoder
+      (`GEOCODER_URL`, limited to `GEOCODER_COUNTRY_CODES=lk`), checks every result against the
+      same district boundaries as `/locate` and drops places outside coverage. Off unless
+      configured (503 `ADDRESS_SEARCH_UNAVAILABLE`), so no typed address leaves the service until
+      an operator picks a geocoder whose terms suit the deployment; prod values stay blank. Search
+      runs on Enter or the button, never as the customer types; calls are spaced (1 s), cached in
+      Redis under a hash of the query, and behind a circuit breaker. The web box shows only with
+      `ADDRESS_SEARCH_ENABLED=true` (compose derives it from `GEOCODER_URL`) and credits
+      OpenStreetMap.
 - [x] Browser check of the map on a real desktop viewport completed on `/quote`, including
       inline picker and full-screen maximize/minimize modal views.
 
