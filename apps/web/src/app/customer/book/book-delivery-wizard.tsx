@@ -4,15 +4,27 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { SavedAddress } from "@/lib/addresses";
+import {
+  bookingFailureMessage,
+  bookingRequest,
+  buildInitialForm,
+  panelsToReveal,
+  toQuoteFormValues,
+  validateBookingStep,
+  vehicleTypeLabel,
+  withDistrictChange,
+  withHandling,
+  withMapPick,
+  withSavedPickup,
+  type BookingForm,
+  type BookingStep,
+} from "@/lib/booking";
 import type { MapConfig } from "@/lib/map-config";
 import {
   SRI_LANKA_DISTRICTS,
-  isValidSriLankanPhone,
   serviceLevelDescription,
   sizeClassDescription,
   type ParcelResponse,
-  type ServiceLevel,
-  type SizeClass,
 } from "@/lib/parcels";
 import {
   MAX_SIDE_CM,
@@ -54,7 +66,7 @@ const LocationPicker = dynamic(
   },
 );
 
-type Step = 1 | 2 | 3 | 4 | 5 | 6;
+type Step = BookingStep;
 
 interface BookDeliveryWizardProps {
   zones: Zone[];
@@ -66,113 +78,6 @@ interface BookDeliveryWizardProps {
   initialQuoteId?: string;
 }
 
-interface FormState {
-  // Step 1: Pickup
-  pickupSavedId: string;
-  pickupLine1: string;
-  pickupLine2: string;
-  pickupCity: string;
-  pickupDistrict: string;
-  pickupPostalCode: string;
-  fromPoint?: GeoPick;
-
-  // Step 2: Dropoff & Recipient
-  recipientName: string;
-  recipientPhone: string;
-  recipientEmail: string;
-  dropoffLine1: string;
-  dropoffLine2: string;
-  dropoffCity: string;
-  dropoffDistrict: string;
-  dropoffPostalCode: string;
-  toPoint?: GeoPick;
-  notes: string;
-
-  // Step 3: Package specs & Pricing options
-  weightKg: string;
-  sizeClass: SizeClass;
-  serviceLevel: ServiceLevel;
-  vehicleType: VehicleType;
-  lengthCm: string;
-  widthCm: string;
-  heightCm: string;
-  codAmount: string;
-  declaredValue: string;
-  specialHandling: string[];
-}
-
-function buildInitialForm(initialPricing?: Partial<QuoteFormValues>): FormState {
-  const size = initialPricing?.sizeClass;
-  const service = initialPricing?.serviceLevel;
-  const vehicle = initialPricing?.vehicleType;
-
-  return {
-    pickupSavedId: "",
-    pickupLine1: initialPricing?.fromAddress ?? "",
-    pickupLine2: "",
-    pickupCity: "",
-    pickupDistrict: initialPricing?.fromDistrict ?? "Colombo",
-    pickupPostalCode: "",
-    fromPoint: initialPricing?.fromPoint,
-
-    recipientName: "",
-    recipientPhone: "",
-    recipientEmail: "",
-    dropoffLine1: initialPricing?.toAddress ?? "",
-    dropoffLine2: "",
-    dropoffCity: "",
-    dropoffDistrict: initialPricing?.toDistrict ?? "Kandy",
-    dropoffPostalCode: "",
-    toPoint: initialPricing?.toPoint,
-    notes: "",
-
-    weightKg: initialPricing?.weightKg ?? "1.5",
-    sizeClass: size && (SIZE_CLASSES as readonly string[]).includes(size) ? (size as SizeClass) : "S",
-    serviceLevel:
-      service && (SERVICE_LEVELS as readonly string[]).includes(service) ? (service as ServiceLevel) : "STANDARD",
-    vehicleType: vehicle && (VEHICLE_TYPES as readonly string[]).includes(vehicle) ? (vehicle as VehicleType) : "BIKE",
-    lengthCm: initialPricing?.lengthCm ?? "",
-    widthCm: initialPricing?.widthCm ?? "",
-    heightCm: initialPricing?.heightCm ?? "",
-    codAmount: initialPricing?.codAmount ?? "",
-    declaredValue: initialPricing?.declaredValue ?? "",
-    specialHandling: initialPricing?.specialHandling ?? [],
-  };
-}
-
-function toQuoteFormValues(form: FormState): QuoteFormValues {
-  return {
-    fromAddress: form.pickupLine1,
-    fromDistrict: form.pickupDistrict,
-    toAddress: form.dropoffLine1,
-    toDistrict: form.dropoffDistrict,
-    weightKg: form.weightKg,
-    sizeClass: form.sizeClass,
-    numberOfParcels: 1,
-    serviceLevel: form.serviceLevel,
-    codAmount: form.codAmount,
-    declaredValue: form.declaredValue,
-    lengthCm: form.lengthCm,
-    widthCm: form.widthCm,
-    heightCm: form.heightCm,
-    vehicleType: form.vehicleType,
-    specialHandling: form.specialHandling,
-    fromPoint: form.fromPoint,
-    toPoint: form.toPoint,
-  };
-}
-
-function vehicleTypeLabel(type: VehicleType | string): string {
-  switch (type) {
-    case "BIKE":
-      return "Motorbike (compact same-day parcel)";
-    case "VAN":
-      return "Delivery Van (bulky or longer route)";
-    default:
-      return type;
-  }
-}
-
 export function BookDeliveryWizard({
   zones,
   specialHandling = [],
@@ -182,7 +87,7 @@ export function BookDeliveryWizard({
   initialQuoteId,
 }: BookDeliveryWizardProps) {
   const [step, setStep] = useState<Step>(1);
-  const [form, setForm] = useState<FormState>(() => buildInitialForm(initialPricing));
+  const [form, setForm] = useState<BookingForm>(() => buildInitialForm(initialPricing));
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
 
   // Expand optional panels automatically when pre-filled from /quote
@@ -291,16 +196,7 @@ export function BookDeliveryWizard({
     }
     const found = savedAddresses.find((a) => a.id === addressId);
     if (found) {
-      setForm((prev) => ({
-        ...prev,
-        pickupSavedId: found.id,
-        pickupLine1: found.line1,
-        pickupLine2: found.line2 || "",
-        pickupCity: found.city,
-        pickupDistrict: found.district,
-        pickupPostalCode: found.postalCode || "",
-        fromPoint: undefined,
-      }));
+      setForm((prev) => withSavedPickup(prev, found));
       setErrors((prev) => ({
         ...prev,
         pickupLine1: "",
@@ -311,22 +207,7 @@ export function BookDeliveryWizard({
   }
 
   function handleDistrictChange(side: "pickup" | "dropoff", district: string) {
-    setForm((prev) => {
-      if (side === "pickup") {
-        const keepPoint = prev.pickupDistrict === district;
-        return {
-          ...prev,
-          pickupDistrict: district,
-          fromPoint: keepPoint ? prev.fromPoint : undefined,
-        };
-      }
-      const keepPoint = prev.dropoffDistrict === district;
-      return {
-        ...prev,
-        dropoffDistrict: district,
-        toPoint: keepPoint ? prev.toPoint : undefined,
-      };
-    });
+    setForm((prev) => withDistrictChange(prev, side, district));
     setErrors((prev) => ({
       ...prev,
       [side === "pickup" ? "pickupDistrict" : "dropoffDistrict"]: "",
@@ -334,11 +215,7 @@ export function BookDeliveryWizard({
   }
 
   function handleMapPick(side: "pickup" | "dropoff", point: GeoPick, located: LocatedPoint) {
-    setForm((prev) =>
-      side === "pickup"
-        ? { ...prev, pickupDistrict: located.district, fromPoint: point }
-        : { ...prev, dropoffDistrict: located.district, toPoint: point },
-    );
+    setForm((prev) => withMapPick(prev, side, point, located));
     setErrors((prev) => ({
       ...prev,
       [side === "pickup" ? "pickupDistrict" : "dropoffDistrict"]: "",
@@ -346,72 +223,15 @@ export function BookDeliveryWizard({
   }
 
   function toggleHandling(code: string, checked: boolean) {
-    setForm((prev) => ({
-      ...prev,
-      specialHandling: checked
-        ? [...prev.specialHandling, code]
-        : prev.specialHandling.filter((existing) => existing !== code),
-    }));
+    setForm((prev) => withHandling(prev, code, checked));
     setErrors((prev) => ({ ...prev, specialHandling: "" }));
   }
 
   function validateStep(s: Step): boolean {
-    const errs: Record<string, string> = {};
-
-    if (s === 1) {
-      if (!form.pickupLine1.trim()) errs.pickupLine1 = "Street address is required.";
-      if (!form.pickupCity.trim()) errs.pickupCity = "City is required.";
-      if (!form.pickupDistrict.trim()) errs.pickupDistrict = "District is required.";
-      else if (apiDistricts.length > 0 && !apiDistricts.includes(form.pickupDistrict.trim())) {
-        errs.pickupDistrict = "We do not deliver from there yet.";
-      }
-      if (form.pickupPostalCode && !/^[0-9]{5}$/.test(form.pickupPostalCode.trim())) {
-        errs.pickupPostalCode = "Postal code must be 5 digits.";
-      }
-    }
-
-    if (s === 2) {
-      if (!form.recipientName.trim()) errs.recipientName = "Recipient name is required.";
-      if (!form.recipientPhone.trim()) {
-        errs.recipientPhone = "Recipient mobile number is required.";
-      } else if (!isValidSriLankanPhone(form.recipientPhone)) {
-        errs.recipientPhone = "Must be a valid Sri Lankan mobile number (e.g. 0771234567 or +94771234567).";
-      }
-      if (form.recipientEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.recipientEmail.trim())) {
-        errs.recipientEmail = "Invalid email address format.";
-      }
-      if (!form.dropoffLine1.trim()) errs.dropoffLine1 = "Delivery street address is required.";
-      if (!form.dropoffCity.trim()) errs.dropoffCity = "City is required.";
-      if (!form.dropoffDistrict.trim()) errs.dropoffDistrict = "District is required.";
-      else if (apiDistricts.length > 0 && !apiDistricts.includes(form.dropoffDistrict.trim())) {
-        errs.dropoffDistrict = "We do not deliver there yet.";
-      }
-      if (form.dropoffPostalCode && !/^[0-9]{5}$/.test(form.dropoffPostalCode.trim())) {
-        errs.dropoffPostalCode = "Postal code must be 5 digits.";
-      }
-    }
-
-    if (s === 3) {
-      const validation = validateQuoteForm(toQuoteFormValues(form), districts);
-      if (!validation.ok) {
-        if (validation.errors.fromDistrict) errs.pickupDistrict = validation.errors.fromDistrict;
-        if (validation.errors.toDistrict) errs.dropoffDistrict = validation.errors.toDistrict;
-        if (validation.errors.weightKg) errs.weightKg = validation.errors.weightKg;
-        if (validation.errors.sizeClass) errs.sizeClass = validation.errors.sizeClass;
-        if (validation.errors.serviceLevel) errs.serviceLevel = validation.errors.serviceLevel;
-        if (validation.errors.vehicleType) errs.vehicleType = validation.errors.vehicleType;
-        if (validation.errors.codAmount) errs.codAmount = validation.errors.codAmount;
-        if (validation.errors.declaredValue) errs.declaredValue = validation.errors.declaredValue;
-        if (validation.errors.lengthCm) errs.lengthCm = validation.errors.lengthCm;
-        if (validation.errors.widthCm) errs.widthCm = validation.errors.widthCm;
-        if (validation.errors.heightCm) errs.heightCm = validation.errors.heightCm;
-        if (validation.errors.specialHandling) errs.specialHandling = validation.errors.specialHandling;
-
-        if (errs.lengthCm || errs.widthCm || errs.heightCm) setShowDimensions(true);
-        if (errs.codAmount || errs.declaredValue || errs.specialHandling) setShowAddons(true);
-      }
-    }
-
+    const errs = validateBookingStep(s, form, { serviced: apiDistricts, districts });
+    const reveal = panelsToReveal(errs);
+    if (reveal.dimensions) setShowDimensions(true);
+    if (reveal.addons) setShowAddons(true);
     setErrors(errs);
     return Object.keys(errs).length === 0;
   }
@@ -464,29 +284,7 @@ export function BookDeliveryWizard({
     setSubmitting(true);
     setBookingError(null);
 
-    const payload = {
-      quoteId: quote.quoteId,
-      pickup: {
-        line1: form.pickupLine1.trim(),
-        line2: form.pickupLine2.trim() || undefined,
-        city: form.pickupCity.trim(),
-        district: form.pickupDistrict.trim(),
-        postalCode: form.pickupPostalCode.trim() || undefined,
-      },
-      dropoff: {
-        line1: form.dropoffLine1.trim(),
-        line2: form.dropoffLine2.trim() || undefined,
-        city: form.dropoffCity.trim(),
-        district: form.dropoffDistrict.trim(),
-        postalCode: form.dropoffPostalCode.trim() || undefined,
-      },
-      recipient: {
-        name: form.recipientName.trim(),
-        phone: form.recipientPhone.trim(),
-        email: form.recipientEmail.trim() || undefined,
-      },
-      notes: form.notes.trim() || undefined,
-    };
+    const payload = bookingRequest(form, quote.quoteId);
 
     try {
       const res = await fetch("/api/bff/api/v1/parcels", {
@@ -500,14 +298,8 @@ export function BookDeliveryWizard({
         setBookedParcel(parcel);
         setStep(6);
       } else {
-        const errJson = await res.json().catch(() => ({}));
-        if (res.status === 422 && errJson.code === "QUOTE_EXPIRED") {
-          setBookingError("Your quote expired while reviewing. Please recalculate your fee quote.");
-        } else if (res.status === 503) {
-          setBookingError("Pricing service is currently unavailable. Please try again shortly.");
-        } else {
-          setBookingError(errJson.detail || `Booking failed with status ${res.status}`);
-        }
+        const problem = (await res.json().catch(() => ({}))) as { code?: string; detail?: string };
+        setBookingError(bookingFailureMessage(res.status, problem));
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to connect to booking service.";
