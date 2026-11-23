@@ -76,7 +76,16 @@ describe("notification-service event flow on real Kafka, MongoDB and Mailpit", (
     process.env.SMTP_HOST = mailpit.getHost();
     process.env.SMTP_PORT = String(mailpit.getMappedPort(1025));
 
-    const kafka = new Kafka({ clientId: "event-flow-it", brokers, logLevel: logLevel.NOTHING });
+    // A fresh broker on a busy CI runner can reset the first connections for several seconds after
+    // the container reports started; kafkajs's default retries (about five over a few seconds) ran
+    // out on one run, so this client keeps trying for up to half a minute.
+    const kafka = new Kafka({
+      clientId: "event-flow-it",
+      brokers,
+      logLevel: logLevel.NOTHING,
+      connectionTimeout: 10_000,
+      retry: { initialRetryTime: 500, retries: 15, maxRetryTime: 30_000 },
+    });
     const admin = kafka.admin();
     await admin.connect();
     await admin.createTopics({
