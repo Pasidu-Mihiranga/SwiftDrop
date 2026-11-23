@@ -6,6 +6,7 @@ import lk.swiftdrop.events.common.Types.Actor;
 import lk.swiftdrop.events.common.Types.ActorRole;
 import lk.swiftdrop.events.parcel.ParcelStatusChanged;
 import lk.swiftdrop.outbox.OutboxWriter;
+import lk.swiftdrop.parcel.application.port.out.ParcelMetrics;
 import lk.swiftdrop.parcel.application.port.out.ParcelRepository;
 import lk.swiftdrop.parcel.domain.model.Parcel;
 import lk.swiftdrop.parcel.domain.policy.ParcelAccessPolicy;
@@ -23,11 +24,14 @@ import java.util.UUID;
 @Service
 public class CancelParcelUseCase {
 
+    private final ParcelMetrics metrics;
+
     private final ParcelRepository parcels;
     private final OutboxWriter outbox;
     private final Clock clock;
 
-    public CancelParcelUseCase(ParcelRepository parcels, OutboxWriter outbox, Clock clock) {
+    public CancelParcelUseCase(ParcelRepository parcels, OutboxWriter outbox, Clock clock, ParcelMetrics metrics) {
+        this.metrics = metrics;
         this.parcels = parcels;
         this.outbox = outbox;
         this.clock = clock;
@@ -47,6 +51,7 @@ public class CancelParcelUseCase {
                 cancelled.customerId(), cancelled.merchantId(), cancelled.courierId(), parcel.status(),
                 cancelled.status(), null, null, null, null, new Actor(caller.id(), ActorRole.CUSTOMER),
                 cancelled.updatedAt()));
+        metrics.statusChanged(cancelled.status(), null);
         return cancelled;
     }
 }

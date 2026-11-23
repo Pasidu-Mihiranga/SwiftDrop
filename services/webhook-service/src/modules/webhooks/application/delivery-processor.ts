@@ -1,4 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { countAttempt, observeRequest } from "../../../observability/webhook-metrics";
 import { signatureHeader, SIGNATURE_HEADER } from "../domain/signer";
 import type { DeliveryAttempt, WebhookDelivery } from "../domain/types";
 import {
@@ -41,8 +42,14 @@ export class DeliveryProcessor {
    */
   async process(deliveryId: string, attempt: number): Promise<ProcessOutcome> {
     const delivery = await this.deliveries.findById(deliveryId);
-    if (!delivery || delivery.status === "DELIVERED" || delivery.status === "DEAD") return "skipped";
-    if (await this.merchants.isSuspended(delivery.merchantId)) return "held";
+    if (!delivery || delivery.status === "DELIVERED" || delivery.status === "DEAD") {
+      countAttempt("skipped");
+      return "skipped";
+    }
+    if (await this.merchants.isSuspended(delivery.merchantId)) {
+      countAttempt("held");
+      return "held";
+    }
 
     const endpoint = await this.endpoints.findById(delivery.endpointId);
     const result = endpoint?.active
@@ -50,9 +57,13 @@ export class DeliveryProcessor {
       : { latencyMs: 0, error: "The endpoint was removed" };
     const at = this.settings.now();
     const record: DeliveryAttempt = { at, latencyMs: result.latencyMs, ...pick(result) };
+    const success = result.httpStatus !== undefined && result.httpStatus >= 200 && result.httpStatus < 300;
+    // Only attempts that reached the network have a latency worth showing.
+    if (endpoint?.active && result.latencyMs > 0) observeRequest(success, result.latencyMs);
 
-    if (result.httpStatus !== undefined && result.httpStatus >= 200 && result.httpStatus < 300) {
+    if (success) {
       await this.deliveries.update(delivery.id, { status: "DELIVERED", nextRetryAt: null, deliveredAt: at }, record);
+      countAttempt("delivered");
       return "delivered";
     }
     if (!endpoint?.active || attempt >= this.settings.backoff.maxAttempts) {
@@ -63,10 +74,12 @@ export class DeliveryProcessor {
         attempts: delivery.attempts.length + 1, lastHttpStatus: result.httpStatus ?? null,
         lastError: describe(result), deadLetteredAt: at.toISOString(),
       });
+      countAttempt("dead");
       return "dead";
     }
     const retryInMs = this.settings.backoff.delayMs(attempt);
     await this.deliveries.update(delivery.id, { status: "RETRYING", nextRetryAt: new Date(at.getTime() + retryInMs) }, record);
+    countAttempt("retry");
     throw new RetryLaterError(delivery.id, retryInMs);
   }
 
