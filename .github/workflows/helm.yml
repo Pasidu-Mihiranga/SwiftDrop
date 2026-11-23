@@ -26,6 +26,10 @@ jobs:
             helm template swiftdrop infra/helm/swiftdrop \
               -f "infra/helm/swiftdrop/${values}.yaml" > "/tmp/${values}.yaml"
           done
+          # The full-stack profile is an overlay on the dev values.
+          helm template swiftdrop infra/helm/swiftdrop \
+            -f infra/helm/swiftdrop/values-dev.yaml -f infra/helm/swiftdrop/values-full.yaml \
+            > /tmp/values-full.yaml
       # kubectl --dry-run=client downloads the OpenAPI schema from a live cluster, which CI
       # does not have, so the rendered manifests are checked structurally instead.
       - name: Rendered manifests are well-formed Kubernetes objects
@@ -34,7 +38,7 @@ jobs:
           python3 - <<'PY'
           import sys, yaml
           problems = []
-          for path in ("/tmp/values-dev.yaml", "/tmp/values-prod.yaml"):
+          for path in ("/tmp/values-dev.yaml", "/tmp/values-prod.yaml", "/tmp/values-full.yaml"):
               docs = [d for d in yaml.safe_load_all(open(path)) if d]
               if not docs:
                   problems.append(f"{path}: rendered nothing")
