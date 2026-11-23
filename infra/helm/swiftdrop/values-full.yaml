@@ -1,0 +1,51 @@
+# Full-stack overlay, applied on top of values-dev.yaml:
+#
+#   helm upgrade --install swiftdrop infra/helm/swiftdrop \
+#     -f infra/helm/swiftdrop/values-dev.yaml -f infra/helm/swiftdrop/values-full.yaml
+#
+# or simply "SWIFTDROP_PROFILE=full ./scripts/kind-deploy.sh", which also builds every image and
+# creates the Secrets and ConfigMaps this needs. It runs the in-chart Kafka, MongoDB, RustFS and
+# Mailpit and enables every service except the assistant. Plan for about 8 GB of memory for the
+# kind node. The observability stack still comes from the Grafana Helm charts (README).
+
+global:
+  commonConfig:
+    # The in-chart single-node Kafka (templates/kafka.yaml), instead of a Strimzi cluster.
+    KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    KAFKA_BROKERS: kafka:9092
+
+kafka:
+  enabled: true
+  topics:
+    configMapName: swiftdrop-kafka-topics
+mongodb:
+  enabled: true
+objectStorage:
+  enabled: true
+mailpit:
+  enabled: true
+
+user-service:
+  enabled: true
+merchant-service:
+  enabled: true
+parcel-service:
+  enabled: true
+dispatch-service:
+  enabled: true
+reporting-service:
+  enabled: true
+# The Node services read their database from MONGO_URI, which holds the Mongo credentials, so it
+# comes from a Secret per service (created by scripts/kind-deploy.sh), not from values.
+tracking-service:
+  enabled: true
+  secretRefs: ["swiftdrop-app-secrets", "swiftdrop-tracking-mongo"]
+notification-service:
+  enabled: true
+  secretRefs: ["swiftdrop-app-secrets", "swiftdrop-notification-mongo"]
+webhook-service:
+  enabled: true
+  secretRefs: ["swiftdrop-app-secrets", "swiftdrop-webhook-mongo"]
+ai-assistant-service:
+  # Needs an LLM API key in the application Secret; enable once one is set.
+  enabled: false
