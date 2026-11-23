@@ -171,6 +171,9 @@ Open Grafana at [http://localhost:3001](http://localhost:3001) using credentials
 
 - **SwiftDrop - Platform Overview (`swiftdrop-platform`):** Real-time cluster health, RED metrics (Rate, Errors, Duration), Kafka consumer lag across all topics, and active error log streams.
 - **SwiftDrop - Notifications & Business KPIs (`swiftdrop-m9-observability`):** Real-time delivery status transitions, OpenPDF receipts generated, email/SMS notification throughput, and JVM/Node.js memory metrics.
+- **SwiftDrop - Bookings, courier ops and webhooks (`swiftdrop-parcels-webhooks`):** bookings per hour by channel, quote
+  rejections by reason and the pricing circuit breaker (M3); status changes per hour and failed deliveries by reason
+  (M4); webhook attempts by outcome, endpoint answer time, success rate and dead letters (M8).
 
 ### 3. Distributed Tracing with Tempo
 

@@ -1,5 +1,7 @@
 package lk.swiftdrop.parcel.application.command;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import lk.swiftdrop.parcel.infrastructure.metrics.MicrometerParcelMetrics;
 import lk.swiftdrop.common.web.error.BusinessRuleViolationException;
 import lk.swiftdrop.common.web.error.ResourceNotFoundException;
 import lk.swiftdrop.events.common.Types.ActorRole;
@@ -38,6 +40,12 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class UpdateParcelStatusUseCaseTest {
+    private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
+
+    private double count(String name, String tag, String value) {
+        return registry.get(name).tag(tag, value).counter().count();
+    }
+
 
     private static final Instant LATER = ParcelFixtures.NOW.plusSeconds(3600);
 
@@ -53,7 +61,7 @@ class UpdateParcelStatusUseCaseTest {
 
     @BeforeEach
     void setUp() {
-        useCase = new UpdateParcelStatusUseCase(parcels, proofs, outbox, Clock.fixed(LATER, ZoneOffset.UTC));
+        useCase = new UpdateParcelStatusUseCase(parcels, proofs, outbox, Clock.fixed(LATER, ZoneOffset.UTC), new MicrometerParcelMetrics(registry));
         assigned = ParcelFixtures.bookedBy("cust-1").assignCourier("courier-1", ParcelFixtures.NOW);
         lenient().when(parcels.findById(assigned.id())).thenReturn(Optional.of(assigned));
         lenient().when(parcels.save(any())).thenAnswer(call -> call.getArgument(0));
@@ -110,6 +118,8 @@ class UpdateParcelStatusUseCaseTest {
         assertThat(event.failureReason()).isEqualTo(FailureReason.RECIPIENT_UNAVAILABLE);
         assertThat(event.note()).isEqualTo("Nobody home");
         assertThat(event.location().city()).isEqualTo("Kandy");
+        assertThat(count("parcel.status.changes", "status", "failed")).isEqualTo(1);
+        assertThat(count("parcel.delivery.failures", "reason", "recipient_unavailable")).isEqualTo(1);
     }
 
     @Test
