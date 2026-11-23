@@ -720,3 +720,120 @@ export function laneLabel(fromZone: string, toZone: string): string {
 export function isoDate(date: Date = new Date()): string {
   return date.toLocaleDateString("en-CA", { timeZone: "Asia/Colombo" });
 }
+
+/**
+ * Serializes the pricing calculator form and optional quote reference into a `/customer/book?...`
+ * URL so a customer moving from "Get a price" to "Book a Delivery" keeps every pricing choice.
+ */
+export function quoteToBookingHref(values: QuoteFormValues, quote?: Quote): string {
+  const params = new URLSearchParams();
+  const fromDistrict = values.fromDistrict.trim() || quote?.fromDistrict || "";
+  const toDistrict = values.toDistrict.trim() || quote?.toDistrict || "";
+  const weightKg = values.weightKg.trim() || (quote?.weightKg ? String(quote.weightKg) : "");
+
+  if (quote?.quoteId) params.set("quoteId", quote.quoteId);
+  if (fromDistrict) params.set("fromDistrict", fromDistrict);
+  if (toDistrict) params.set("toDistrict", toDistrict);
+  if (values.fromAddress.trim()) params.set("fromAddress", values.fromAddress.trim());
+  if (values.toAddress.trim()) params.set("toAddress", values.toAddress.trim());
+  if (weightKg) params.set("weightKg", weightKg);
+  if (values.sizeClass && isSizeClass(values.sizeClass)) params.set("sizeClass", values.sizeClass);
+  if (values.serviceLevel && isServiceLevel(values.serviceLevel)) params.set("serviceLevel", values.serviceLevel);
+  if (values.serviceLevel === "SAME_DAY" && values.vehicleType && isVehicleType(values.vehicleType)) {
+    params.set("vehicleType", values.vehicleType);
+  }
+  if (values.codAmount.trim()) params.set("codAmount", values.codAmount.trim());
+  if (values.declaredValue.trim()) params.set("declaredValue", values.declaredValue.trim());
+  if (values.lengthCm.trim()) params.set("lengthCm", values.lengthCm.trim());
+  if (values.widthCm.trim()) params.set("widthCm", values.widthCm.trim());
+  if (values.heightCm.trim()) params.set("heightCm", values.heightCm.trim());
+  if (values.specialHandling.length > 0) params.set("specialHandling", values.specialHandling.join(","));
+
+  if (values.fromPoint) {
+    params.set("fromLat", String(roundCoordinate(values.fromPoint.latitude)));
+    params.set("fromLng", String(roundCoordinate(values.fromPoint.longitude)));
+  }
+  if (values.toPoint) {
+    params.set("toLat", String(roundCoordinate(values.toPoint.latitude)));
+    params.set("toLng", String(roundCoordinate(values.toPoint.longitude)));
+  }
+
+  const query = params.toString();
+  return query ? `/customer/book?${query}` : "/customer/book";
+}
+
+function firstParam(value: string | string[] | undefined): string | undefined {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const trimmed = raw?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function parseFiniteNumberString(raw: string | undefined, allowZero: boolean): string | undefined {
+  if (!raw) return undefined;
+  const num = Number(raw);
+  if (!Number.isFinite(num)) return undefined;
+  if (allowZero ? num < 0 : num <= 0) return undefined;
+  return raw;
+}
+
+function parseGeoPick(latRaw: string | undefined, lngRaw: string | undefined): GeoPick | undefined {
+  if (!latRaw || !lngRaw) return undefined;
+  const lat = Number(latRaw);
+  const lng = Number(lngRaw);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return undefined;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return undefined;
+  return { latitude: roundCoordinate(lat), longitude: roundCoordinate(lng) };
+}
+
+/**
+ * Restores initial pricing values passed from `/quote` query params so `/customer/book` opens with
+ * consistent districts, pinned map coordinates, dimensions, and add-on options.
+ */
+export function quoteFromSearchParams(
+  params: Record<string, string | string[] | undefined>,
+): Partial<QuoteFormValues> {
+  const result: Partial<QuoteFormValues> = {};
+
+  const fromDistrict = firstParam(params.fromDistrict);
+  const toDistrict = firstParam(params.toDistrict);
+  const fromAddress = firstParam(params.fromAddress);
+  const toAddress = firstParam(params.toAddress);
+  const weightKg = parseFiniteNumberString(firstParam(params.weightKg), false);
+  const sizeClass = firstParam(params.sizeClass);
+  const serviceLevel = firstParam(params.serviceLevel);
+  const vehicleType = firstParam(params.vehicleType);
+  const codAmount = parseFiniteNumberString(firstParam(params.codAmount), true);
+  const declaredValue = parseFiniteNumberString(firstParam(params.declaredValue), true);
+  const lengthCm = parseFiniteNumberString(firstParam(params.lengthCm), false);
+  const widthCm = parseFiniteNumberString(firstParam(params.widthCm), false);
+  const heightCm = parseFiniteNumberString(firstParam(params.heightCm), false);
+  const handlingRaw = firstParam(params.specialHandling);
+  const fromPoint = parseGeoPick(firstParam(params.fromLat), firstParam(params.fromLng));
+  const toPoint = parseGeoPick(firstParam(params.toLat), firstParam(params.toLng));
+
+  if (fromDistrict) result.fromDistrict = fromDistrict;
+  if (toDistrict) result.toDistrict = toDistrict;
+  if (fromAddress) result.fromAddress = fromAddress;
+  if (toAddress) result.toAddress = toAddress;
+  if (weightKg) result.weightKg = weightKg;
+  if (sizeClass && isSizeClass(sizeClass)) result.sizeClass = sizeClass;
+  if (serviceLevel && isServiceLevel(serviceLevel)) result.serviceLevel = serviceLevel;
+  if (vehicleType && isVehicleType(vehicleType)) result.vehicleType = vehicleType;
+  if (codAmount) result.codAmount = codAmount;
+  if (declaredValue) result.declaredValue = declaredValue;
+  if (lengthCm) result.lengthCm = lengthCm;
+  if (widthCm) result.widthCm = widthCm;
+  if (heightCm) result.heightCm = heightCm;
+  if (handlingRaw) {
+    const items = handlingRaw
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, MAX_SPECIAL_HANDLING);
+    if (items.length > 0) result.specialHandling = items;
+  }
+  if (fromPoint) result.fromPoint = fromPoint;
+  if (toPoint) result.toPoint = toPoint;
+
+  return result;
+}
