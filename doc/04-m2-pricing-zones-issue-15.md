@@ -71,8 +71,9 @@ detail.
       service level, COD amount, issue and expiry times) and answers `404
       QUOTE_NOT_FOUND` for both unknown and expired identifiers so expiry is not
       distinguishable from a guess. The response is derived only from the stored
-      snapshot; request data is never substituted into it. **Proposed to M3 and
-      awaiting the parcel-service owner's confirmation.**
+      snapshot; request data is never substituted into it. Consumed by M3's
+      parcel-service (`POST /api/v1/parcels` validates `quoteId` against it), verified
+      end to end on 2026-11-23.
 - [x] Draft API gaps resolved in `contracts/openapi/pricing-service.v1.yaml`:
       admin zone create/update, district assignment, rate-card create/close,
       size-class read/update, request and response schemas, and problem+json
@@ -168,6 +169,9 @@ detail.
       same-day vehicle type, COD amount, declared value, special handling options, and
       `quoteId`. M3's `BookDeliveryWizard` (`apps/web/src/app/customer/book/book-delivery-wizard.tsx`)
       now shares `validateQuoteForm`, `visibleBreakdown`, and `breakdownLabel` with `/quote`.
+      The wizard reads the carried `quoteId` (`quoteIdFromSearchParams`), loads it with `GET
+      /api/v1/pricing/quotes/{quoteId}`, and books with it while it is valid and the pricing
+      request is unchanged (`canReuseQuote`); otherwise it issues a fresh quote.
 
 ## Phase 4: Kubernetes and Helm
 
@@ -299,13 +303,14 @@ exercised. TLS was not exercised either, since dev runs over plain http by desig
       live `/actuator/prometheus`, which corrected the percentile label from `phi` (what
       `SimpleMeterRegistry` uses in tests) to `quantile` (what the Prometheus registry
       publishes).
-- [ ] Demonstrate an anonymous estimate, an admin rate change, quote expiry,
+- [x] Demonstrate an anonymous estimate, an admin rate change, quote expiry,
       and a valid quote being consumed by parcel-service.
       `scripts/demo-m2-pricing.sh` covers anonymous estimation, admin rate versioning, quote
       snapshot lookup, quote expiry, and (when `parcel-service` is running) M3's
       `POST /api/v1/parcels` consuming a valid quote (`201`) and rejecting an expired/unknown
-      quote (`422 QUOTE_EXPIRED`). Pending final end-to-end execution with `parcel-service`
-      started alongside `pricing-service`.
+      quote (`422 QUOTE_EXPIRED`). Run against the compose stack with `parcel-service` on
+      2026-11-23: 16 passed, 0 failed. On Windows, run it from a Linux shell or container: it
+      shares `/tmp` files between curl and python3.
 - [x] Complete the M2 row in `doc/03-team-contribution.md` with delivered work.
       Backend, frontend, tests and diagrams filled from the real work; the member name
       comes from the repository's git identity and the Student ID is left as a marked
@@ -385,8 +390,7 @@ Remaining items awaiting owner input or full-stack execution:
 1. Fill the Student ID into M2's row in `doc/03-team-contribution.md`.
 2. Confirm whether to keep the V16 placeholder rates/thresholds or replace them via a
    new `V17` migration.
-3. Run `scripts/demo-m2-pricing.sh` with `parcel-service` running to check off the final
-   end-to-end M2+M3 booking demonstration box above.
+3. Done: `scripts/demo-m2-pricing.sh` passed end to end with `parcel-service` (2026-11-23).
 
 What a reviewer should know about the running cluster: the demo script and the metric
 verification deliberately changed data and did not fully undo it, because the design

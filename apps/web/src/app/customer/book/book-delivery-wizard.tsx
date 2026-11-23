@@ -22,6 +22,7 @@ import {
   SIZE_CLASSES,
   VEHICLE_TYPES,
   breakdownLabel,
+  canReuseQuote,
   distanceBadge,
   distanceNotice,
   districtOptions,
@@ -39,6 +40,7 @@ import {
   type LocatedPoint,
   type Quote,
   type QuoteFormValues,
+  type QuoteRequestBody,
   type SpecialHandlingOption,
   type VehicleType,
   type Zone,
@@ -60,6 +62,8 @@ interface BookDeliveryWizardProps {
   coverageError?: string;
   map?: MapConfig;
   initialPricing?: Partial<QuoteFormValues>;
+  /** The quote issued on `/quote`, reused while it is valid and the pricing inputs are unchanged. */
+  initialQuoteId?: string;
 }
 
 interface FormState {
@@ -175,6 +179,7 @@ export function BookDeliveryWizard({
   coverageError,
   map,
   initialPricing,
+  initialQuoteId,
 }: BookDeliveryWizardProps) {
   const [step, setStep] = useState<Step>(1);
   const [form, setForm] = useState<FormState>(() => buildInitialForm(initialPricing));
@@ -201,6 +206,7 @@ export function BookDeliveryWizard({
   const [quoting, setQuoting] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
+  const [carried, setCarried] = useState<{ quote: Quote; request: QuoteRequestBody } | null>(null);
 
   // Booking submit state
   const [submitting, setSubmitting] = useState(false);
@@ -247,6 +253,25 @@ export function BookDeliveryWizard({
     }
     loadAddresses();
   }, [hasPrefilledRoute]);
+
+  // Load the quote carried over from /quote, together with the request it was issued for.
+  useEffect(() => {
+    if (!initialQuoteId) return;
+    const request = validateQuoteForm(toQuoteFormValues(buildInitialForm(initialPricing)), districts);
+    if (!request.ok) return;
+    let active = true;
+    fetch(`/api/bff/api/v1/pricing/quotes/${encodeURIComponent(initialQuoteId)}`, { cache: "no-store" })
+      .then(async (res) => {
+        if (active && res.ok) setCarried({ quote: (await res.json()) as Quote, request: request.body });
+      })
+      .catch(() => {
+        // Not fatal: the wizard asks for a fresh quote instead.
+      });
+    return () => {
+      active = false;
+    };
+    // Only the values the page was opened with matter here, so this runs once per carried quote.
+  }, [initialQuoteId]);
 
   // Live expiry countdown timer for quote
   useEffect(() => {
@@ -395,6 +420,15 @@ export function BookDeliveryWizard({
     const validation = validateQuoteForm(toQuoteFormValues(form), districts);
     if (!validation.ok) {
       validateStep(3);
+      return;
+    }
+
+    const current = new Date();
+    if (canReuseQuote(carried, validation.body, current)) {
+      setQuoteError(null);
+      setQuote(carried!.quote);
+      setNow(current);
+      setStep(4);
       return;
     }
 
