@@ -1,0 +1,41 @@
+%% Observability pipeline (M9): how logs, metrics and traces leave the services and meet in Grafana.
+%% Sources: infra/observability/{alloy,prometheus,loki,tempo,grafana}, docker-compose.yml.
+flowchart LR
+  subgraph services["SwiftDrop services"]
+    direction TB
+    java["Java: gateway, user, merchant, pricing,<br/>parcel, dispatch, reporting<br/>Micrometer + OpenTelemetry"]
+    node["Node: tracking, notification, webhook<br/>prom-client + OTel SDK"]
+    py["Python: ai-assistant-service<br/>instrumentator + OTel"]
+    kafka[("Kafka<br/>traceparent header from the outbox")]
+    java <-. "events" .-> kafka
+    node <-. "events" .-> kafka
+  end
+
+  exporter["kafka-exporter<br/>consumer lag"]
+
+  subgraph collect["Collection"]
+    direction TB
+    alloy["Grafana Alloy<br/>OTLP receiver :4318<br/>Docker log tailing"]
+    prom["Prometheus"]
+  end
+
+  subgraph store["Storage"]
+    direction TB
+    loki[("Loki<br/>label: level<br/>metadata: trace_id, correlation_id")]
+    tempo[("Tempo<br/>traces")]
+  end
+
+  grafana["Grafana<br/>member dashboards<br/>log to trace links"]
+
+  services -- "OTLP traces<br/>JSON logs on stdout" --> alloy
+  prom -- "scrapes /actuator/prometheus, /metrics" --> services
+  prom -- "scrapes" --> exporter
+  exporter -. "reads offsets" .-> kafka
+
+  alloy -- "logs" --> loki
+  alloy -- "traces" --> tempo
+  tempo -- "span metrics, service graph<br/>(remote write)" --> prom
+
+  grafana --> prom
+  grafana --> loki
+  grafana --> tempo
