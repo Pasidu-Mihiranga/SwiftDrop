@@ -1,6 +1,6 @@
 import { BookDeliveryWizard } from "./book-delivery-wizard";
 import { mapConfig } from "@/lib/map-config";
-import { quoteFromSearchParams } from "@/lib/pricing";
+import { quoteFromSearchParams, quoteIdFromSearchParams } from "@/lib/pricing";
 import { fetchActiveZones, fetchSpecialHandling } from "@/lib/pricing-api";
 
 export const metadata = {
@@ -28,6 +28,7 @@ export default async function BookDeliveryPage({
       coverageError={error}
       map={mapConfig()}
       initialPricing={initialPricing}
+      initialQuoteId={quoteIdFromSearchParams(resolvedParams)}
     />
   );
 }
