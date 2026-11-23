@@ -23,6 +23,7 @@
         <module>libs/java/swiftdrop-common-security</module>
         <module>libs/java/swiftdrop-events</module>
         <module>libs/java/swiftdrop-outbox</module>
+        <module>libs/java/swiftdrop-pii</module>
 
         <!-- Services -->
         <module>services/api-gateway</module>
