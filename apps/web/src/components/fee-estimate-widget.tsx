@@ -380,6 +380,7 @@ export function FeeEstimateWidget({
                             purpose={activeMapSide === "from" ? "collection" : "delivery"}
                             tileUrl={map.tileUrl}
                             attribution={map.attribution}
+                            search={map.addressSearch}
                             point={activeMapSide === "from" ? values.fromPoint : values.toPoint}
                             onPick={(point, located) => pickPoint(activeMapSide, point, located)}
                             heightClass="h-full min-h-[50vh]"
@@ -450,6 +451,7 @@ export function FeeEstimateWidget({
                         purpose={activeMapSide === "from" ? "collection" : "delivery"}
                         tileUrl={map.tileUrl}
                         attribution={map.attribution}
+                        search={map.addressSearch}
                         point={activeMapSide === "from" ? values.fromPoint : values.toPoint}
                         onPick={(point, located) => pickPoint(activeMapSide, point, located)}
                       />

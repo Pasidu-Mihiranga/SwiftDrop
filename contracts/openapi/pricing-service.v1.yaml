@@ -200,6 +200,39 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
+  /api/v1/pricing/address-search:
+    get:
+      tags: [zones]
+      operationId: searchAddress
+      summary: Places matching a typed address, inside the service area, with their district (public)
+      description: |
+        For the quote and booking maps. Run when the customer asks, not as they type. Each
+        place is checked against the same district boundaries the quote endpoint uses, so the
+        district named is the one a quote will accept for that point; places outside the service
+        area are left out. Answered with Cache-Control no-store. Off unless the deployment
+        configures a geocoder (GEOCODER_URL), in which case it answers 503.
+      security: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 3, maxLength: 120, example: "45 Galle Road, Colombo" }
+      responses:
+        "200":
+          description: Up to five places, best first. Empty when nothing in the service area matches.
+          content:
+            application/json:
+              schema: { type: array, maxItems: 5, items: { $ref: "#/components/schemas/AddressSuggestion" } }
+        "400":
+          description: The query is missing, shorter than 3 or longer than 120 characters (INVALID_ADDRESS_QUERY)
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
+        "503":
+          description: Address search is off, or the geocoder is down, slow or busy (ADDRESS_SEARCH_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
   /api/v1/admin/pricing/zones:
     get:
       tags: [admin-zones]
@@ -1183,3 +1216,12 @@ components:
           required: [code]
           properties:
             code: { $ref: "#/components/schemas/VehicleType" }
+    AddressSuggestion:
+      type: object
+      required: [label, latitude, longitude, district, zone]
+      properties:
+        label: { type: string, example: "45, Galle Road, Colombo 03, Sri Lanka" }
+        latitude: { type: number, minimum: -90, maximum: 90, example: 6.91 }
+        longitude: { type: number, minimum: -180, maximum: 180, example: 79.851 }
+        district: { type: string, example: Colombo }
+        zone: { $ref: "#/components/schemas/ZoneCode" }

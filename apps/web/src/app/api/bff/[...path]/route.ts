@@ -28,6 +28,7 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     target.startsWith("api/v1/pricing/zones") ||
     target.startsWith("api/v1/pricing/special-handling") ||
     target.startsWith("api/v1/pricing/locate") ||
+    target.startsWith("api/v1/pricing/address-search") ||
     target.startsWith("api/v1/tracking/public");
 
   const token = isPublicPath ? undefined : await accessToken(request.headers);
