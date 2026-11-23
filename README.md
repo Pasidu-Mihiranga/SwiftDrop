@@ -176,6 +176,11 @@ Open Grafana at [http://localhost:3001](http://localhost:3001) using credentials
   rejections by reason and the pricing circuit breaker (M3); status changes per hour and failed deliveries by reason
   (M4); webhook attempts by outcome, endpoint answer time, success rate and dead letters (M8).
 
+Dashboards are provisioned from `infra/observability/grafana/dashboards/`. Saving, adding or deleting a JSON file
+there shows up in Grafana within about 10 seconds, also on Windows and macOS: Docker Desktop does not pass file
+events into Grafana, so the `grafana-dashboard-sync` container calls Grafana's provisioning reload API whenever the
+folder changes (`infra/observability/grafana/sync/reload-on-change.sh`).
+
 ### 3. Distributed Tracing with Tempo
 
 One trace follows a request from `api-gateway` through the service that handles it, across Kafka and into
