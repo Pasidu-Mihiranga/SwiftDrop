@@ -10,4 +10,6 @@ interface SameDayVehicleJpaRepository extends JpaRepository<PricingExtensionEnti
     List<PricingExtensionEntities.Vehicle> findByActiveTrueOrderByCodeAsc();
 
     Optional<PricingExtensionEntities.Vehicle> findByCodeAndActiveTrue(String code);
+
+    List<PricingExtensionEntities.Vehicle> findAllByOrderByCodeAsc();
 }

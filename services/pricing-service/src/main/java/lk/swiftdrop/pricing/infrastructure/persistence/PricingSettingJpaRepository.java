@@ -18,4 +18,8 @@ interface PricingSettingJpaRepository extends JpaRepository<PricingExtensionEnti
             ORDER BY s.effectiveFrom DESC
             """)
     List<PricingExtensionEntities.Setting> findInForce(@Param("on") LocalDate on);
+
+    List<PricingExtensionEntities.Setting> findAllByOrderByEffectiveFromDesc();
+
+    boolean existsByEffectiveFromGreaterThanEqual(LocalDate day);
 }

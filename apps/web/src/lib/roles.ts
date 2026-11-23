@@ -87,6 +87,7 @@ export function adminNavigationFor(roles: readonly string[]): { href: string; la
     items.push({ href: "/admin/pricing/zones", label: "Zones & districts" });
     items.push({ href: "/admin/pricing/rate-cards", label: "Rate cards" });
     items.push({ href: "/admin/pricing/remote-areas", label: "Remote areas" });
+    items.push({ href: "/admin/pricing/settings", label: "Fees & handling" });
     items.push({ href: "/admin/pricing/merchants", label: "Merchant rates" });
     items.push({ href: "/admin/webhooks", label: "Webhooks DLQ" });
     items.push({ href: "/admin/notifications/sms-inbox", label: "SMS inbox" });
