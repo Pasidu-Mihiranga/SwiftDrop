@@ -1,0 +1,19 @@
+%% Parcel lifecycle (M4). Source of truth: services/parcel-service/.../domain/state/ParcelStates.java.
+%% Any other transition is refused with 422 INVALID_STATUS_TRANSITION.
+stateDiagram-v2
+  [*] --> CREATED: customer books / merchant order (quote accepted)
+  CREATED --> PICKED_UP: courier collects
+  CREATED --> CANCELLED: customer cancels
+  PICKED_UP --> IN_TRANSIT: courier
+  IN_TRANSIT --> OUT_FOR_DELIVERY: courier
+  OUT_FOR_DELIVERY --> DELIVERED: courier, proof required (name and/or photo)
+  OUT_FOR_DELIVERY --> FAILED: courier, failure reason required
+  FAILED --> OUT_FOR_DELIVERY: dispatcher re-attempts (couriers cannot)
+  DELIVERED --> [*]
+  CANCELLED --> [*]
+
+  note right of OUT_FOR_DELIVERY
+    Every change: parcel row, history row and
+    ParcelStatusChanged (outbox) in one transaction;
+    a concurrent update gets 409 PARCEL_MODIFIED.
+  end note
