@@ -7,4 +7,6 @@ import java.util.List;
 interface SpecialHandlingJpaRepository extends JpaRepository<PricingExtensionEntities.Handling, String> {
 
     List<PricingExtensionEntities.Handling> findByActiveTrueOrderBySortOrderAscCodeAsc();
+
+    List<PricingExtensionEntities.Handling> findAllByOrderBySortOrderAscCodeAsc();
 }

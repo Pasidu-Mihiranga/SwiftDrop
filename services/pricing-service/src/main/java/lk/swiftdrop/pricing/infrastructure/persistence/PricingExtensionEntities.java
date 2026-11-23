@@ -7,11 +7,12 @@ import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.UUID;
 
 /**
- * Entities for the tables V16 adds. All four are read-only from the application: they are
- * seeded configuration, changed by migration.
+ * Entities for the tables V16 adds. Settings and bands are versioned: a change closes the row in
+ * force and adds a new one. Handling options and vehicles are edited in place.
  */
 final class PricingExtensionEntities {
 
@@ -27,14 +28,17 @@ final class PricingExtensionEntities {
         @Column(name = "id", nullable = false, updatable = false)
         private UUID id;
 
-        @Column(name = "fuel_surcharge_pct", nullable = false, precision = 6, scale = 4)
+        @Column(name = "fuel_surcharge_pct", nullable = false, updatable = false, precision = 6, scale = 4)
         private BigDecimal fuelSurchargePct;
 
-        @Column(name = "tax_pct", nullable = false, precision = 6, scale = 4)
+        @Column(name = "tax_pct", nullable = false, updatable = false, precision = 6, scale = 4)
         private BigDecimal taxPct;
 
-        @Column(name = "minimum_charge", nullable = false, precision = 12, scale = 2)
+        @Column(name = "minimum_charge", nullable = false, updatable = false, precision = 12, scale = 2)
         private BigDecimal minimumCharge;
+
+        @Column(name = "same_day_cutoff", updatable = false)
+        private LocalTime sameDayCutoff;
 
         @Column(name = "effective_from", nullable = false, updatable = false)
         private LocalDate effectiveFrom;
@@ -44,6 +48,20 @@ final class PricingExtensionEntities {
 
         protected Setting() {
             // for JPA
+        }
+
+        Setting(UUID id, BigDecimal fuelSurchargePct, BigDecimal taxPct, BigDecimal minimumCharge,
+                LocalTime sameDayCutoff, LocalDate effectiveFrom) {
+            this.id = id;
+            this.fuelSurchargePct = fuelSurchargePct;
+            this.taxPct = taxPct;
+            this.minimumCharge = minimumCharge;
+            this.sameDayCutoff = sameDayCutoff;
+            this.effectiveFrom = effectiveFrom;
+        }
+
+        void closeOn(LocalDate day) {
+            this.effectiveTo = day;
         }
 
         UUID getId() {
@@ -61,6 +79,18 @@ final class PricingExtensionEntities {
         BigDecimal getMinimumCharge() {
             return minimumCharge;
         }
+
+        LocalTime getSameDayCutoff() {
+            return sameDayCutoff;
+        }
+
+        LocalDate getEffectiveFrom() {
+            return effectiveFrom;
+        }
+
+        LocalDate getEffectiveTo() {
+            return effectiveTo;
+        }
     }
 
     /** Maps {@code distance_band}. */
@@ -72,19 +102,19 @@ final class PricingExtensionEntities {
         @Column(name = "id", nullable = false, updatable = false)
         private UUID id;
 
-        @Column(name = "min_km", nullable = false, precision = 8, scale = 2)
+        @Column(name = "min_km", nullable = false, updatable = false, precision = 8, scale = 2)
         private BigDecimal minKm;
 
-        @Column(name = "max_km", precision = 8, scale = 2)
+        @Column(name = "max_km", updatable = false, precision = 8, scale = 2)
         private BigDecimal maxKm;
 
-        @Column(name = "line_haul_fee", nullable = false, precision = 12, scale = 2)
+        @Column(name = "line_haul_fee", nullable = false, updatable = false, precision = 12, scale = 2)
         private BigDecimal lineHaulFee;
 
-        @Column(name = "standard_transit_days", nullable = false)
+        @Column(name = "standard_transit_days", nullable = false, updatable = false)
         private short standardTransitDays;
 
-        @Column(name = "express_transit_days", nullable = false)
+        @Column(name = "express_transit_days", nullable = false, updatable = false)
         private short expressTransitDays;
 
         @Column(name = "effective_from", nullable = false, updatable = false)
@@ -95,6 +125,21 @@ final class PricingExtensionEntities {
 
         protected Band() {
             // for JPA
+        }
+
+        Band(UUID id, BigDecimal minKm, BigDecimal maxKm, BigDecimal lineHaulFee, short standardTransitDays,
+             short expressTransitDays, LocalDate effectiveFrom) {
+            this.id = id;
+            this.minKm = minKm;
+            this.maxKm = maxKm;
+            this.lineHaulFee = lineHaulFee;
+            this.standardTransitDays = standardTransitDays;
+            this.expressTransitDays = expressTransitDays;
+            this.effectiveFrom = effectiveFrom;
+        }
+
+        void closeOn(LocalDate day) {
+            this.effectiveTo = day;
         }
 
         UUID getId() {
@@ -124,6 +169,10 @@ final class PricingExtensionEntities {
         LocalDate getEffectiveFrom() {
             return effectiveFrom;
         }
+
+        LocalDate getEffectiveTo() {
+            return effectiveTo;
+        }
     }
 
     /** Maps {@code special_handling}. */
@@ -151,6 +200,17 @@ final class PricingExtensionEntities {
             // for JPA
         }
 
+        Handling(String code) {
+            this.code = code;
+        }
+
+        void update(String label, BigDecimal fee, boolean active, short sortOrder) {
+            this.label = label;
+            this.fee = fee;
+            this.active = active;
+            this.sortOrder = sortOrder;
+        }
+
         String getCode() {
             return code;
         }
@@ -161,6 +221,14 @@ final class PricingExtensionEntities {
 
         BigDecimal getFee() {
             return fee;
+        }
+
+        boolean isActive() {
+            return active;
+        }
+
+        short getSortOrder() {
+            return sortOrder;
         }
     }
 
@@ -192,8 +260,21 @@ final class PricingExtensionEntities {
             // for JPA
         }
 
+        void update(String label, BigDecimal maxWeightKg, BigDecimal maxDistanceKm, BigDecimal rateMultiplier,
+                    boolean active) {
+            this.label = label;
+            this.maxWeightKg = maxWeightKg;
+            this.maxDistanceKm = maxDistanceKm;
+            this.rateMultiplier = rateMultiplier;
+            this.active = active;
+        }
+
         String getCode() {
             return code;
+        }
+
+        String getLabel() {
+            return label;
         }
 
         BigDecimal getMaxWeightKg() {
@@ -206,6 +287,10 @@ final class PricingExtensionEntities {
 
         BigDecimal getRateMultiplier() {
             return rateMultiplier;
+        }
+
+        boolean isActive() {
+            return active;
         }
     }
 }

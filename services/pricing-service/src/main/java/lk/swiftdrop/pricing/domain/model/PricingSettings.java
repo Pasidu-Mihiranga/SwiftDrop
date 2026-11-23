@@ -1,6 +1,7 @@
 package lk.swiftdrop.pricing.domain.model;
 
 import java.math.BigDecimal;
+import java.time.LocalTime;
 import java.util.UUID;
 
 /**
@@ -9,8 +10,11 @@ import java.util.UUID;
  * @param fuelSurchargePct fraction of the transport charge added for fuel, e.g. 0.05
  * @param taxPct           fraction of the finished fee added as tax, e.g. 0.18
  * @param minimumCharge    the least a delivery may cost before fuel and the optional extras
+ * @param sameDayCutoff    local time from which same-day work is no longer taken for today;
+ *                         null when same-day can be ordered at any time
  */
-public record PricingSettings(UUID id, BigDecimal fuelSurchargePct, BigDecimal taxPct, BigDecimal minimumCharge) {
+public record PricingSettings(UUID id, BigDecimal fuelSurchargePct, BigDecimal taxPct, BigDecimal minimumCharge,
+                              LocalTime sameDayCutoff) {
 
     public PricingSettings {
         requireFraction(fuelSurchargePct, "Fuel surcharge");
@@ -18,6 +22,19 @@ public record PricingSettings(UUID id, BigDecimal fuelSurchargePct, BigDecimal t
         if (minimumCharge == null || minimumCharge.signum() < 0) {
             throw new IllegalArgumentException("Minimum charge must not be negative");
         }
+    }
+
+    /** Settings without a same-day cut-off. */
+    public PricingSettings(UUID id, BigDecimal fuelSurchargePct, BigDecimal taxPct, BigDecimal minimumCharge) {
+        this(id, fuelSurchargePct, taxPct, minimumCharge, null);
+    }
+
+    /**
+     * Whether a same-day job can still be taken at this local time. The cut-off itself is already
+     * too late, so a 14:00 cut-off accepts 13:59 and refuses 14:00.
+     */
+    public boolean acceptsSameDayAt(LocalTime localTime) {
+        return sameDayCutoff == null || localTime.isBefore(sameDayCutoff);
     }
 
     private static void requireFraction(BigDecimal value, String name) {
