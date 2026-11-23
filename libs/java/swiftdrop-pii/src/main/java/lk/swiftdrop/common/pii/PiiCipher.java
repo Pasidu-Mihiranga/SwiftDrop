@@ -1,4 +1,4 @@
-package lk.swiftdrop.user.infrastructure.crypto;
+package lk.swiftdrop.common.pii;
 
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
@@ -11,11 +11,12 @@ import java.security.SecureRandom;
 import java.util.Base64;
 
 /**
- * Encrypts personal data (phone numbers, address lines) before it reaches the database, using
+ * Encrypts personal data (phone numbers, addresses) before it reaches the database, using
  * AES-256-GCM with a fresh random 96-bit IV per value.
  *
  * <p>Stored form: {@code v1:} + base64(IV || ciphertext || 128-bit tag). The version prefix leaves
- * room for key rotation later. GCM authenticates the data, so a value altered in the database fails
+ * room for key rotation later. Shared by every service that stores personal data (one key,
+ * {@code PII_ENCRYPTION_KEY}, one format). GCM authenticates the data, so a value altered in the database fails
  * to decrypt instead of returning garbage.
  */
 public final class PiiCipher {
