@@ -6,6 +6,9 @@ import { EmailChannel } from "./email.channel";
 import { MockSmsChannel } from "./mock-sms.channel";
 import type { NotificationPayload } from "./notification-channel.interface";
 
+/** Events whose status is a parcel status, which the user can opt out of per status. */
+const PARCEL_EVENTS = new Set(["ParcelCreated", "ParcelStatusChanged"]);
+
 export interface DispatchNotificationRequest {
   eventId: string;
   eventType: string;
@@ -38,8 +41,11 @@ export class NotificationDispatcherService {
     // 1. Check user preferences
     const prefs = await this.getUserPreferences(req.userId);
 
-    // If an event is status-based and the user opted out of that status, skip external channels
+    // The per-status opt-outs are parcel statuses, so they only filter parcel events. Account notices
+    // (merchant approved, rejected, suspended) carry a status too, but are always sent.
+    const parcelEvent = PARCEL_EVENTS.has(req.eventType);
     const eventAllowed =
+      !parcelEvent ||
       !req.status ||
       prefs.events.includes(req.status) ||
       (req.status === "CREATED" && prefs.events.includes("PARCEL_CREATED"));
