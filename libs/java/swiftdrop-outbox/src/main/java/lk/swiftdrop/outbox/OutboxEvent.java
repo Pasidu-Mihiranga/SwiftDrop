@@ -39,6 +39,10 @@ public class OutboxEvent {
     @Column(name = "correlation_id")
     private String correlationId;
 
+    /** W3C traceparent of the request that wrote the event; null when nothing was being traced. */
+    @Column(name = "trace_parent", length = 55)
+    private String traceParent;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -99,6 +103,14 @@ public class OutboxEvent {
 
     public String getPayload() {
         return payload;
+    }
+
+    public String getTraceParent() {
+        return traceParent;
+    }
+
+    void setTraceParent(String traceParent) {
+        this.traceParent = traceParent;
     }
 
     public String getCorrelationId() {
