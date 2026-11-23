@@ -157,6 +157,8 @@ pnpm new-service --type nest --name chat-service --port 8093 --route chat --mong
 ## Observability and Debugging with Grafana
 
 SwiftDrop provides a complete LGTM (Loki, Grafana, Tempo, Prometheus) observability stack orchestrated with Grafana Alloy.
+How the signals flow is drawn in [`doc/diagrams/m9/architecture-m9-observability.png`](doc/diagrams/m9/architecture-m9-observability.png)
+(source: `architecture-m9-observability.mmd`).
 
 ### 1. Starting the Observability Stack
 
@@ -170,13 +172,31 @@ Open Grafana at [http://localhost:3001](http://localhost:3001) using credentials
 
 - **SwiftDrop - Platform Overview (`swiftdrop-platform`):** Real-time cluster health, RED metrics (Rate, Errors, Duration), Kafka consumer lag across all topics, and active error log streams.
 - **SwiftDrop - Notifications & Business KPIs (`swiftdrop-m9-observability`):** Real-time delivery status transitions, OpenPDF receipts generated, email/SMS notification throughput, and JVM/Node.js memory metrics.
+- **SwiftDrop - Bookings, courier ops and webhooks (`swiftdrop-parcels-webhooks`):** bookings per hour by channel, quote
+  rejections by reason and the pricing circuit breaker (M3); status changes per hour and failed deliveries by reason
+  (M4); webhook attempts by outcome, endpoint answer time, success rate and dead letters (M8).
 
 ### 3. Distributed Tracing with Tempo
 
-Every incoming request receives an OpenTelemetry trace context at `api-gateway` and propagates through Kafka headers across downstream microservices:
-1. Open **Explore** in Grafana and choose **Tempo** as the data source.
-2. Search for traces by service (`api-gateway`, `parcel-service`, `notification-service`) or operation name.
-3. Drill down into individual spans to inspect span attributes, Kafka topic partition offsets, and execution timings.
+One trace follows a request from `api-gateway` through the service that handles it, across Kafka and into
+every consumer:
+
+- **Java services** use Spring Boot's OpenTelemetry starter (from `swiftdrop-common-logging`); compose sets
+  `MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT=http://alloy:4318/v1/traces` and samples every request
+  (`TRACING_SAMPLING_PROBABILITY`, default `1.0`).
+- **Across Kafka**: the outbox stores the request's W3C `traceparent` with each event and the relay sends it as a
+  Kafka header, so consumers continue the same trace even though the event is published later.
+- **Node services** (tracking, notification, webhook) import `@swiftdrop/common/tracing` first; it instruments
+  HTTP and kafkajs. **ai-assistant-service** instruments FastAPI and its httpx calls to the gateway.
+- Without an OTLP endpoint nothing is exported, so tests and local runs are unaffected.
+
+Follow one booking end to end:
+1. Book a parcel (web app or `POST /api/v1/parcels`).
+2. Open **Explore**, choose **Tempo**, search with `{ resource.service.name = "parcel-service" }` (or
+   `api-gateway`) and open the newest `POST /api/v1/parcels` trace.
+3. The trace shows the gateway span, parcel-service with its pricing call, and, after the outbox relay
+   publishes, the Kafka consumers: tracking-service, notification-service, webhook-service, dispatch-service and
+   reporting-service.
 
 ### 4. Trace-to-Log Correlation
 

@@ -36,7 +36,7 @@ public class OutboxWriter {
     public <T extends EventPayload> EventEnvelope<T> publish(T payload) {
         String correlationId = MDC.get("correlationId");
         EventEnvelope<T> envelope = EventEnvelope.wrap(payload, producer, correlationId);
-        repository.save(new OutboxEvent(
+        OutboxEvent event = new OutboxEvent(
                 envelope.eventId(),
                 payload.partitionKey(),
                 envelope.eventType(),
@@ -44,7 +44,9 @@ public class OutboxWriter {
                 payload.partitionKey(),
                 objectMapper.writeValueAsString(envelope),
                 correlationId,
-                envelope.occurredAt()));
+                envelope.occurredAt());
+        event.setTraceParent(TraceContext.currentTraceParent());
+        repository.save(event);
         return envelope;
     }
 }

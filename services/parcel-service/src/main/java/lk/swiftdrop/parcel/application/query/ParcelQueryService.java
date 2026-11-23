@@ -28,6 +28,11 @@ public class ParcelQueryService {
         return parcels.findByCustomer(customer.id(), status, page, size);
     }
 
+    /** The parcels assigned to the calling courier, newest first (M4). */
+    public PagedResult<Parcel> assignedTo(AuthenticatedUser courier, ParcelStatus status, int page, int size) {
+        return parcels.findByCourier(courier.id(), status, page, size);
+    }
+
     /**
      * One parcel with its history.
      *

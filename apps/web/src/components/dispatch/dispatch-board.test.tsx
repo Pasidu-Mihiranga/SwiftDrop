@@ -57,7 +57,7 @@ describe("dispatch board", () => {
     const {rerender} = render(<DispatchBoard/>); await screen.findByText("SD1");
     fireEvent.change(screen.getByLabelText("Zone filter"),{target:{value:"CP"}});
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("zone=CP"),expect.anything()));
-    fireEvent.change(screen.getByLabelText("Run date"),{target:{value:"2026-11-23"}});
+    fireEvent.change(screen.getByLabelText("Run date"),{target:{value:"2020-01-15"}});
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/bff/api/v1/dispatch/assignments?date=2026-11-23",expect.anything()));
     pool=[{...parcel,trackingNumber:"SD-NEW"}]; live.events=[{trackingNumber:"SD-NEW"}]; rerender(<DispatchBoard/>);
     expect(await screen.findByText("SD-NEW")).toBeInTheDocument();
@@ -73,9 +73,9 @@ describe("courier run sheet", () => {
     assigned=[{...parcel,assignmentId:"a1",courierId:"c1"}]; render(<RunSheet/>);
     expect(await screen.findByRole("link",{name:"1. SD1"})).toHaveAttribute("href","/track/SD1");
     expect(screen.getByText("1 assigned parcels")).toBeInTheDocument();
-    assigned=[]; fireEvent.change(screen.getByLabelText("Run date"),{target:{value:"2026-11-23"}});
+    assigned=[]; fireEvent.change(screen.getByLabelText("Run date"),{target:{value:"2020-01-15"}});
     expect(await screen.findByText("No parcels assigned for this day.")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith("/api/bff/api/v1/courier/run-sheet?date=2026-11-23",expect.anything());
+    expect(fetchMock).toHaveBeenCalledWith("/api/bff/api/v1/courier/run-sheet?date=2020-01-15",expect.anything());
     await userEvent.click(screen.getByRole("button",{name:"Refresh run sheet"}));
   });
   it("shows run sheet errors", async () => {

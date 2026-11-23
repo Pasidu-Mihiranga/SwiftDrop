@@ -1,0 +1,39 @@
+%% Courier marks a parcel DELIVERED with a photo proof (M4), and how the change fans out.
+sequenceDiagram
+  autonumber
+  actor C as Courier (web, /courier/parcels/{id})
+  participant W as Web BFF
+  participant G as API gateway
+  participant P as parcel-service
+  participant S as RustFS (S3)
+  participant DB as parcel DB
+  participant K as Kafka
+  participant X as tracking, notification,<br/>webhook, dispatch, reporting
+
+  C->>W: POST courier/parcels/{id}/proof-upload-url (type, size)
+  W->>G: forward with access token
+  G->>P: JWT checked, role COURIER
+  P->>P: parcel assigned to caller? (else 404)
+  P->>S: presign PUT for proofs/{parcelId}/{proofId}
+  P-->>C: proofId, uploadUrl, expiresAt
+  C->>S: PUT photo (direct, with progress)
+  S-->>C: 200
+
+  C->>W: PATCH courier/parcels/{id}/status {DELIVERED, proof: PHOTO, proofId, receivedBy}
+  W->>G: forward
+  G->>P: JWT checked
+  P->>P: state OUT_FOR_DELIVERY -> DELIVERED allowed, proof present
+  rect rgb(240, 240, 240)
+    note over P,DB: one transaction
+    P->>DB: update parcel (version check)
+    P->>DB: insert status history row
+    P->>DB: mark proof used
+    P->>DB: insert outbox row ParcelStatusChanged (with traceparent)
+  end
+  P-->>C: 200 parcel (422 INVALID_STATUS_TRANSITION, 409 PARCEL_MODIFIED)
+
+  loop outbox relay
+    P->>K: publish swiftdrop.parcel.status-changed.v1
+  end
+  K-->>X: consume (idempotent by eventId)
+  X-->>C: live timeline update, email/SMS, merchant webhook

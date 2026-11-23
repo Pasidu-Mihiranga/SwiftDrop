@@ -72,4 +72,24 @@ class ParcelAccessPolicyTest {
         assertThat(ParcelAccessPolicy.canViewReceipt(parcel, ParcelFixtures.user("courier-1", "COURIER", null))).isFalse();
         assertThat(ParcelAccessPolicy.canViewReceipt(parcel, ParcelFixtures.customer("cust-2"))).isFalse();
     }
+
+    @Test
+    void onlyTheAssignedCourierOrStaffMayUpdateTheStatus() {
+        assertThat(ParcelAccessPolicy.canUpdateStatus(parcel, ParcelFixtures.user("courier-1", "COURIER", null))).isTrue();
+        assertThat(ParcelAccessPolicy.canUpdateStatus(parcel, ParcelFixtures.user("disp-1", "DISPATCHER", null))).isTrue();
+        assertThat(ParcelAccessPolicy.canUpdateStatus(parcel, ParcelFixtures.user("admin-1", "ADMIN", null))).isTrue();
+
+        assertThat(ParcelAccessPolicy.canUpdateStatus(parcel, ParcelFixtures.user("courier-2", "COURIER", null))).isFalse();
+        assertThat(ParcelAccessPolicy.canUpdateStatus(parcel, ParcelFixtures.customer("cust-1"))).isFalse();
+        assertThat(ParcelAccessPolicy.canUpdateStatus(parcel, ParcelFixtures.user("owner-1", "MERCHANT", MERCHANT_ID)))
+                .isFalse();
+        assertThat(ParcelAccessPolicy.canUpdateStatus(ParcelFixtures.bookedBy("cust-1"),
+                ParcelFixtures.user("courier-1", "COURIER", null))).as("not assigned yet").isFalse();
+    }
+
+    @Test
+    void onlyStaffReattempt() {
+        assertThat(ParcelAccessPolicy.canReattempt(ParcelFixtures.user("disp-1", "DISPATCHER", null))).isTrue();
+        assertThat(ParcelAccessPolicy.canReattempt(ParcelFixtures.user("courier-1", "COURIER", null))).isFalse();
+    }
 }

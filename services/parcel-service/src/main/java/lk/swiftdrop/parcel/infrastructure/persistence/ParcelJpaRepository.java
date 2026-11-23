@@ -84,6 +84,16 @@ public class ParcelJpaRepository implements ParcelRepository {
     }
 
     @Override
+    public PagedResult<Parcel> findByCourier(String courierId, ParcelStatus status, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, NEWEST_FIRST);
+        Page<ParcelEntity> found = status == null
+                ? rows.findByCourierId(courierId, pageable)
+                : rows.findByCourierIdAndStatus(courierId, status, pageable);
+        return new PagedResult<>(found.map(entity -> ParcelEntityMapper.toDomain(entity, false)).getContent(),
+                found.getNumber(), found.getSize(), found.getTotalElements(), found.getTotalPages());
+    }
+
+    @Override
     public PagedResult<Parcel> findByMerchant(String merchantId, MerchantOrderFilter filter, int page, int size) {
         Objects.requireNonNull(merchantId, "merchantId");
         Specification<ParcelEntity> query = (root, q, cb) -> cb.equal(root.get("merchantId"), merchantId);

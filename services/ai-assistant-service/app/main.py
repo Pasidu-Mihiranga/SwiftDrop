@@ -15,6 +15,7 @@ from app.api.v1.routes import router
 from app.clients.swiftdrop_api import SwiftDropApi
 from app.core.config import Settings
 from app.core.metrics import AssistantMetrics
+from app.core.tracing import setup_tracing
 from app.llm.base import LLMProvider
 from app.llm.factory import create_provider, provider_config
 from app.mcp_server.server import build_mcp_server
@@ -70,6 +71,7 @@ def create_app(settings: Settings | None = None, verifier: JwtVerifier | None = 
         llm, registry, redactor, store, RateLimiter(redis_client, settings.assistant_rate_limit_per_min), api_for,
         max_tool_rounds=settings.assistant_max_tool_rounds, metrics=metrics)
     app.include_router(router)
+    setup_tracing(app, gateway)
 
     # MCP over streamable HTTP at /mcp. Stateless JSON responses suit a service behind the gateway; the
     # DNS-rebinding check is off because requests arrive through the gateway, not from a local browser.

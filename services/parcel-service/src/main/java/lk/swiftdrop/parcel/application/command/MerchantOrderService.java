@@ -6,6 +6,8 @@ import lk.swiftdrop.common.web.error.ConflictException;
 import lk.swiftdrop.events.common.Types.Location;
 import lk.swiftdrop.events.parcel.ParcelCreated;
 import lk.swiftdrop.outbox.OutboxWriter;
+import lk.swiftdrop.parcel.application.port.out.ParcelMetrics;
+import lk.swiftdrop.events.common.Types.ParcelSource;
 import lk.swiftdrop.parcel.application.exception.MerchantAccessDeniedException;
 import lk.swiftdrop.parcel.application.exception.OrderNotPriceableException;
 import lk.swiftdrop.parcel.application.exception.PricingUnavailableException;
@@ -60,6 +62,8 @@ import java.util.Optional;
 @Service
 public class MerchantOrderService {
 
+    private final ParcelMetrics parcelMetrics;
+
     private final MerchantStatusCache merchants;
     private final IdempotencyStore idempotency;
     private final QuotePort pricing;
@@ -75,7 +79,9 @@ public class MerchantOrderService {
 
     public MerchantOrderService(MerchantStatusCache merchants, IdempotencyStore idempotency, QuotePort pricing,
                                 ParcelRepository parcels, TrackingNumberFactory trackingNumbers, OutboxWriter outbox,
-                                MerchantOrderMetrics metrics, TransactionOperations transaction, Clock clock) {
+                                MerchantOrderMetrics metrics, TransactionOperations transaction, Clock clock,
+                                ParcelMetrics parcelMetrics) {
+        this.parcelMetrics = parcelMetrics;
         this.merchants = merchants;
         this.idempotency = idempotency;
         this.pricing = pricing;
@@ -105,6 +111,9 @@ public class MerchantOrderService {
             throw refused;
         }
         metrics.orderRequest(result.replayed() ? Outcome.REPLAYED : Outcome.CREATED);
+        if (!result.replayed()) {
+            parcelMetrics.parcelBooked(ParcelSource.MERCHANT);
+        }
         return result;
     }
 

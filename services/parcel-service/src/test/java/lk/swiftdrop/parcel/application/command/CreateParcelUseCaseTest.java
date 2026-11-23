@@ -1,5 +1,7 @@
 package lk.swiftdrop.parcel.application.command;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import lk.swiftdrop.parcel.infrastructure.metrics.MicrometerParcelMetrics;
 import lk.swiftdrop.common.security.AuthenticatedUser;
 import lk.swiftdrop.events.common.Types.Location;
 import lk.swiftdrop.events.common.Types.ParcelSource;
@@ -41,6 +43,12 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class CreateParcelUseCaseTest {
+    private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
+
+    private double count(String name, String tag, String value) {
+        return registry.get(name).tag(tag, value).counter().count();
+    }
+
 
     private static final Clock CLOCK = Clock.fixed(ParcelFixtures.NOW, ZoneOffset.UTC);
     private static final UUID QUOTE_ID = UUID.randomUUID();
@@ -60,7 +68,7 @@ class CreateParcelUseCaseTest {
     @BeforeEach
     void setUp() {
         useCase = new CreateParcelUseCase(pricing, parcels, new TrackingNumberFactory(CLOCK, new Random(7)), outbox,
-                TransactionOperations.withoutTransaction(), CLOCK);
+                TransactionOperations.withoutTransaction(), CLOCK, new MicrometerParcelMetrics(registry));
         lenient().when(parcels.save(any())).thenAnswer(call -> call.getArgument(0));
     }
 
@@ -78,6 +86,7 @@ class CreateParcelUseCaseTest {
         assertThat(parcel.createdAt()).isEqualTo(ParcelFixtures.NOW);
         assertThat(parcel.history()).hasSize(1);
         verify(parcels).save(parcel);
+        assertThat(count("parcel.bookings", "source", "customer")).isEqualTo(1);
     }
 
     @Test
@@ -121,6 +130,8 @@ class CreateParcelUseCaseTest {
         assertThatThrownBy(() -> useCase.create(CUSTOMER, COMMAND)).isInstanceOf(QuoteExpiredException.class);
 
         verifyNoInteractions(parcels, outbox);
+        assertThat(count("parcel.quote.rejections", "reason", "expired")).isEqualTo(1);
+        assertThat(count("parcel.bookings", "source", "customer")).isZero();
     }
 
     @Test
@@ -144,6 +155,7 @@ class CreateParcelUseCaseTest {
         assertThatThrownBy(() -> useCase.create(CUSTOMER, elsewhere)).isInstanceOf(QuoteMismatchException.class);
 
         verifyNoInteractions(parcels, outbox);
+        assertThat(count("parcel.quote.rejections", "reason", "mismatch")).isEqualTo(1);
     }
 
     @Test
@@ -164,5 +176,6 @@ class CreateParcelUseCaseTest {
         assertThatThrownBy(() -> useCase.create(CUSTOMER, COMMAND)).isInstanceOf(PricingUnavailableException.class);
 
         verifyNoInteractions(parcels, outbox);
+        assertThat(count("parcel.quote.rejections", "reason", "pricing_unavailable")).isEqualTo(1);
     }
 }
