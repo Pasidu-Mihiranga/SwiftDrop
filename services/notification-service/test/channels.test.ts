@@ -176,5 +176,23 @@ describe("Notification Channels & Dispatcher", () => {
       // In-app notification is still retained for audit & activity feed
       expect(mockDb.notifications.insertOne).toHaveBeenCalled();
     });
+
+    it("always emails merchant account notices, whatever the parcel status preferences", async () => {
+      mockDb.preferences.findOne.mockResolvedValue(null); // default preferences: parcel statuses only
+
+      await dispatcher.dispatch({
+        eventId: "evt-04",
+        eventType: "MerchantLifecycleChanged",
+        userId: "owner-1",
+        toEmail: "orders@lankabooks.lk",
+        recipientName: "Lanka Books (Pvt) Ltd",
+        status: "APPROVED",
+        templateName: "merchant-lifecycle",
+      });
+
+      expect((emailChannel as any).transporter.sendMail).toHaveBeenCalledWith(
+        expect.objectContaining({ to: "orders@lankabooks.lk", subject: "SwiftDrop: Merchant Account Approved" }),
+      );
+    });
   });
 });
