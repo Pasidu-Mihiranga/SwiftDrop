@@ -101,7 +101,9 @@ spec:
             exec:
               command: ["sh", "-c", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
             initialDelaySeconds: 20
-            periodSeconds: 10
+            periodSeconds: 15
+            # The check starts a JVM; the 1 s default never lets it finish.
+            timeoutSeconds: 30
             failureThreshold: 18
           livenessProbe:
             tcpSocket:
