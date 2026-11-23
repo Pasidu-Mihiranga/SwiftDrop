@@ -1,3 +1,5 @@
+// Distributed tracing must start before http and kafkajs are loaded (M9).
+import "@swiftdrop/common/tracing";
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import { LOGGER, PinoNestLogger } from "@swiftdrop/common/nest";
