@@ -138,6 +138,9 @@ export default async function AdminHome() {
             <Link className="btn-secondary py-2 text-xs" href="/admin/pricing/remote-areas">
               Remote areas
             </Link>
+            <Link className="btn-secondary py-2 text-xs" href="/admin/pricing/settings">
+              Fees &amp; handling
+            </Link>
             <Link className="btn-secondary py-2 text-xs" href="/admin/pricing/merchants">
               Merchant rates
             </Link>

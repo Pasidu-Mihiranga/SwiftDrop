@@ -4,7 +4,14 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { gatewayFetch } from "@/lib/gateway";
 import type { Problem } from "@/lib/bff";
-import { isUuid, parseWeightBands, type LaneOverride } from "@/lib/pricing";
+import {
+  isUuid,
+  isVehicleType,
+  parseDistanceBands,
+  parseWeightBands,
+  percentToFraction,
+  type LaneOverride,
+} from "@/lib/pricing";
 
 /**
  * Server actions behind the admin pricing forms.
@@ -24,6 +31,8 @@ export interface ActionState {
 /** Row numbers of the repeated form fields. They are fixed so the forms work without scripting. */
 const WEIGHT_BAND_ROWS = [1, 2, 3, 4];
 const LANE_ROWS = [1, 2, 3];
+const DISTANCE_BAND_ROWS = [1, 2, 3, 4, 5, 6, 7, 8];
+const CUTOFF_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export async function createRateCard(_previous: ActionState, formData: FormData): Promise<ActionState> {
   const requiredAmounts = ["baseFee", "perKgFee", "expressMultiplier", "codFeePct"];
@@ -159,6 +168,121 @@ export async function publishMerchantAgreement(_previous: ActionState, formData:
   return result.status === "ok" ? { status: "ok", message: `Terms take effect ${effectiveFrom}.` } : result;
 }
 
+export async function publishPricingSettings(_previous: ActionState, formData: FormData): Promise<ActionState> {
+  const fuelSurchargePct = percentToFraction(String(formData.get("fuelPercent") ?? ""));
+  const taxPct = percentToFraction(String(formData.get("taxPercent") ?? ""));
+  const minimumText = String(formData.get("minimumCharge") ?? "").trim();
+  const minimumCharge = Number(minimumText);
+  const effectiveFrom = String(formData.get("effectiveFrom") ?? "");
+  const cutoffText = String(formData.get("sameDayCutoff") ?? "").trim();
+  if (fuelSurchargePct === undefined || taxPct === undefined) {
+    return { status: "error", message: "Fuel and tax are percentages from 0 up to 100, such as 5 or 18." };
+  }
+  if (minimumText === "" || !Number.isFinite(minimumCharge) || minimumCharge < 0) {
+    return { status: "error", message: "The minimum charge must be a number of 0 or more." };
+  }
+  if (cutoffText !== "" && !CUTOFF_PATTERN.test(cutoffText)) {
+    return { status: "error", message: "Give the same-day cut-off as a time such as 14:00, or leave it blank." };
+  }
+  if (!effectiveFrom) return { status: "error", message: "Choose the date the settings take effect." };
+
+  const result = await send("/api/v1/admin/pricing/settings", "POST", {
+    fuelSurchargePct,
+    taxPct,
+    minimumCharge,
+    sameDayCutoff: cutoffText === "" ? null : cutoffText,
+    effectiveFrom,
+  });
+  return result.status === "ok" ? { status: "ok", message: `New fee settings take effect ${effectiveFrom}.` } : result;
+}
+
+export async function publishDistanceBands(_previous: ActionState, formData: FormData): Promise<ActionState> {
+  const effectiveFrom = String(formData.get("effectiveFrom") ?? "");
+  if (!effectiveFrom) return { status: "error", message: "Choose the date the bands take effect." };
+  const parsed = parseDistanceBands(
+    DISTANCE_BAND_ROWS.map((row) => ({
+      upToKm: String(formData.get(`bandUpTo${row}`) ?? ""),
+      lineHaulFee: String(formData.get(`bandFee${row}`) ?? ""),
+      standardDays: String(formData.get(`bandStandard${row}`) ?? ""),
+      expressDays: String(formData.get(`bandExpress${row}`) ?? ""),
+    })),
+  );
+  if (!parsed.ok) return { status: "error", message: parsed.message };
+
+  const result = await send("/api/v1/admin/pricing/distance-bands", "POST", { effectiveFrom, bands: parsed.bands });
+  return result.status === "ok"
+    ? { status: "ok", message: `${parsed.bands.length} distance bands take effect ${effectiveFrom}.` }
+    : result;
+}
+
+export async function addSpecialHandling(_previous: ActionState, formData: FormData): Promise<ActionState> {
+  const code = String(formData.get("code") ?? "").trim().toUpperCase();
+  const label = String(formData.get("label") ?? "").trim();
+  const handling = readHandlingFields(formData);
+  if (!/^[A-Z][A-Z0-9_]{0,31}$/.test(code)) {
+    return { status: "error", message: "The code is up to 32 letters, digits or underscores, starting with a letter." };
+  }
+  if (!label) return { status: "error", message: "Give the option a label customers will see." };
+  if (typeof handling === "string") return { status: "error", message: handling };
+
+  const result = await send("/api/v1/admin/pricing/special-handling", "POST", { code, label, ...handling });
+  return result.status === "ok" ? { status: "ok", message: `${label} is now offered on new quotes.` } : result;
+}
+
+export async function updateSpecialHandling(_previous: ActionState, formData: FormData): Promise<ActionState> {
+  const code = String(formData.get("code") ?? "").trim();
+  const label = String(formData.get("label") ?? "").trim();
+  const handling = readHandlingFields(formData);
+  if (!code || !label) return { status: "error", message: "Give the option a label customers will see." };
+  if (typeof handling === "string") return { status: "error", message: handling };
+  const active = formData.get("active") === "on";
+
+  const result = await send(`/api/v1/admin/pricing/special-handling/${encodeURIComponent(code)}`, "PUT", {
+    label,
+    active,
+    ...handling,
+  });
+  return result.status === "ok"
+    ? { status: "ok", message: active ? `${label} saved.` : `${label} is retired and hidden from new quotes.` }
+    : result;
+}
+
+export async function updateSameDayVehicle(_previous: ActionState, formData: FormData): Promise<ActionState> {
+  const code = String(formData.get("code") ?? "").trim().toUpperCase();
+  const label = String(formData.get("label") ?? "").trim();
+  const fields = ["maxWeightKg", "maxDistanceKm", "rateMultiplier"] as const;
+  const values = fields.map((field) => String(formData.get(field) ?? "").trim());
+  if (!isVehicleType(code)) return { status: "error", message: "Unknown vehicle." };
+  if (!label) return { status: "error", message: "Give the vehicle a label." };
+  const [maxWeightKg, maxDistanceKm, rateMultiplier] = values.map(Number);
+  if (values.some((value) => value === "") || [maxWeightKg, maxDistanceKm, rateMultiplier].some((value) => !Number.isFinite(value) || value <= 0)) {
+    return { status: "error", message: "Weight, distance and multiplier must all be more than 0." };
+  }
+  if (maxWeightKg > 100) return { status: "error", message: "A quote takes at most 100 kg, so the limit cannot be higher." };
+
+  const result = await send(`/api/v1/admin/pricing/vehicles/${encodeURIComponent(code)}`, "PUT", {
+    label,
+    maxWeightKg,
+    maxDistanceKm,
+    rateMultiplier,
+    active: formData.get("active") === "on",
+  });
+  return result.status === "ok" ? { status: "ok", message: `${label} saved.` } : result;
+}
+
+/** The fee and display order shared by the add and edit handling forms. */
+function readHandlingFields(formData: FormData): { fee: number; sortOrder: number } | string {
+  const feeText = String(formData.get("fee") ?? "").trim();
+  const fee = Number(feeText);
+  const sortText = String(formData.get("sortOrder") ?? "").trim();
+  const sortOrder = sortText === "" ? 0 : Number(sortText);
+  if (feeText === "" || !Number.isFinite(fee) || fee < 0) return "The fee must be a number of 0 or more.";
+  if (!Number.isInteger(sortOrder) || sortOrder < 0 || sortOrder > 9999) {
+    return "Display order is a whole number from 0 to 9999.";
+  }
+  return { fee, sortOrder };
+}
+
 /** The negotiated lanes filled in on the form, or a sentence saying what is wrong with one. */
 function readLaneOverrides(formData: FormData): LaneOverride[] | string {
   const lanes: LaneOverride[] = [];
@@ -214,6 +338,7 @@ async function send(path: string, method: "POST" | "PUT", body: unknown): Promis
     revalidatePath("/admin/pricing/rate-cards");
     revalidatePath("/admin/pricing/remote-areas");
     revalidatePath("/admin/pricing/merchants");
+    revalidatePath("/admin/pricing/settings");
     revalidatePath("/quote");
     return { status: "ok" };
   }

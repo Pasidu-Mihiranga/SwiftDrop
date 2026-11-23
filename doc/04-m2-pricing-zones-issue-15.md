@@ -361,10 +361,23 @@ mapping cannot be changed from the admin dashboard or the API.
       dev/prod render, compose config, no-emoji check. The migrations were also applied to a
       throwaway copy of the local `pricing_db` (which had Ampara in CP): Ampara returned to EP,
       the trigger refused a move, and the live endpoints answered as expected.
-- [ ] Review and replace the placeholder values in V16 with agreed figures (new migration).
+- [x] The V16 values are no longer migration-managed: `/admin/pricing/settings` (Fees &
+      handling) maintains them, so replacing a placeholder is an admin action, not a migration.
+      Decision: the seed values stay as the starting configuration (18% tax matches the
+      standard VAT rate); V17 records on each table that it is admin-maintained.
+- [x] Admin API (`AdminPricingConfigurationController`, ADMIN only, in the contract):
+      fee settings and distance bands are versioned and published from a date that is today
+      or later and after every version already published (409 `*_PERIOD_CONFLICT`, 422
+      `EFFECTIVE_DATE_IN_PAST`); a band set must start at 0 km, chain without gaps and end
+      open (422 `INVALID_DISTANCE_BANDS`). Handling options can be added (409
+      `SPECIAL_HANDLING_EXISTS`), edited and retired; vehicles' limits edited (weight at most
+      the 100 kg a quote accepts) or switched off. Issued quotes keep their fee.
+- [x] Same-day cut-off: `V17__pricing_settings_admin.sql` adds `pricing_setting.same_day_cutoff`
+      (NULL, so no change until an admin sets one). From the cut-off, in the quote zone's local
+      time, a SAME_DAY quote is refused with 422 `SAME_DAY_CUTOFF_PASSED`, before the lane is
+      measured; standard and express are unaffected.
 - [ ] Not built: free-text address search (needs an external geocoder whose terms and data
-      handling must be agreed first), a same-day order cut-off time, and admin screens for
-      the V16 settings, which are migration-managed for now.
+      handling must be agreed first).
 - [x] Browser check of the map on a real desktop viewport completed on `/quote`, including
       inline picker and full-screen maximize/minimize modal views.
 
@@ -387,8 +400,8 @@ does not require live cluster re-deployment for local dev.
 Remaining items awaiting owner input or full-stack execution:
 
 1. Fill the Student ID into M2's row in `doc/03-team-contribution.md`.
-2. Confirm whether to keep the V16 placeholder rates/thresholds or replace them via a
-   new `V17` migration.
+2. Done: the V16 values stay as the starting configuration and are now changed on
+   `/admin/pricing/settings` rather than by migration (V17).
 3. Done: `scripts/demo-m2-pricing.sh` passed end to end with `parcel-service` (2026-11-23).
 
 What a reviewer should know about the running cluster: the demo script and the metric

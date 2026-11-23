@@ -58,7 +58,7 @@ describe("dispatch board", () => {
     fireEvent.change(screen.getByLabelText("Zone filter"),{target:{value:"CP"}});
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("zone=CP"),expect.anything()));
     fireEvent.change(screen.getByLabelText("Run date"),{target:{value:"2020-01-15"}});
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/bff/api/v1/dispatch/assignments?date=2026-11-23",expect.anything()));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/bff/api/v1/dispatch/assignments?date=2020-01-15",expect.anything()));
     pool=[{...parcel,trackingNumber:"SD-NEW"}]; live.events=[{trackingNumber:"SD-NEW"}]; rerender(<DispatchBoard/>);
     expect(await screen.findByText("SD-NEW")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button",{name:"Refresh board"}));
