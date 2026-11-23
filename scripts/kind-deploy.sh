@@ -125,6 +125,8 @@ create_secret swiftdrop-platform-secrets
 
 add DB_PASSWORD "${SWIFTDROP_DB_PASSWORD:-}"
 add REDIS_PASSWORD "${REDIS_PASSWORD:-}"
+# tracking- and webhook-service take Redis as one URL, password included (as in docker-compose.yml).
+add REDIS_URL "redis://:${REDIS_PASSWORD:-}@redis:6379"
 add PII_ENCRYPTION_KEY "${PII_ENCRYPTION_KEY:-}"
 # webhook-service encrypts endpoint secrets with this key, as in docker-compose.yml.
 add WEBHOOK_SECRET_KEY "${PII_ENCRYPTION_KEY:-}"

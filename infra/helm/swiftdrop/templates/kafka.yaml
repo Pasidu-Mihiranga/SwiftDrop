@@ -16,6 +16,9 @@ metadata:
     {{- include "swiftdrop.labels" . | nindent 4 }}
 spec:
   clusterIP: None
+  # The broker advertises kafka:9092, and even its own readiness check is redirected there, so
+  # the name must resolve before the pod is Ready (otherwise neither ever happens).
+  publishNotReadyAddresses: true
   selector:
     app.kubernetes.io/name: kafka
     app.kubernetes.io/instance: {{ .Release.Name }}
