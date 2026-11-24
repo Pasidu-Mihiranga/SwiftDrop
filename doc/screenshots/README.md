@@ -1,9 +1,18 @@
 # SwiftDrop UI screenshots
 
-Every screen of the web app and the supporting tools, taken on 24 Nov 2026 from the local compose stack (`dev` after #130) with Chrome
-at 1440 px wide (courier screens at 390 px, a phone). Signed in through Keycloak as each seeded demo user; all data shown is demo data.
+Every screen of the web app and the supporting tools after the brand redesign, taken on 24 Nov 2026 from the local
+compose stack with Chrome at 1440 px wide (courier screens at 390 px, a phone). Signed in through Keycloak as each
+seeded demo user; all data shown is demo data. The landing page's testimonials are sample text, labelled on the page.
 
-Regenerate after UI changes: start the stack, then run the Playwright script described in `doc/08-missing-work.md`.
+## Landing page
+
+### Desktop (1440 px), full page
+
+![Landing page, desktop](00-landing-desktop.png)
+
+### Phone (390 px), full page
+
+![Landing page, phone](00-landing-phone.png)
 
 ## Public pages
 
@@ -308,3 +317,36 @@ Regenerate after UI changes: start the stack, then run the Playwright script des
 `/d/swiftdrop-reporting-assistant/swiftdrop-e28093-reporting-and-ai-assistant-m10`
 
 ![Grafana: SwiftDrop – Reporting & AI Assistant (M10)](88-grafana-reporting-assistant.png)
+
+## Colour contrast
+
+Measured for every text pairing in the theme (`apps/web/src/app/globals.css`), with both instruments kept separate:
+WCAG 2 contrast ratio (AA: 4.5:1 text, 3:1 non-text) and APCA Lc (75 body text, 60 small or large content text, 15
+non-text). An APCA result is not a WCAG 2 conformance claim.
+
+```
+ok   body/headings on page                        #000000 on #fdf1f3  WCAG 19.05:1 (min 4.5)  APCA Lc  99.3 (min 75)
+ok   body on alternate ground                     #000000 on #f4e8ea  WCAG 17.58:1 (min 4.5)  APCA Lc  94.1 (min 75)
+ok   secondary text (16px)                        #373737 on #fdf1f3  WCAG 10.80:1 (min 4.5)  APCA Lc  90.6 (min 75)
+ok   secondary text on alt                        #373737 on #f4e8ea  WCAG  9.96:1 (min 4.5)  APCA Lc  85.3 (min 75)
+ok   slate-600 text on cards                      #423a3c on #ffffff  WCAG 11.04:1 (min 4.5)  APCA Lc  95.6 (min 75)
+ok   slate-600 on page                            #423a3c on #fdf1f3  WCAG 10.02:1 (min 4.5)  APCA Lc  88.9 (min 75)
+ok   slate-500 small text on cards                #534a4c on #ffffff  WCAG  8.57:1 (min 4.5)  APCA Lc  89.5 (min 60)
+ok   slate-500 on page                            #534a4c on #fdf1f3  WCAG  7.77:1 (min 4.5)  APCA Lc  82.8 (min 60)
+ok   slate-500 on alt                             #534a4c on #f4e8ea  WCAG  7.17:1 (min 4.5)  APCA Lc  77.5 (min 60)
+ok   slate-400 icons/placeholder (non-text 3:1)   #8f8285 on #ffffff  WCAG  3.68:1 (min 3.0)  APCA Lc  64.4 (min 30)
+ok   accent links on page                         #be185d on #fdf1f3  WCAG  5.48:1 (min 4.5)  APCA Lc  71.6 (min 60)
+ok   brand-700 links on page                      #9d174d on #fdf1f3  WCAG  7.15:1 (min 4.5)  APCA Lc  79.0 (min 75)
+ok   brand-700 text on cards                      #9d174d on #ffffff  WCAG  7.88:1 (min 4.5)  APCA Lc  85.7 (min 75)
+ok   active nav / notice-info                     #9d174d on #f9dfea  WCAG  6.30:1 (min 4.5)  APCA Lc  70.8 (min 60)
+ok   button label on accent                       #fcfcfd on #be185d  WCAG  5.89:1 (min 4.5)  APCA Lc  81.6 (min 60)
+ok   button label on hover                        #fcfcfd on #9d174d  WCAG  7.69:1 (min 4.5)  APCA Lc  88.6 (min 60)
+ok   text on dark banner                          #fcfcfd on #141314  WCAG 18.08:1 (min 4.5)  APCA Lc 105.3 (min 75)
+ok   muted text on dark banner                    #c9bcbf on #141314  WCAG 10.09:1 (min 4.5)  APCA Lc  67.4 (min 60)
+ok   accent on dark (button fill edge, non-text)  #be185d on #141314  WCAG  3.07:1 (min 3.0)  APCA Lc  22.8 (min 15)
+ok   feature eyebrow (14px semibold) on alt       #9d174d on #f4e8ea  WCAG  6.60:1 (min 4.5)  APCA Lc  73.7 (min 60)
+ok   accent text on alt ground                    #be185d on #f4e8ea  WCAG  5.05:1 (min 4.5)  APCA Lc  66.3 (min 60)
+ok   plan note / captions (14px) on page          #534a4c on #fdf1f3  WCAG  7.77:1 (min 4.5)  APCA Lc  82.8 (min 60)
+ok   recommended plan text on white               #373737 on #ffffff  WCAG 11.90:1 (min 4.5)  APCA Lc  97.3 (min 75)
+ok   Recommended badge (12px semibold)            #fcfcfd on #be185d  WCAG  5.89:1 (min 4.5)  APCA Lc  81.6 (min 60)
+```
