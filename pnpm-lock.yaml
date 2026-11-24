@@ -10,7 +10,7 @@ importers:
     devDependencies:
       '@mermaid-js/mermaid-cli':
         specifier: ^12.0.0
-        version: 12.0.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.3.0)(puppeteer@25.16.0)(tailwindcss@4.3.3)
+        version: 12.0.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.3.0)(puppeteer@25.16.0)(tailwindcss@4.3.5)
 
   apps/web:
     dependencies:
@@ -76,8 +76,8 @@ importers:
         specifier: 8.5.32
         version: 8.5.32
       tailwindcss:
-        specifier: 4.3.3
-        version: 4.3.3
+        specifier: 4.3.5
+        version: 4.3.5
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -643,6 +643,10 @@ packages:
 
   '@babel/runtime@7.29.10':
     resolution: {integrity: sha512-NpugTzbKgGrNe45Ui32cN8vCFFMxVtP/9rtfwv0nP5FRDAjvYBxJcLVpYA9mr1jxP6cnIT7x9LUzuDTbWYYNRA==}
+    engines: {node: '>=6.9.0'}
+
+  '@babel/runtime@7.29.15':
+    resolution: {integrity: sha512-304gsbbGVmQc+cNGHzwHBlqepYdWLKj3VXCQBGt/EGcV7PUPfKI7kAUNW1FZEOCwlQiLvQjg1JEaAlRQ616h+Q==}
     engines: {node: '>=6.9.0'}
 
   '@babel/template@7.29.7':
@@ -4413,8 +4417,8 @@ packages:
     resolution: {integrity: sha512-NXYBzinNrblfraPGyrbPoD19C1h9lfI/1mzgWYvXUTe414Gz/X1FD2XBZSZM7rRTrMA8JL3OtAaGifrIKhQ5yQ==}
     engines: {node: '>= 12.0.0'}
 
-  lilconfig@3.1.4:
-    resolution: {integrity: sha512-zJZyBmQhArDRefuWTypZxwDpFDIYmrj8ypSBvwGD5P13Y95s6DjzKgu4DVdGbeQa5PDEsAOCAPNk4X+QOR006w==}
+  lilconfig@3.1.5:
+    resolution: {integrity: sha512-aRAOI9Ia43ygL4o1EOmC/sc/0OFxrm7qcQngiIyWaqVnSnz932ybJ07zyCcgMNGSDP8Yxaf88Xj1zHEXmvQ4SA==}
     engines: {node: '>=14'}
 
   lines-and-columns@1.2.4:
@@ -5481,6 +5485,9 @@ packages:
   tailwindcss@4.3.3:
     resolution: {integrity: sha512-gOhV3P7ufE62QDGg1zVaTgCR+EtPv92k2nIhVcVKcLmxT1sUBsQGhnZj175j+MqRt4zLF7ic+sCYjfhxMxj7YQ==}
 
+  tailwindcss@4.3.5:
+    resolution: {integrity: sha512-FcQk9BuffmEHJP2G0XmB2SplU1aLTI7j07Kunk+U74Ny+XiWOtzXz9aujFZ/avntw1e2cOv/3PkgzflQ7gX2vQ==}
+
   tapable@2.3.3:
     resolution: {integrity: sha512-uxc/zpqFg6x7C8vOE7lh6Lbda8eEL9zmVm/PLeTPBRhh1xCgdWaQ+J1CUieGpIfm2HdtsUpRv+HshiasBMcc6A==}
     engines: {node: '>=6'}
@@ -5688,8 +5695,8 @@ packages:
     resolution: {integrity: sha512-faYHw0anBbc/kWF3zFTEnxSFOAGUX9GFbOBthvDdLsIlEoWOFOtS0zgCiQYwIskL9iGXZL3kAXD8OoZ4GmMATA==}
     engines: {node: '>= 18'}
 
-  typed-query-selector@2.12.3:
-    resolution: {integrity: sha512-/dtuMZyutHLlrxWhhC1uib00ELUr2dZ8C9B8YzZYsJmeE3V56OxRblrSM2UaF142pcMtak7ehZ6+poWGeehNIg==}
+  typed-query-selector@2.12.4:
+    resolution: {integrity: sha512-lF6/OY655DSWZeuNovde8TZhju6QyC0Xtav57b07oZQ1EQvfSowA3+WfLEhvFJOc9sVfAtW5hie1lGIppOqbpQ==}
 
   typescript@5.9.3:
     resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
@@ -5935,6 +5942,18 @@ packages:
 
   ws@8.22.1:
     resolution: {integrity: sha512-oyL6OPYme/CmiFvNuGzeoxCJ4nOrZE2O1FwM9MWM1AsGri6nLXB2pg+lNA8aLeXMSav0J6eIVS1j6vUPzUtK9g==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
+  ws@8.23.0:
+    resolution: {integrity: sha512-wCkmX8QMOrKjgO8HW2WyDbTSGeqkocxgDzS9iR79rEAexty6/2qzilx3Ag8Tqf9ykop3irLKle0MtVn5qjVnoQ==}
     engines: {node: '>=10.0.0'}
     peerDependencies:
       bufferutil: ^4.0.1
@@ -6255,6 +6274,8 @@ snapshots:
 
   '@babel/runtime@7.29.10': {}
 
+  '@babel/runtime@7.29.15': {}
+
   '@babel/template@7.29.7':
     dependencies:
       '@babel/code-frame': 7.29.7
@@ -6493,9 +6514,9 @@ snapshots:
       react-dom: 19.3.1(react@19.3.1)
       use-sync-external-store: 1.7.0(react@19.3.1)
 
-  '@headlessui/tailwindcss@0.2.2(tailwindcss@4.3.3)':
+  '@headlessui/tailwindcss@0.2.2(tailwindcss@4.3.5)':
     dependencies:
-      tailwindcss: 4.3.3
+      tailwindcss: 4.3.5
 
   '@iconify/types@2.0.0': {}
 
@@ -7006,12 +7027,12 @@ snapshots:
       mermaid: 12.2.0
     optional: true
 
-  '@mermaid-js/mermaid-cli@12.0.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.3.0)(puppeteer@25.16.0)(tailwindcss@4.3.3)':
+  '@mermaid-js/mermaid-cli@12.0.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.3.0)(puppeteer@25.16.0)(tailwindcss@4.3.5)':
     dependencies:
       '@fontsource-variable/recursive': 5.3.0
       '@fontsource/open-sans': 5.3.0
       '@fortawesome/fontawesome-free': 7.3.1
-      '@mermaid-js/mermaid-zenuml': 1.0.1(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.3.0)(mermaid@12.2.0)(tailwindcss@4.3.3)
+      '@mermaid-js/mermaid-zenuml': 1.0.1(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.3.0)(mermaid@12.2.0)(tailwindcss@4.3.5)
       chalk: 6.0.1
       commander: 15.0.0
       import-meta-resolve: 4.2.0
@@ -7028,9 +7049,9 @@ snapshots:
       - playwright-core
       - tailwindcss
 
-  '@mermaid-js/mermaid-zenuml@1.0.1(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.3.0)(mermaid@12.2.0)(tailwindcss@4.3.3)':
+  '@mermaid-js/mermaid-zenuml@1.0.1(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.3.0)(mermaid@12.2.0)(tailwindcss@4.3.5)':
     dependencies:
-      '@zenuml/core': 3.50.1(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.3.0)(tailwindcss@4.3.3)
+      '@zenuml/core': 3.50.1(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.3.0)(tailwindcss@4.3.5)
       mermaid: 12.2.0
     transitivePeerDependencies:
       - '@babel/core'
@@ -7809,7 +7830,7 @@ snapshots:
   '@testing-library/dom@10.4.2':
     dependencies:
       '@babel/code-frame': 7.29.7
-      '@babel/runtime': 7.29.10
+      '@babel/runtime': 7.29.15
       '@types/aria-query': 5.0.4
       aria-query: 5.3.0
       dom-accessibility-api: 0.5.16
@@ -8340,11 +8361,11 @@ snapshots:
 
   '@xtuc/long@4.2.2': {}
 
-  '@zenuml/core@3.50.1(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.3.0)(tailwindcss@4.3.3)':
+  '@zenuml/core@3.50.1(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.3.0)(tailwindcss@4.3.5)':
     dependencies:
       '@floating-ui/react': 0.27.20(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@headlessui/react': 2.2.10(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
-      '@headlessui/tailwindcss': 0.2.2(tailwindcss@4.3.3)
+      '@headlessui/tailwindcss': 0.2.2(tailwindcss@4.3.5)
       antlr4: 4.11.0
       class-variance-authority: 0.7.1
       clsx: 2.1.1
@@ -10213,7 +10234,7 @@ snapshots:
       lightningcss-win32-arm64-msvc: 1.32.0
       lightningcss-win32-x64-msvc: 1.32.0
 
-  lilconfig@3.1.4: {}
+  lilconfig@3.1.5: {}
 
   lines-and-columns@1.2.4: {}
 
@@ -10751,9 +10772,9 @@ snapshots:
       '@puppeteer/browsers': 3.2.6
       chromium-bidi: 157.0.8090-0(devtools-protocol@0.0.1704951)
       devtools-protocol: 0.0.1704951
-      typed-query-selector: 2.12.3
+      typed-query-selector: 2.12.4
       webdriver-bidi-protocol: 1.0.1
-      ws: 8.22.1
+      ws: 8.23.0
     transitivePeerDependencies:
       - bufferutil
       - proxy-agent
@@ -10765,9 +10786,9 @@ snapshots:
       '@puppeteer/browsers': 3.2.6
       chromium-bidi: 157.0.8090-0(devtools-protocol@0.0.1704951)
       devtools-protocol: 0.0.1704951
-      lilconfig: 3.1.4
+      lilconfig: 3.1.5
       puppeteer-core: 25.16.0
-      typed-query-selector: 2.12.3
+      typed-query-selector: 2.12.4
     transitivePeerDependencies:
       - bufferutil
       - proxy-agent
@@ -11349,6 +11370,8 @@ snapshots:
 
   tailwindcss@4.3.3: {}
 
+  tailwindcss@4.3.5: {}
+
   tapable@2.3.3: {}
 
   tar-fs@2.1.5:
@@ -11553,7 +11576,7 @@ snapshots:
       media-typer: 1.1.1
       mime-types: 3.0.2
 
-  typed-query-selector@2.12.3: {}
+  typed-query-selector@2.12.4: {}
 
   typescript@5.9.3: {}
 
@@ -11826,6 +11849,8 @@ snapshots:
   ws@8.21.3: {}
 
   ws@8.22.1: {}
+
+  ws@8.23.0: {}
 
   xml-name-validator@5.0.0: {}
 
