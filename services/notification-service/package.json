@@ -16,9 +16,9 @@
     "test": "jest --coverage"
   },
   "dependencies": {
-    "@nestjs/common": "11.2.8",
-    "@nestjs/core": "11.2.8",
-    "@nestjs/platform-express": "11.2.8",
+    "@nestjs/common": "11.2.11",
+    "@nestjs/core": "11.2.11",
+    "@nestjs/platform-express": "11.2.11",
     "@swiftdrop/common": "workspace:*",
     "handlebars": "4.7.10",
     "kafkajs": "^2.2.4",
@@ -30,7 +30,7 @@
   },
   "devDependencies": {
     "@nestjs/cli": "11.0.24",
-    "@nestjs/testing": "11.2.8",
+    "@nestjs/testing": "11.2.11",
     "@testcontainers/kafka": "12.2.1",
     "@testcontainers/mongodb": "12.2.1",
     "@types/jest": "30.0.0",
