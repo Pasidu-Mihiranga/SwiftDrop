@@ -355,4 +355,13 @@ for level, hid, title in items:
             break
 pdf.close()
 render(pages)
+
+# The cover carries no page number, as in the design report. Chrome prints the footer on every page,
+# so the number is removed from the first page's bottom margin afterwards.
+pdf = fitz.open(OUT)
+cover = pdf[0]
+cover.add_redact_annot(fitz.Rect(0, cover.rect.height - 0.9 * 72, cover.rect.width, cover.rect.height))
+cover.apply_redactions()
+pdf.save(OUT, incremental=True, encryption=fitz.PDF_ENCRYPT_KEEP)
+pdf.close()
 print("pages", fitz.open(OUT).page_count, "headings placed", len(pages), "of", len(items))
