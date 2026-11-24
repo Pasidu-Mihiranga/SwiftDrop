@@ -78,3 +78,13 @@ doc/test-reports/e2e/
 # --- Google OAuth client secrets (keep local, never commit) ---
 client_secret_*.json
 build/
+
+# --- Terraform ---
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+override.tf
+override.tf.json

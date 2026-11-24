@@ -42,6 +42,7 @@ spec:
         app.kubernetes.io/name: mongodb
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
+      {{- include "swiftdrop.nodeSelector" .Values.mongodb | nindent 6 }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 999

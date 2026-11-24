@@ -1,0 +1,40 @@
+name: Deploy changed services
+
+# Pushing deploy/k3s-two-node rebuilds only the services whose files changed and
+# restarts those pods on the apps node.
+#
+# This job runs only after a repo admin registers a self-hosted runner on the
+# apps node and sets the repository variable SWIFTDROP_SELF_HOSTED to true.
+# Until then the apps node watches this branch itself (scripts/watch-k3s-deploy.sh).
+# Either way GitHub does not open an SSH session. Port 22 stays limited to the
+# developer address. Opening SSH to the internet, or to every GitHub-hosted
+# runner, would let traffic from outside this repository reach the machine.
+# Only people who can push this branch can start a deploy.
+
+on:
+  push:
+    branches: [deploy/k3s-two-node]
+    paths-ignore: ["doc/**", "**/*.md"]
+
+concurrency:
+  group: deploy-k3s
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Update changed containers
+    # A missing runner would leave this job queued. The apps node watches the
+    # branch itself until a repo admin registers the runner and sets this
+    # repository variable to true. SSH is not opened for this job.
+    if: vars.SWIFTDROP_SELF_HOSTED == 'true'
+    runs-on: [self-hosted, Linux, X64, swiftdrop-apps]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+
+      - name: Build and restart what changed
+        run: bash scripts/deploy-k3s-changed.sh "${{ github.event.before }}" "${{ github.sha }}"

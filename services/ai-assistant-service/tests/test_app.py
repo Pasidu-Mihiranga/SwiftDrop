@@ -50,7 +50,7 @@ def test_whoami_requires_and_reads_the_token(client):
 
 def test_provider_endpoint_never_leaks_the_key(client):
     res = client.get("/api/v1/assistant/meta/provider").json()
-    assert res == {"provider": "gemini", "model": "gemini-2.5-flash", "configured": True}
+    assert res == {"provider": "gemini", "model": "gemini-3.8-flash", "configured": True}
 
 
 def test_chat_streams_server_sent_events(client):

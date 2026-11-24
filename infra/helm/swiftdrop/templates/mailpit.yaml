@@ -41,6 +41,7 @@ spec:
         app.kubernetes.io/name: mailpit
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
+      {{- include "swiftdrop.nodeSelector" .Values.mailpit | nindent 6 }}
       containers:
         - name: mailpit
           image: {{ .Values.mailpit.image }}

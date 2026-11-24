@@ -4,6 +4,18 @@ Follow `CONTRIBUTING.md` and the existing service conventions. For issue #15
 (M2 Pricing & Zones), use `doc/04-m2-pricing-zones-issue-15.md` as the working
 checklist and update it as each reviewable step is completed.
 
+## Maintenance rules
+
+- Do not commit unless the user explicitly asks. At the end of each manageable
+  step, say what is ready for review and that they can ask for a commit.
+- Do not push unless the user explicitly asks. Do not push to `main` unless
+  the user explicitly asks to push `main`.
+- Do not add an agent co-author trailer, or any `Co-authored-by` line, to
+  commits.
+- When the user asks for a guide, write it step by step in simple plain
+  English. One action per step. Say how they know that step worked before
+  the next one.
+
 ## M2 scope
 
 - Own `services/pricing-service`, the public quote and admin pricing UI, and
@@ -29,6 +41,4 @@ checklist and update it as each reviewable step is completed.
   shared. Keep the `domain` layer free of Spring and JPA types.
 - Keep Helm settings in values files or Kubernetes Secrets and reuse the
   library chart for shared service templates.
-- Do not commit or push unless the user explicitly asks. At the end of each
-  manageable step, report what is ready for review and remind the user that
-  they can request a commit. Do not add an agent co-author trailer to commits.
+- Follow the maintenance rules above for commits, pushes, and guides.

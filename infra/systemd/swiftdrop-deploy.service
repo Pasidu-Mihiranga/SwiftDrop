@@ -1,0 +1,10 @@
+[Unit]
+Description=Deploy SwiftDrop commits from the deploy branch
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/swiftdrop-watch-deploy.sh
+Nice=10
+TimeoutStartSec=0

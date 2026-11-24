@@ -1,0 +1,9 @@
+# Copy to terraform.tfvars and put your own public IP.
+# Find it with: curl -4 ifconfig.me
+admin_cidr = "203.0.113.10/32"
+
+region        = "ap-south-1"
+instance_type = "m7i-flex.large"
+
+# Leave false until the Grafana / Loki / Tempo / Argo CD phase.
+platform_node = false

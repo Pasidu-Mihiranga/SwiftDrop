@@ -46,6 +46,7 @@ spec:
         app.kubernetes.io/name: keycloak
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
+      {{- include "swiftdrop.nodeSelector" .Values.keycloak | nindent 6 }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -69,9 +70,14 @@ spec:
               value: keycloak
             # Browser-facing URL, which is also the token issuer.
             - name: KC_HOSTNAME
-              value: {{ printf "http://%s" .Values.ingress.hosts.auth | quote }}
+              value: {{ printf "%s://%s" (ternary "https" "http" .Values.ingress.tls.enabled) .Values.ingress.hosts.auth | quote }}
             - name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC
               value: "true"
+            {{- if .Values.ingress.tls.enabled }}
+            # Ingress terminates TLS and forwards the original scheme.
+            - name: KC_PROXY_HEADERS
+              value: xforwarded
+            {{- end }}
             - name: KC_HTTP_ENABLED
               value: "true"
             - name: KC_HEALTH_ENABLED

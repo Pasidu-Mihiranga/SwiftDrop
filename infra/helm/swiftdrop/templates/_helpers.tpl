@@ -1,3 +1,10 @@
+{{- define "swiftdrop.nodeSelector" -}}
+{{- with .nodeSelector }}
+nodeSelector:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "swiftdrop.labels" -}}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}

@@ -1,0 +1,102 @@
+# Two-node k3s layout. Apply after values-dev.yaml (and values-full.yaml when used).
+#
+# App pods stay on the apps node. Datastores stay on the data node. The library chart
+# already reads nodeSelector; the datastore templates read the same field.
+#
+# Public names come from sslip.io, which turns the apps Elastic IP into a hostname
+# anyone can open. No hosts-file edit and no purchased domain.
+
+global:
+  commonConfig:
+    KEYCLOAK_ISSUER: https://auth.3.111.117.223.sslip.io/realms/swiftdrop
+
+ingress:
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  tls:
+    enabled: true
+    secretName: swiftdrop-tls
+  hosts:
+    web: swiftdrop.3.111.117.223.sslip.io
+    api: api.3.111.117.223.sslip.io
+    auth: auth.3.111.117.223.sslip.io
+    grafana: grafana.3.111.117.223.sslip.io
+
+web:
+  nodeSelector:
+    role: apps
+  config:
+    AUTH_URL: https://swiftdrop.3.111.117.223.sslip.io
+    AUTH_KEYCLOAK_ISSUER: https://auth.3.111.117.223.sslip.io/realms/swiftdrop
+    AUTH_KEYCLOAK_INTERNAL_URL: http://keycloak:8080
+    KEYCLOAK_PUBLIC_URL: https://auth.3.111.117.223.sslip.io
+api-gateway:
+  nodeSelector:
+    role: apps
+  config:
+    WEB_ORIGIN: https://swiftdrop.3.111.117.223.sslip.io
+pricing-service:
+  nodeSelector:
+    role: apps
+user-service:
+  nodeSelector:
+    role: apps
+merchant-service:
+  nodeSelector:
+    role: apps
+parcel-service:
+  nodeSelector:
+    role: apps
+  # The chart turns on an autoscaler at two replicas. On a 2 vCPU node that
+  # scales up while the JVMs are still starting and the node never recovers.
+  autoscaling:
+    enabled: false
+dispatch-service:
+  nodeSelector:
+    role: apps
+reporting-service:
+  nodeSelector:
+    role: apps
+tracking-service:
+  nodeSelector:
+    role: apps
+  autoscaling:
+    enabled: false
+notification-service:
+  nodeSelector:
+    role: apps
+  config:
+    FRONTEND_URL: https://swiftdrop.3.111.117.223.sslip.io
+webhook-service:
+  nodeSelector:
+    role: apps
+ai-assistant-service:
+  enabled: true
+  nodeSelector:
+    role: apps
+  config:
+    LLM_PROVIDER: gemini
+    LLM_MODEL: gemini-3.8-flash
+
+postgres:
+  nodeSelector:
+    role: data
+redis:
+  nodeSelector:
+    role: data
+keycloak:
+  nodeSelector:
+    role: data
+kafka:
+  nodeSelector:
+    role: data
+mongodb:
+  nodeSelector:
+    role: data
+objectStorage:
+  nodeSelector:
+    role: data
+mailpit:
+  nodeSelector:
+    role: data
