@@ -17,11 +17,11 @@
     "test:unit": "jest test/unit"
   },
   "dependencies": {
-    "@nestjs/common": "11.2.8",
-    "@nestjs/core": "11.2.8",
-    "@nestjs/platform-express": "11.2.8",
-    "@nestjs/platform-socket.io": "11.2.8",
-    "@nestjs/websockets": "11.2.8",
+    "@nestjs/common": "11.2.11",
+    "@nestjs/core": "11.2.11",
+    "@nestjs/platform-express": "11.2.11",
+    "@nestjs/platform-socket.io": "11.2.11",
+    "@nestjs/websockets": "11.2.11",
     "@socket.io/redis-adapter": "8.3.0",
     "@swiftdrop/common": "workspace:*",
     "ioredis": "5.11.1",
@@ -34,7 +34,7 @@
   },
   "devDependencies": {
     "@nestjs/cli": "11.0.24",
-    "@nestjs/testing": "11.2.8",
+    "@nestjs/testing": "11.2.11",
     "@testcontainers/kafka": "12.2.1",
     "@testcontainers/mongodb": "12.2.1",
     "@testcontainers/redis": "12.2.1",
