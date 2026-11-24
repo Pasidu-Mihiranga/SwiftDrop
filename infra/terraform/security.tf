@@ -39,6 +39,18 @@ resource "aws_vpc_security_group_ingress_rule" "apps_ssh" {
   to_port           = 22
 }
 
+# Demo only. GitHub-hosted runners use shared addresses, so the apps node accepts
+# SSH from the internet. Login is key-only. The data node stays on admin_cidr.
+# Remove this rule before a real launch.
+resource "aws_vpc_security_group_ingress_rule" "apps_ssh_demo" {
+  security_group_id = aws_security_group.apps.id
+  description       = "Demo SSH so GitHub Actions can deploy"
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "tcp"
+  from_port         = 22
+  to_port           = 22
+}
+
 resource "aws_vpc_security_group_ingress_rule" "apps_http" {
   security_group_id = aws_security_group.apps.id
   description       = "Ingress HTTP"

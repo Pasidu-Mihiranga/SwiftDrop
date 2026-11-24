@@ -2,7 +2,6 @@ name: CI · Helm
 
 on:
   push:
-    branches: [main]
     paths: ["infra/helm/**", "scripts/helm-deps.sh", ".github/workflows/helm.yml"]
   pull_request:
     paths: ["infra/helm/**", "scripts/helm-deps.sh", ".github/workflows/helm.yml"]

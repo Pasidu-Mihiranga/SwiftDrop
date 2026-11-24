@@ -1,20 +1,13 @@
-name: Deploy changed services
+name: CD · deploy changed services
 
-# Pushing deploy/k3s-two-node rebuilds only the services whose files changed and
-# restarts those pods on the apps node.
-#
-# This job runs only after a repo admin registers a self-hosted runner on the
-# apps node and sets the repository variable SWIFTDROP_SELF_HOSTED to true.
-# Until then the apps node watches this branch itself (scripts/watch-k3s-deploy.sh).
-# Either way GitHub does not open an SSH session. Port 22 stays limited to the
-# developer address. Opening SSH to the internet, or to every GitHub-hosted
-# runner, would let traffic from outside this repository reach the machine.
-# Only people who can push this branch can start a deploy.
+# CD runs only for deploy/k3s-two-node. CI workflows run on every branch.
+# The runner SSHs to the apps node and that node rebuilds only the services
+# whose files changed. The private key stays in the SWIFTDROP_SSH_KEY secret.
+# Port 22 on the apps node is open for this demo. The data node is not.
 
 on:
   push:
     branches: [deploy/k3s-two-node]
-    paths-ignore: ["doc/**", "**/*.md"]
 
 concurrency:
   group: deploy-k3s
@@ -26,15 +19,21 @@ permissions:
 jobs:
   deploy:
     name: Update changed containers
-    # A missing runner would leave this job queued. The apps node watches the
-    # branch itself until a repo admin registers the runner and sets this
-    # repository variable to true. SSH is not opened for this job.
-    if: vars.SWIFTDROP_SELF_HOSTED == 'true'
-    runs-on: [self-hosted, Linux, X64, swiftdrop-apps]
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 2
-
-      - name: Build and restart what changed
-        run: bash scripts/deploy-k3s-changed.sh "${{ github.event.before }}" "${{ github.sha }}"
+      - name: Deploy over SSH
+        env:
+          SSH_KEY: ${{ secrets.SWIFTDROP_SSH_KEY }}
+        run: |
+          if [ -z "$SSH_KEY" ]; then
+            echo "Add the apps-node private key as the SWIFTDROP_SSH_KEY repository secret."
+            exit 1
+          fi
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/swiftdrop.pem
+          chmod 600 ~/.ssh/swiftdrop.pem
+          ssh -i ~/.ssh/swiftdrop.pem \
+            -o StrictHostKeyChecking=accept-new \
+            -o ConnectTimeout=20 \
+            ubuntu@3.111.117.223 \
+            'sudo /usr/local/bin/swiftdrop-watch-deploy.sh'

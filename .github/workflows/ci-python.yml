@@ -2,7 +2,6 @@ name: CI · Python (AI assistant)
 
 on:
   push:
-    branches: [main]
     paths: ["libs/python/**", "services/ai-assistant-service/**", ".github/workflows/ci-python.yml"]
   pull_request:
     paths: ["libs/python/**", "services/ai-assistant-service/**", ".github/workflows/ci-python.yml"]

@@ -2,7 +2,6 @@ name: CI · Java services
 
 on:
   push:
-    branches: [main]
     paths: ["pom.xml", "libs/java/**", "services/api-gateway/**", "services/*-service/pom.xml", "services/*-service/src/main/java/**", "services/*-service/src/test/java/**", "services/*-service/src/main/resources/**", "contracts/events/**", ".github/workflows/ci-java.yml"]
   pull_request:
     paths: ["pom.xml", "libs/java/**", "services/api-gateway/**", "services/*-service/pom.xml", "services/*-service/src/main/java/**", "services/*-service/src/test/java/**", "services/*-service/src/main/resources/**", "contracts/events/**", ".github/workflows/ci-java.yml"]

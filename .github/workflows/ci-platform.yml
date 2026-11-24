@@ -2,7 +2,6 @@ name: CI · Platform config
 
 on:
   push:
-    branches: [main]
     paths: ["docker-compose.yml", ".env.example", "infra/**", "contracts/**", ".github/workflows/ci-platform.yml"]
   pull_request:
     paths: ["docker-compose.yml", ".env.example", "infra/**", "contracts/**", ".github/workflows/ci-platform.yml"]

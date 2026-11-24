@@ -11,6 +11,14 @@ on:
         type: choice
         options: [dev, full]
         default: dev
+  push:
+    paths:
+      - "infra/helm/**"
+      - "services/pricing-service/**"
+      - "services/api-gateway/**"
+      - "scripts/kind-*.sh"
+      - "scripts/demo-m2-pricing.sh"
+      - ".github/workflows/helm-e2e.yml"
   pull_request:
     paths:
       - "infra/helm/**"

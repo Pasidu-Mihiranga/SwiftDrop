@@ -2,7 +2,6 @@ name: CI · Node services & web
 
 on:
   push:
-    branches: [main]
     paths: ["libs/node/**", "services/*-service/package.json", "services/*-service/src/**/*.ts", "services/*-service/test/**", "apps/web/**", "contracts/events/**", "pnpm-lock.yaml", "tsconfig.base.json", ".github/workflows/ci-node.yml"]
   pull_request:
     paths: ["libs/node/**", "services/*-service/package.json", "services/*-service/src/**/*.ts", "services/*-service/test/**", "apps/web/**", "contracts/events/**", "pnpm-lock.yaml", "tsconfig.base.json", ".github/workflows/ci-node.yml"]
