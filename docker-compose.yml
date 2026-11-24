@@ -168,7 +168,7 @@ services:
       kafka: { condition: service_healthy }
 
   mongo:
-    image: mongo:7.0.45
+    image: mongo:8.3.17
     profiles: ["infra"]
     restart: unless-stopped
     environment:
