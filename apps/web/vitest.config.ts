@@ -2,7 +2,13 @@ import path from "node:path";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  resolve: { alias: { "@": path.resolve(__dirname, "src") } },
+  resolve: {
+    alias: { "@": path.resolve(__dirname, "src") },
+    // One React for the components and for react-dom. A loaded run once failed whole test files with
+    // "Cannot read properties of null (reading 'useState')": react-dom set the hook dispatcher on one
+    // instance of react@19.3.1 while the components read another.
+    dedupe: ["react", "react-dom"],
+  },
   test: {
     // jsdom so component tests can render; Node globals are still available for the lib tests.
     environment: "jsdom",
