@@ -21,10 +21,12 @@ jobs:
   gate:
     name: Wait for CI
     runs-on: ubuntu-latest
-    timeout-minutes: 70
+    timeout-minutes: 90
     outputs:
       deploy: ${{ steps.check.outputs.deploy }}
     steps:
+      - uses: actions/checkout@v5
+
       - name: Deploy only after CI for this commit succeeds
         id: check
         env:
@@ -33,30 +35,27 @@ jobs:
           set -euo pipefail
           sha="${{ github.sha }}"
           deploy=false
-          for _ in $(seq 1 120); do
-            json="$(gh run list --commit "$sha" --limit 50 --json name,status,conclusion,event)"
-            result="$(printf '%s' "$json" | python3 -c '
-          import json, sys
-          runs = [r for r in json.load(sys.stdin) if r.get("event") == "push" and r.get("name") != "CD · deploy changed services"]
-          if not runs:
-              print("waiting")
-              raise SystemExit
-          bad = [r["name"] for r in runs if r.get("conclusion") in ("failure", "cancelled", "timed_out", "startup_failure")]
-          if bad:
-              print("failed")
-              print("\n".join(bad), file=sys.stderr)
-              raise SystemExit
-          if any(r.get("status") != "completed" for r in runs):
-              print("waiting")
-          else:
-              print("success")
-          ')"
-            echo "CI status: ${result}"
+          previous_ids=""
+          stable=0
+          for _ in $(seq 1 160); do
+            json="$(gh run list --repo "${{ github.repository }}" --commit "$sha" --limit 50 \
+              --json databaseId,name,status,conclusion,event)"
+            output="$(printf '%s' "$json" | python3 scripts/ci-deploy-gate.py)"
+            result="$(printf '%s\n' "$output" | sed -n '1p')"
+            ids="$(printf '%s\n' "$output" | sed -n '2p')"
+            echo "CI status: ${result} (${ids:-none})"
             if [ "$result" = "failed" ]; then
               echo "CI failed, so this deploy is skipped."
               break
             fi
-            if [ "$result" = "success" ]; then
+            if [ "$result" = "success" ] && [ -n "$ids" ] && [ "$ids" = "$previous_ids" ]; then
+              stable=$((stable + 1))
+            else
+              stable=0
+            fi
+            previous_ids="$ids"
+            # Two matching completed polls mean a late CI run did not appear.
+            if [ "$stable" -ge 2 ]; then
               deploy=true
               break
             fi
