@@ -1,6 +1,6 @@
 # M1 Identity & Access: authentication and authorisation decisions
 
-Owner: M1 (Warsavithana T.M., 234219R). Scope: Keycloak realm `swiftdrop`, `api-gateway`,
+Owner: M1 (T.M. Warsavithana, 234219R). Scope: Keycloak realm `swiftdrop`, `api-gateway`,
 `user-service`, and sign-in, profile and admin user pages in `apps/web`.
 
 Diagrams (in `doc/diagrams/m1-identity-access/`):

@@ -15,28 +15,26 @@ real state.
 | Issue | Owner | State on `dev` | Still to do |
 |---|---|---|---|
 | [#14 M1 Identity & Access](#14-m1-identity--access) | ThisukaMW | Done (#110) | Nothing found |
-| [#15 M2 Pricing & Zones](#15-m2-pricing--zones) | sasindu345 | Done | Student ID |
-| [#16 M3 Customer Booking](#16-m3-customer-booking) | Malshipahasara | Done | Contribution row; owner review of the booking screens |
-| [#17 M4 Courier Ops & Status Lifecycle](#17-m4-courier-ops--status-lifecycle) | pamindu-w | Done | Design-PDF section, contribution row |
-| [#18 M5 Dispatch & Workload](#18-m5-dispatch--workload) | Chaniths | Done | Contribution row |
-| [#19 M6 Real-time Tracking](#19-m6-real-time-tracking) | ashmax77 | Done | Design-PDF note |
-| [#20 M7 Merchant Onboarding & API](#20-m7-merchant-onboarding--api) | KavinuS | Done | Name and student ID in the contribution row |
-| [#21 M8 Webhooks & External Integration](#21-m8-webhooks--external-integration) | geemalfernando | Done | Integration design chapter, contribution row |
-| [#22 M9 Notifications, History & Receipts](#22-m9-notifications-history--receipts) | Sapuni-Pathirana | Done | Contribution row |
-| [#23 M10 Reporting & AI Assistant](#23-m10-reporting--ai-assistant) | Pasidu-Mihiranga | Done | Student ID |
+| [#15 M2 Pricing & Zones](#15-m2-pricing--zones) | sasindu345 | Done | Nothing found |
+| [#16 M3 Customer Booking](#16-m3-customer-booking) | Malshipahasara | Done | Nothing found |
+| [#17 M4 Courier Ops & Status Lifecycle](#17-m4-courier-ops--status-lifecycle) | pamindu-w | Done | Nothing found |
+| [#18 M5 Dispatch & Workload](#18-m5-dispatch--workload) | Chaniths | Done | Nothing found |
+| [#19 M6 Real-time Tracking](#19-m6-real-time-tracking) | ashmax77 | Done | Nothing found |
+| [#20 M7 Merchant Onboarding & API](#20-m7-merchant-onboarding--api) | KavinuS | Done | Nothing found |
+| [#21 M8 Webhooks & External Integration](#21-m8-webhooks--external-integration) | geemalfernando | Done | Nothing found |
+| [#22 M9 Notifications, History & Receipts](#22-m9-notifications-history--receipts) | Sapuni-Pathirana | Done | Nothing found |
+| [#23 M10 Reporting & AI Assistant](#23-m10-reporting--ai-assistant) | Pasidu-Mihiranga | Done | Nothing found |
 
 The three blockers of 22 Nov are closed: courier screens (#108), the merchant simulator (#109) and distributed
 tracing (#112).
 
-### Left for the members themselves
+### Contribution sheet and design sections
 
-These need a person's own details or writing and were deliberately not filled in by others:
-
-| Item | Missing for |
-|---|---|
-| Contribution sheet row (`doc/03-team-contribution.md`) | M3, M4, M5, M8, M9 empty; M7 name and ID are TODO; M2 and M10 student ID are TODO |
-| Design PDF / design-document section | M4, M6, M8 (M1, M2 and M3 have Markdown design docs; M5, M7, M9, M10 have PDFs) |
-| Owner review of work others built | M3 booking screens (written by M2/M9, logic now tested in #115); M4 backend (#107) and screens (#108) |
+- [x] Every row of the contribution sheet (`doc/03-team-contribution.md`) is filled from the member's issue, with
+      the index numbers from the cover of the design report.
+- [x] Every feature has its section in the team design report
+      (`doc/design/SwiftDrop-Design-Documentation.pdf`), including Courier Operations (M4), Real-Time Tracking
+      (M6) and Webhooks and External Integration (M8) with its integration design.
 
 ### Found while doing this round
 
@@ -97,7 +95,7 @@ All done by the owner in #110 (merged 24 Nov):
 - [x] Free-text address search on the quote and booking maps, through a Nominatim-compatible geocoder that is
       off unless configured; results are checked against the district boundaries (#126).
 - [ ] The owner may still want to review the seeded figures on the new screen; nothing in code depends on them.
-- [ ] Student ID in the contribution row.
+- [x] Student ID in the contribution row.
 
 ## #16 M3 Customer Booking
 
@@ -105,8 +103,7 @@ All done by the owner in #110 (merged 24 Nov):
 - [x] Live timeline on the customer parcel page (#113).
 - [x] Grafana panels: bookings per hour by channel, quote rejections by reason, pricing circuit breaker state, on
       the new `swiftdrop-parcels-webhooks` dashboard with new parcel-service metrics (#118).
-- [ ] **Contribution sheet row** is empty.
-- [ ] Owner review of the booking screens.
+- [x] Contribution sheet row.
 
 ## #17 M4 Courier Ops & Status Lifecycle
 
@@ -115,8 +112,7 @@ All done by the owner in #110 (merged 24 Nov):
 - [x] Diagrams: parcel lifecycle, courier use case, status-update sequence in `doc/diagrams/m4-courier-operations` (#117).
 - [x] Grafana panels: status changes per hour, failed deliveries by reason (#118).
 - [x] Presigned URLs tested against a real RustFS container: upload, download, signed content type, expiry (#120).
-- [ ] Design-PDF section, contribution row.
-- [ ] Owner hand-over: review #107 and #108.
+- [x] Design section in the team design report, contribution row.
 
 ## #18 M5 Dispatch & Workload
 
@@ -124,17 +120,17 @@ All done by the owner in #110 (merged 24 Nov):
       first, then the lowest load, and the assign dialog pre-selects the top one; tested in `dispatch.test.ts`).
 - [x] Run sheet tests: `run-sheet.test.tsx` (#108) and the run sheet cases in `dispatch-board.test.tsx`; #113
       fixed the run sheet test that broke on 2026-11-23 because it used that date as the new date.
-- [ ] **Contribution sheet row** is empty.
+- [x] Contribution sheet row.
 
 ## #19 M6 Real-time Tracking
 
 - [x] Live timeline on the customer parcel page and, opened per row, on the merchant orders page (#113).
-- [ ] Design-PDF note on WebSockets + Redis adapter and the MongoDB read model.
+- [x] Design section in the team design report: WebSockets with the Redis adapter and the MongoDB read model.
 
 ## #20 M7 Merchant Onboarding & API
 
 - [x] Demo 2 (signed webhook after an order) is possible with the merchant simulator (#109).
-- [ ] Contribution row: **name and student ID** are still `TODO`.
+- [x] Contribution row with the student ID.
 
 ## #21 M8 Webhooks & External Integration
 
@@ -142,8 +138,8 @@ All done by the owner in #110 (merged 24 Nov):
       page, fail mode (503), Dockerfile and compose entry on port 4010 (#109).
 - [x] Grafana panels: attempts by outcome, endpoint answer time, success rate, dead letters, with new
       webhook-service metrics (#118).
-- [ ] **Integration design chapter** of the design PDF.
-- [ ] **Contribution sheet row** is empty.
+- [x] Integration design chapter in the team design report.
+- [x] Contribution sheet row.
 
 ## #22 M9 Notifications, History & Receipts
 
@@ -157,12 +153,12 @@ All done by the owner in #110 (merged 24 Nov):
 - [x] "How to debug with Grafana" guide in the README (already on `dev`; the 22 Nov audit missed it).
 - [x] Observability diagram `doc/diagrams/m9-notifications-receipts/13-architecture-observability` (#116).
 - [x] Demo 1 on a phone is possible with the courier screens (#108).
-- [ ] **Contribution sheet row** is empty.
+- [x] Contribution sheet row.
 
 ## #23 M10 Reporting & AI Assistant
 
 Done: everything in the issue (#106).
-- [ ] Student ID in the contribution row.
+- [x] Student ID in the contribution row.
 
 ---
 

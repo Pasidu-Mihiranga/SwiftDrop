@@ -422,13 +422,13 @@ Group 02 · Avengers · Faculty of Information Technology, University of Moratuw
 
 | # | Feature | Owner | Index | Diagrams | Design |
 |---|---|---|---|---|---|
-| M1 | Identity & Access | Warsavithana T.M. (ThisukaMW) | 231219R | [m1-identity-access](doc/diagrams/m1-identity-access/) | [doc](doc/design/m1-identity-access-design.md) |
-| M2 | Pricing & Zones | Wijewardana S.J. (sasindu345) | 234241C | [m2-pricing-zones](doc/diagrams/m2-pricing-zones/) | [doc](doc/05-m2-design-notes.md) |
-| M3 | Customer Booking | Malshipahasara | 234151B | [m3-customer-booking](doc/diagrams/m3-customer-booking/) | [doc](doc/design/m3-customer-booking-design.md) |
-| M4 | Courier Ops & Status Lifecycle | pamindu-w | 234224D | [m4-courier-operations](doc/diagrams/m4-courier-operations/) | [team PDF](doc/design/SwiftDrop-Design-Documentation.pdf) |
-| M5 | Dispatch & Workload | Chaniths | 234232B | [m5-dispatch-workload](doc/diagrams/m5-dispatch-workload/) | [doc](doc/design/m5-dispatch-workload-design.pdf) |
+| M1 | Identity & Access | T.M. Warsavithana (ThisukaMW) | 234219R | [m1-identity-access](doc/diagrams/m1-identity-access/) | [doc](doc/design/m1-identity-access-design.md) |
+| M2 | Pricing & Zones | S.J. Wijewardana (sasindu345) | 234241C | [m2-pricing-zones](doc/diagrams/m2-pricing-zones/) | [doc](doc/05-m2-design-notes.md) |
+| M3 | Customer Booking | M.A.M. Pahasara (Malshipahasara) | 234151B | [m3-customer-booking](doc/diagrams/m3-customer-booking/) | [doc](doc/design/m3-customer-booking-design.md) |
+| M4 | Courier Ops & Status Lifecycle | W.P.P. Welikada (pamindu-w) | 234224D | [m4-courier-operations](doc/diagrams/m4-courier-operations/) | [team PDF](doc/design/SwiftDrop-Design-Documentation.pdf) |
+| M5 | Dispatch & Workload | W.M.C.S. Wijekoon (Chaniths) | 234232B | [m5-dispatch-workload](doc/diagrams/m5-dispatch-workload/) | [doc](doc/design/m5-dispatch-workload-design.pdf) |
 | M6 | Real-time Tracking | K.W.A. Imalsha (ashmax77) | 234086E | [m6-real-time-tracking](doc/diagrams/m6-real-time-tracking/) | [team PDF](doc/design/SwiftDrop-Design-Documentation.pdf) |
-| M7 | Merchant Onboarding & API | KavinuS | 234189X | [m7-merchant-onboarding](doc/diagrams/m7-merchant-onboarding/) | [doc](doc/design/m7-merchant-onboarding-design.pdf) |
-| M8 | Webhooks & External Integration | geemalfernando | 234063G | [m8-webhooks-integration](doc/diagrams/m8-webhooks-integration/) | [team PDF](doc/design/SwiftDrop-Design-Documentation.pdf) |
-| M9 | Notifications, History & Receipts | Sapuni-Pathirana | 234152E | [m9-notifications-receipts](doc/diagrams/m9-notifications-receipts/) | [doc](doc/design/m9-notifications-receipts-design.pdf) |
-| M10 | Reporting & AI Assistant | Pasidu Mihiranga (Pasidu-Mihiranga) | 234083R | [m10-reporting-ai-assistant](doc/diagrams/m10-reporting-ai-assistant/) | [doc](doc/design/m10-reporting-ai-assistant-design.pdf) |
+| M7 | Merchant Onboarding & API | K.K.G. Saputhanthri (KavinuS) | 234189X | [m7-merchant-onboarding](doc/diagrams/m7-merchant-onboarding/) | [doc](doc/design/m7-merchant-onboarding-design.pdf) |
+| M8 | Webhooks & External Integration | W.C.G.H. Fernando (geemalfernando) | 234063G | [m8-webhooks-integration](doc/diagrams/m8-webhooks-integration/) | [team PDF](doc/design/SwiftDrop-Design-Documentation.pdf) |
+| M9 | Notifications, History & Receipts | K.P.S.M. Pathirana (sapuni-pathirana) | 234152E | [m9-notifications-receipts](doc/diagrams/m9-notifications-receipts/) | [doc](doc/design/m9-notifications-receipts-design.pdf) |
+| M10 | Reporting & AI Assistant | P.M. Ilamperuma (Pasidu-Mihiranga) | 234083R | [m10-reporting-ai-assistant](doc/diagrams/m10-reporting-ai-assistant/) | [doc](doc/design/m10-reporting-ai-assistant-design.pdf) |
