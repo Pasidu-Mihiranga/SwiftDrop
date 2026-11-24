@@ -1,7 +1,7 @@
 # SwiftDrop: parcel delivery and courier management
 
 <p align="center">
-  <img src="apps/web/public/brand/swiftdrop-logo-light.avif" alt="SwiftDrop" width="240">
+  <img src="doc/assets/swiftdrop-logo-panel.png" alt="SwiftDrop" width="280">
 </p>
 
 <p align="center">
