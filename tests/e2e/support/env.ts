@@ -8,12 +8,16 @@ if (existsSync(rootEnv)) process.loadEnvFile(rootEnv);
 
 const port = (name: string, fallback: number) => Number(process.env[name] ?? fallback);
 
+// API calls go to 127.0.0.1: "localhost" may resolve to ::1 first, and on Windows Docker Desktop's
+// IPv6 forwarding (or another tool listening on ::1) can reset those connections. The web app and
+// Keycloak keep "localhost", because the sign-in redirects, cookies and the token issuer the
+// gateway checks are all bound to that name.
 export const env = {
   webUrl: process.env.E2E_WEB_URL ?? `http://localhost:${port("WEB_HOST_PORT", 3000)}`,
-  gatewayUrl: process.env.E2E_GATEWAY_URL ?? `http://localhost:${port("GATEWAY_HOST_PORT", 8080)}`,
+  gatewayUrl: process.env.E2E_GATEWAY_URL ?? `http://127.0.0.1:${port("GATEWAY_HOST_PORT", 8080)}`,
   keycloakUrl: process.env.KEYCLOAK_PUBLIC_URL ?? `http://localhost:${port("KEYCLOAK_HOST_PORT", 8180)}`,
   realm: process.env.KEYCLOAK_REALM ?? "swiftdrop",
-  mailpitUrl: process.env.E2E_MAILPIT_URL ?? `http://localhost:${port("MAILPIT_UI_HOST_PORT", 8025)}`,
+  mailpitUrl: process.env.E2E_MAILPIT_URL ?? `http://127.0.0.1:${port("MAILPIT_UI_HOST_PORT", 8025)}`,
   seedPassword: process.env.KC_SEED_USER_PASSWORD ?? "",
 };
 
