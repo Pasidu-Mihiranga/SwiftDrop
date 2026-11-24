@@ -350,7 +350,7 @@ export function FeeEstimateWidget({
                                 : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
                             }`}
                           >
-                            <span className="h-2 w-2 rounded-full bg-blue-300" />
+                            <span className="h-2 w-2 rounded-full bg-brand-300" />
                             <span>Pickup (From)</span>
                             {values.fromPoint ? <span className="text-[10px]">&#10003;</span> : null}
                           </button>
@@ -401,7 +401,7 @@ export function FeeEstimateWidget({
                                 : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
                             }`}
                           >
-                            <span className="h-2 w-2 rounded-full bg-blue-300" />
+                            <span className="h-2 w-2 rounded-full bg-brand-300" />
                             <span>Pickup (From)</span>
                             {values.fromPoint ? <span className="text-[10px]">&#10003;</span> : null}
                           </button>
@@ -946,15 +946,15 @@ export function FeeEstimateWidget({
               <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 space-y-0">
                 {/* Dark Navy Hero Header matching reference screenshot */}
                 <div className="relative overflow-hidden bg-brand-950 p-6 text-white">
-                  <div className="pointer-events-none absolute right-4 top-4 text-blue-400/20">
+                  <div className="pointer-events-none absolute right-4 top-4 text-brand-300/20">
                     <IsometricBoxIcon className="h-24 w-24" />
                   </div>
                   <div className="relative">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-blue-200/80">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-brand-100/80">
                         Estimated fee
                       </p>
-                      <span className="rounded-full bg-blue-500/20 px-2.5 py-0.5 text-[11px] font-semibold text-blue-200">
+                      <span className="rounded-full bg-brand-500/20 px-2.5 py-0.5 text-[11px] font-semibold text-brand-100">
                         Awaiting details
                       </span>
                     </div>
@@ -1010,7 +1010,7 @@ export function FeeEstimateWidget({
                   </div>
 
                   {/* Highlighted Total Bar matching reference screenshot */}
-                  <div className="flex items-center justify-between rounded-xl bg-blue-50/80 px-4 py-3 ring-1 ring-blue-100/70">
+                  <div className="flex items-center justify-between rounded-xl bg-brand-50/80 px-4 py-3 ring-1 ring-brand-100/70">
                     <span className="font-semibold text-slate-900 text-sm">Total (estimated)</span>
                     <span className="font-bold text-brand-700 text-lg tabular-nums">
                       LKR &mdash;.&mdash;
@@ -1018,7 +1018,7 @@ export function FeeEstimateWidget({
                   </div>
 
                   {/* Estimated Delivery Time Box matching reference screenshot */}
-                  <div className="flex items-center gap-3 rounded-xl border border-blue-100 bg-blue-50/40 p-3.5">
+                  <div className="flex items-center gap-3 rounded-xl border border-brand-100 bg-brand-50/40 p-3.5">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-brand-700">
                       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path
@@ -1118,13 +1118,13 @@ function QuoteSummary({
     <div className="overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-slate-200/90 space-y-0">
       {/* Dark Navy Hero Header matching reference UI */}
       <div className="relative overflow-hidden bg-brand-950 p-6 text-white">
-        <div className="pointer-events-none absolute right-4 top-4 text-blue-400/25">
+        <div className="pointer-events-none absolute right-4 top-4 text-brand-300/25">
           <IsometricBoxIcon className="h-24 w-24" />
         </div>
 
         <div className="relative">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wider text-blue-200/80">
+            <p className="text-xs font-semibold uppercase tracking-wider text-brand-100/80">
               Estimated fee
             </p>
             <span
@@ -1177,7 +1177,7 @@ function QuoteSummary({
         </div>
 
         {/* Highlighted Total Bar matching reference screenshot */}
-        <div className="flex items-center justify-between rounded-xl bg-blue-50/80 px-4 py-3 ring-1 ring-blue-100/70">
+        <div className="flex items-center justify-between rounded-xl bg-brand-50/80 px-4 py-3 ring-1 ring-brand-100/70">
           <span className="font-semibold text-slate-900 text-sm">Total (estimated)</span>
           <span className="font-bold text-brand-700 text-lg tabular-nums">
             {formatMoney(totalFee, quote.fee.currency)}
@@ -1185,7 +1185,7 @@ function QuoteSummary({
         </div>
 
         {/* Estimated Delivery Time Box matching reference screenshot */}
-        <div className="flex items-center gap-3 rounded-xl border border-blue-100 bg-blue-50/40 p-3.5">
+        <div className="flex items-center gap-3 rounded-xl border border-brand-100 bg-brand-50/40 p-3.5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-brand-700">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path

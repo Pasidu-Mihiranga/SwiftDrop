@@ -43,7 +43,7 @@ export function MobileNav({ items, children }: { items: readonly NavItem[]; chil
       {open ? (
         <div
           id="mobile-nav-panel"
-          className="absolute inset-x-0 top-full z-40 border-b border-slate-200 bg-white px-4 pb-4 pt-2 shadow-lg"
+          className="absolute inset-x-0 top-full z-40 border-b border-slate-200 bg-slate-50 px-4 pb-4 pt-2 shadow-lg"
         >
           <nav aria-label="Primary (mobile)" className="flex flex-col gap-1 text-sm">
             <NavLinks items={items} />
