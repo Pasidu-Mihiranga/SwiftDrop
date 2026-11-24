@@ -1,13 +1,14 @@
 name: CD · deploy changed services
 
-# CD runs only for deploy/k3s-two-node. CI workflows run on every branch.
+# CD runs for deploy/k3s-two-node and for main. CI workflows run on every branch.
 # The runner SSHs to the apps node and that node rebuilds only the services
-# whose files changed. The private key stays in the SWIFTDROP_SSH_KEY secret.
-# Port 22 on the apps node is open for this demo. The data node is not.
+# whose files changed on the branch that was pushed. The private key stays in
+# the SWIFTDROP_SSH_KEY secret. Port 22 on the apps node is open for this demo.
+# The data node is not.
 
 on:
   push:
-    branches: [deploy/k3s-two-node]
+    branches: [main, deploy/k3s-two-node]
 
 concurrency:
   group: deploy-k3s
@@ -83,8 +84,13 @@ jobs:
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/swiftdrop.pem
           chmod 600 ~/.ssh/swiftdrop.pem
+          branch="${{ github.ref_name }}"
+          case "${branch}" in
+            main|deploy/k3s-two-node) ;;
+            *) echo "Refusing to deploy ${branch}." >&2; exit 1 ;;
+          esac
           ssh -i ~/.ssh/swiftdrop.pem \
             -o StrictHostKeyChecking=accept-new \
             -o ConnectTimeout=20 \
             ubuntu@3.111.117.223 \
-            'sudo /usr/local/bin/swiftdrop-watch-deploy.sh'
+            "sudo SWIFTDROP_BRANCH='${branch}' /usr/local/bin/swiftdrop-watch-deploy.sh"

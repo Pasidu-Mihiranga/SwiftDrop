@@ -27,6 +27,7 @@ everyone follows the parcel live; and an AI assistant answers questions with the
 
 - [What it does](#what-it-does)
 - [Architecture](#architecture)
+- [Running cluster](#running-cluster)
 - [Technology](#technology)
 - [Screenshots](#screenshots)
 - [Getting started](#getting-started)
@@ -77,6 +78,34 @@ outside systems: e-mail and SMS, signed merchant webhooks, and the LLM provider.
 More system figures: [data model of every database](doc/diagrams/system/system-er-diagram.png) and the
 [EER diagram of the whole domain](doc/diagrams/system/system-eer-diagram.png). Every milestone's figures are indexed in
 [doc/diagrams](doc/diagrams/README.md).
+
+### Running cluster
+
+The live demo is [k3s](https://docs.k3s.io/) (Kubernetes 1.37) on two EC2 instances in `ap-south-1`, in one availability zone. It is not EKS. Terraform in `infra/terraform` creates the instances, and Helm release `swiftdrop` in namespace `swiftdrop` installs the platform. The layout, ports, and scheduling rules are written out in [doc/deploy/01-two-node-architecture.md](doc/deploy/01-two-node-architecture.md).
+
+| Node | Machine | Kubernetes | What runs there |
+|---|---|---|---|
+| Apps | `m7i-flex.large` (2 vCPU, 8 GiB), Elastic IP `3.111.117.223` | server, label `role=apps` | web, the gateway, all ten services, ingress-nginx |
+| Data | `m7i-flex.large`, Elastic IP `3.109.169.81` | agent, label `role=data` | Postgres, Redis, Kafka, MongoDB, RustFS, Keycloak, Mailpit, cert-manager |
+
+A browser opens an `sslip.io` name, which resolves to the apps Elastic IP. ingress-nginx terminates HTTPS with a Let's Encrypt certificate and sends the request to a Service. The Service forwards to a ready pod. Pods call each other by Service name on the cluster network. Databases are not published on the internet.
+
+| What | URL |
+|---|---|
+| Web | https://swiftdrop.3.111.117.223.sslip.io |
+| API | https://api.3.111.117.223.sslip.io |
+| Keycloak | https://auth.3.111.117.223.sslip.io |
+
+`pricing-service` runs 2 replicas. A quote is stored in Redis, so either pod can answer, which is the load-balancing demonstration. Every other app runs 1 replica. Postgres, Redis, Kafka, MongoDB, RustFS, Keycloak, and Mailpit stay at 1. The chart's autoscaler is turned off on this cluster (`parcel-service` and `tracking-service` would otherwise start at 2 and are allowed to reach 5). `values-prod.yaml` is not applied. Two copies of one stateless app is the most this apps machine should run during a demo.
+
+The laptop cannot reach the Kubernetes API on port 6443. From the apps machine:
+
+```bash
+sudo k3s kubectl get nodes
+sudo k3s kubectl -n swiftdrop get pods -o wide
+```
+
+Sign-in accounts for this running site are in [Running demo accounts](#running-demo-accounts). A local Docker or kind install still uses `Swift@2026`, from `KC_SEED_USER_PASSWORD`.
 
 ## Technology
 
@@ -211,6 +240,19 @@ The ids are fixed in the realm file, so `pnpm keycloak:reimport` keeps them and 
 (profiles, addresses, courier assignments) stays valid. Users created by hand or through Google get a new id on
 every re-import.
 
+#### Running demo accounts
+
+The two-node cluster uses the same emails. The passwords there were set on the live Keycloak and are not the seed password above. Choose **Sign in with email**.
+
+| Email | Password | Opens |
+|---|---|---|
+| `admin@swiftdrop.lk` | `Admin@123` | `/admin` |
+| `dispatcher@swiftdrop.lk` | `Dispatch@123` | `/admin/dispatch` |
+| `courier1@swiftdrop.lk` | `Courier@123` | `/courier` |
+| `courier2@swiftdrop.lk` | `Courier2@123` | `/courier` |
+| `customer@swiftdrop.lk` | `Customer@123` | `/customer` |
+| `merchant@swiftdrop.lk` | `Merchant@123` | `/merchant` |
+
 Machine client for the merchant API: `merchant-demo` (client credentials, secret `KC_DEMO_MERCHANT_CLIENT_SECRET`).
 
 #### Optional manual setup (external keys & road routing)
@@ -260,7 +302,7 @@ contracts/
   openapi/                REST contracts per service (v1)
 infra/                    keycloak realm, postgres init, kafka topics, observability config, helm
 tools/templates/          service templates used by `pnpm new-service`
-scripts/                  env bootstrap, service generator
+scripts/                  env bootstrap, service generator, kind install, Kubernetes demo
 doc/                      architecture, plan, contribution sheet, diagrams, test reports
 ```
 
@@ -371,11 +413,34 @@ results, are in [doc/test-reports/SUMMARY.md](doc/test-reports/SUMMARY.md); the 
 | `ci-platform.yml` | Compose config, Keycloak realm, contract files |
 | `helm.yml`, `helm-e2e.yml` | Lint and render the charts; install on kind and run the M2 demo end to end |
 | `release.yml` | Build every image, scan it with Trivy, push to GHCR with provenance and an SBOM |
+| `deploy-k3s.yml` | On `main` and `deploy/k3s-two-node`: wait until CI for that commit succeeds, then update the running cluster from that branch |
 | `no-emoji.yml` | Keeps emojis out of code, commits and pull requests |
+
+CI (`ci-java.yml`, `ci-node.yml`, `ci-python.yml`, `ci-platform.yml`, `helm.yml`, `helm-e2e.yml`) runs on every branch. CD runs for a push to `main` or `deploy/k3s-two-node`. The deploy job SSHs to the apps node and runs the watch script with `SWIFTDROP_BRANCH` set to the branch that was pushed. That script fetches that branch and calls `scripts/deploy-k3s-changed.sh` for the files that changed: it builds that service at the repo root, imports the image into k3s, and restarts only that Deployment. A Helm change upgrades the release with `values-dev.yaml`, `values-full.yaml`, and `values-two-node.yaml`. If any CI run for the commit fails, the server update is skipped. Images on this cluster use `imagePullPolicy: Never`, so a GHCR pull is not required for the demo. A push to `main` deploys `main` only after this workflow file is on `main`.
 
 Kubernetes: `infra/helm` holds a library chart, one thin chart per service and an umbrella chart with dev
 datastores and an NGINX ingress. `SWIFTDROP_PROFILE=full ./scripts/kind-deploy.sh` installs every service on kind;
 see [infra/helm/README.md](infra/helm/README.md).
+
+### Demonstrating Kubernetes
+
+`scripts/demo-kubernetes.sh` is the check to run when an evaluator asks whether Kubernetes is doing the work. From a laptop that has the apps-node key:
+
+```bash
+./scripts/demo-kubernetes.sh
+```
+
+The script SSHs to the apps node and, on `notification-service`:
+
+1. Shows both nodes `Ready`.
+2. Deletes one pod and waits until a replacement is ready and the Service answers.
+3. Raises the replica count from 1 to 2 and shows both pod addresses on the Service.
+4. Lowers it back to 1. The extra pod leaves the Service.
+5. Restores the replica count it started with, including when a step fails.
+
+It never goes above 2 replicas, and it refuses Postgres, Redis, Kafka, MongoDB, RustFS, Keycloak, and Mailpit. Another stateless app can be used with `DEMO_DEPLOYMENT=web`. `pricing-service` already runs 2 copies, so for that deployment the script lowers demand to 1 and then raises it back to 2.
+
+`scripts/demo-m2-pricing.sh` is the pricing demonstration (anonymous quote, a rate change, a quote that keeps its fee, and expiry). It targets kind or Compose, not the public cluster, unless `DEMO_BASE_URL` is pointed at the public API.
 
 ### Git workflow
 
@@ -417,6 +482,7 @@ ghcr.io/pasidu-mihiranga/swiftdrop-<service>:1.2.3             # on a v1.2.3 tag
 | [doc/diagrams](doc/diagrams/README.md) | Every figure, system and per milestone, in the M10 template |
 | [doc/01-architecture.md](doc/01-architecture.md) | Architecture, services, data model, security, flows, patterns |
 | [doc/02-implementation-plan.md](doc/02-implementation-plan.md) | Phases, testing, DevOps, demo checklist |
+| [doc/deploy](doc/deploy/01-two-node-architecture.md) | Two-node k3s layout, Elastic IPs, and the phase checklist |
 | [doc/03-team-contribution.md](doc/03-team-contribution.md) | Contribution sheet |
 | [doc/06-integration-guide.md](doc/06-integration-guide.md) | How the services integrate |
 | [contracts/](contracts/) | OpenAPI contracts per service and Kafka event JSON Schemas |

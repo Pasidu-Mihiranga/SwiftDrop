@@ -1,5 +1,5 @@
 [Unit]
-Description=Deploy SwiftDrop commits from the deploy branch
+Description=Deploy SwiftDrop commits from the configured branch
 After=network-online.target
 Wants=network-online.target
 

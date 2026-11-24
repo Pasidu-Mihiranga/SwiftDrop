@@ -195,7 +195,10 @@ grafana:
 ingress:
   enabled: true
   className: nginx
-  annotations: {}
+  # Auth.js stores the Keycloak access, refresh and ID tokens in one encrypted cookie.
+  # The default 8k proxy buffer turns that Set-Cookie into a 502.
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "32k"
   tls:
     enabled: false
     secretName: swiftdrop-tls

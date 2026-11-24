@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# On the apps node, pull deploy/k3s-two-node and update only what changed.
+# On the apps node, pull the branch in SWIFTDROP_BRANCH and update only what changed.
+# GitHub Actions sets that to main or deploy/k3s-two-node. A manual run uses the deploy branch.
 #
 # The repository is public, so this uses an outbound git fetch. Nothing has to
 # accept SSH from GitHub. The first run records the current commit and does not

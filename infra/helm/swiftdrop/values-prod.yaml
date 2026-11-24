@@ -44,6 +44,7 @@ ingress:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "32k"
   tls:
     enabled: true
     secretName: swiftdrop-tls
@@ -61,7 +62,7 @@ web:
   config:
     AUTH_URL: https://swiftdrop.lk
     AUTH_KEYCLOAK_ISSUER: https://auth.swiftdrop.lk/realms/swiftdrop
-    AUTH_KEYCLOAK_INTERNAL_URL: https://auth.swiftdrop.lk
+    AUTH_KEYCLOAK_INTERNAL_URL: https://auth.swiftdrop.lk/realms/swiftdrop
     KEYCLOAK_PUBLIC_URL: https://auth.swiftdrop.lk
     # Map on /quote: set to a tile service licensed for production traffic. Blank hides the map.
     MAP_TILE_URL: ""

@@ -87,7 +87,7 @@ web:
     # (apps/web/src/lib/gateway.ts), so dev stays on http.
     AUTH_URL: http://swiftdrop.local
     AUTH_KEYCLOAK_ISSUER: http://auth.swiftdrop.local/realms/swiftdrop
-    AUTH_KEYCLOAK_INTERNAL_URL: http://keycloak:8080
+    AUTH_KEYCLOAK_INTERNAL_URL: http://keycloak:8080/realms/swiftdrop
     KEYCLOAK_PUBLIC_URL: http://auth.swiftdrop.local
     # Map on /quote. The public OpenStreetMap tiles are acceptable for a dev cluster only.
     MAP_TILE_URL: https://tile.openstreetmap.org/{z}/{x}/{y}.png
