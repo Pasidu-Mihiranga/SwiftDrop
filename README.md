@@ -215,13 +215,19 @@ Machine client for the merchant API: `merchant-demo` (client credentials, secret
 
 #### Optional manual setup (external keys & road routing)
 
-Everything else works out of the box after `pnpm env:init` and `pnpm infra:up`. The following three integrations are optional:
+Everything else works out of the box after `pnpm env:init` and `pnpm infra:up`. The following integrations are optional:
 
 1. **AI Delivery Assistant (`ai-assistant-service`):** set `GEMINI_API_KEY` (when `LLM_PROVIDER=gemini`) or `OPENAI_API_KEY` (when `LLM_PROVIDER=openai`) in `.env` and restart `ai-assistant-service` to enable live LLM tool-calling answers in the chat widget. Without a key, the service still starts and `/mcp` tools work directly.
-2. **Google OAuth login:** create an OAuth client in Google Cloud Console with redirect URI
-   `http://localhost:8180/realms/swiftdrop/broker/google/endpoint`, put `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
-   in `.env`, then re-import the realm: `pnpm keycloak:reimport`.
-3. **OSRM road-routed same-day distances:** run `pnpm routing:up` and set `OSRM_URL=http://localhost:15000` (or `http://osrm:5000` in Compose) in `.env`. When `OSRM_URL` is blank, `pricing-service` automatically falls back to Haversine road-distance estimation.
+2. **Google OAuth login:** create an OAuth client in Google Cloud Console. The redirect URI is
+   `http://localhost:8180/realms/swiftdrop/broker/google/endpoint` locally, and
+   `https://auth.<your-host>/realms/swiftdrop/broker/google/endpoint` on the public site. Put
+   `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` in `.env`, then re-import the realm: `pnpm keycloak:reimport`.
+   A realm that is already running does not pick up the new client secret from that file. Update the
+   Google identity provider in the Keycloak admin console as well.
+3. **Real email:** parcel mail reads `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`, `SMTP_USER`, `SMTP_PASSWORD`
+   and `SMTP_SECURE`. Leave the user and password empty for Mailpit. Keycloak's own verification and
+   password-reset mail uses the realm email settings, which stay on Mailpit until you change them.
+4. **OSRM road-routed same-day distances:** run `pnpm routing:up` and set `OSRM_URL=http://localhost:15000` (or `http://osrm:5000` in Compose) in `.env`. When `OSRM_URL` is blank, `pricing-service` automatically falls back to Haversine road-distance estimation.
 
 Get a token for API testing (dev-only `swiftdrop-test` client):
 

@@ -1,5 +1,5 @@
 import { TemplateService } from "../src/modules/templates/template.service";
-import { EmailChannel } from "../src/modules/channels/email.channel";
+import { EmailChannel, smtpTransportOptions } from "../src/modules/channels/email.channel";
 import { MockSmsChannel } from "../src/modules/channels/mock-sms.channel";
 import { NotificationDispatcherService } from "../src/modules/channels/notification-dispatcher.service";
 
@@ -76,6 +76,32 @@ describe("Notification Channels & Dispatcher", () => {
   });
 
   describe("EmailChannel", () => {
+    it("uses no login for the local relay and STARTTLS when a mailbox is configured", () => {
+      const local = smtpTransportOptions({
+        SMTP_HOST: "mailpit",
+        SMTP_PORT: 1025,
+        SMTP_FROM: "SwiftDrop <notifications@swiftdrop.lk>",
+        SMTP_USER: "",
+        SMTP_PASSWORD: "",
+      } as never);
+      expect(local).toMatchObject({ host: "mailpit", port: 1025, secure: false, ignoreTLS: true, auth: undefined });
+
+      const relay = smtpTransportOptions({
+        SMTP_HOST: "smtp.example.com",
+        SMTP_PORT: 587,
+        SMTP_FROM: "SwiftDrop <no-reply@swiftdrop.lk>",
+        SMTP_USER: "apikey",
+        SMTP_PASSWORD: "secret-value",
+        SMTP_SECURE: "false",
+      } as never);
+      expect(relay).toMatchObject({
+        secure: false,
+        ignoreTLS: false,
+        requireTLS: true,
+        auth: { user: "apikey", pass: "secret-value" },
+      });
+    });
+
     it("sends email and masks email address in log", async () => {
       const result = await emailChannel.send({
         toEmail: "saman.perera@example.com",

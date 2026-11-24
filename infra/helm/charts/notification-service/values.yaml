@@ -28,5 +28,8 @@ podSecurityContext:
 secretRefs: ["swiftdrop-app-secrets"]
 config:
   NODE_ENV: production
+  # Local relay inside the cluster. A real mailbox replaces the host and port and
+  # sets SMTP_SECURE to "true" for port 465 or "false" for STARTTLS on port 587.
+  # Put SMTP_USER and SMTP_PASSWORD in swiftdrop-app-secrets, not in this file.
   SMTP_HOST: mailpit
   SMTP_PORT: "1025"

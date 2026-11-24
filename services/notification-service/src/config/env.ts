@@ -29,6 +29,11 @@ const schema = z.object({
   SMTP_HOST: z.string().default(process.env.SMTP_HOST ?? "localhost"),
   SMTP_PORT: z.coerce.number().int().default(Number(smtpPort)),
   SMTP_FROM: z.string().default("SwiftDrop <notifications@swiftdrop.lk>"),
+  // Empty user and password keep the local Mailpit relay. A real mailbox sets both.
+  SMTP_USER: z.string().default(""),
+  SMTP_PASSWORD: z.string().default(""),
+  // "true" forces TLS on connect (port 465). "false" uses STARTTLS when a username is set.
+  SMTP_SECURE: z.enum(["true", "false"]).optional(),
   FRONTEND_URL: z.string().default("http://localhost:3000"),
 });
 

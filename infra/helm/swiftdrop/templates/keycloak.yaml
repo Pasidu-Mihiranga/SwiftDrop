@@ -118,20 +118,33 @@ spec:
               port: management
             periodSeconds: 20
             failureThreshold: {{ .Values.keycloak.probes.livenessFailureThreshold }}
-          {{- if .Values.keycloak.realmImport.configMapName }}
           volumeMounts:
+            - name: login-theme
+              mountPath: /opt/keycloak/themes/swiftdrop
+              readOnly: true
+            {{- if .Values.keycloak.realmImport.configMapName }}
             - name: realm
               mountPath: /opt/keycloak/data/import
               readOnly: true
-          {{- end }}
+            {{- end }}
           {{- with .Values.keycloak.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-      {{- if .Values.keycloak.realmImport.configMapName }}
       volumes:
+        - name: login-theme
+          configMap:
+            name: swiftdrop-keycloak-theme
+            items:
+              - key: theme.properties
+                path: login/theme.properties
+              - key: swiftdrop.css
+                path: login/resources/css/swiftdrop.css
+              - key: swiftdrop-logo-light.avif
+                path: login/resources/img/swiftdrop-logo-light.avif
+        {{- if .Values.keycloak.realmImport.configMapName }}
         - name: realm
           configMap:
             name: {{ .Values.keycloak.realmImport.configMapName }}
-      {{- end }}
+        {{- end }}
 {{- end }}

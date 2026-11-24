@@ -1,7 +1,22 @@
 import { Injectable, Logger } from "@nestjs/common";
 import nodemailer from "nodemailer";
-import { env } from "../../config/env";
+import type SMTPTransport from "nodemailer/lib/smtp-transport";
+import { env, type Env } from "../../config/env";
 import type { NotificationChannel, NotificationPayload, ChannelSendResult } from "./notification-channel.interface";
+
+/** Mailpit has no login and no TLS. A real relay uses the username and STARTTLS, or TLS on port 465. */
+export function smtpTransportOptions(settings: Env): SMTPTransport.Options {
+  const authenticated = settings.SMTP_USER.length > 0 && settings.SMTP_PASSWORD.length > 0;
+  const secure = settings.SMTP_SECURE === "true" || (settings.SMTP_SECURE !== "false" && settings.SMTP_PORT === 465);
+  return {
+    host: settings.SMTP_HOST,
+    port: settings.SMTP_PORT,
+    secure,
+    auth: authenticated ? { user: settings.SMTP_USER, pass: settings.SMTP_PASSWORD } : undefined,
+    ignoreTLS: !authenticated && !secure,
+    requireTLS: authenticated && !secure,
+  };
+}
 
 @Injectable()
 export class EmailChannel implements NotificationChannel {
@@ -10,12 +25,7 @@ export class EmailChannel implements NotificationChannel {
   private readonly transporter: nodemailer.Transporter;
 
   constructor() {
-    this.transporter = nodemailer.createTransport({
-      host: env.SMTP_HOST,
-      port: env.SMTP_PORT,
-      secure: false, // Mailpit dev SMTP
-      ignoreTLS: true,
-    });
+    this.transporter = nodemailer.createTransport(smtpTransportOptions(env));
   }
 
   async send(payload: NotificationPayload): Promise<ChannelSendResult> {
