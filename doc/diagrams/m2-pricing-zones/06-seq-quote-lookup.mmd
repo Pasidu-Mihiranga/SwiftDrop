@@ -1,0 +1,24 @@
+%%{init: {"theme": "base", "fontFamily": "'Segoe UI', 'Helvetica Neue', Arial, sans-serif", "themeVariables": {"fontFamily": "'Segoe UI', 'Helvetica Neue', Arial, sans-serif", "fontSize": "15px", "background": "#ffffff", "primaryColor": "#ffffff", "primaryTextColor": "#111111", "primaryBorderColor": "#111111", "secondaryColor": "#ffffff", "tertiaryColor": "#ececec", "lineColor": "#111111", "textColor": "#111111", "mainBkg": "#ffffff", "nodeBorder": "#111111", "clusterBkg": "#ececec", "clusterBorder": "#d4d4d4", "titleColor": "#555555", "edgeLabelBackground": "#ffffff", "actorBkg": "#ffffff", "actorBorder": "#111111", "actorTextColor": "#111111", "actorLineColor": "#555555", "signalColor": "#111111", "signalTextColor": "#111111", "labelBoxBkgColor": "#ffffff", "labelBoxBorderColor": "#111111", "labelTextColor": "#111111", "loopTextColor": "#111111", "noteBkgColor": "#ffffff", "noteBorderColor": "#111111", "noteTextColor": "#111111", "activationBkgColor": "#ffffff", "activationBorderColor": "#111111", "sequenceNumberColor": "#ffffff", "altSectionBkgColor": "#ffffff", "stateBkg": "#ffffff", "stateBorder": "#111111", "compositeBackground": "#ececec", "transitionColor": "#111111", "transitionLabelColor": "#111111", "classText": "#111111", "attributeBackgroundColorOdd": "#ffffff", "attributeBackgroundColorEven": "#f5f5f5", "stateLabelColor": "#111111", "nodeTextColor": "#111111", "labelColor": "#111111", "specialStateColor": "#111111", "innerEndBackground": "#111111"}}}%%
+%% M2 key flow 2: parcel-service validates an issued quote before booking.
+%% GET /api/v1/pricing/quotes/{quoteId} - requires a bearer token.
+%% The reply is built from the stored snapshot only. An expired quote and an
+%% unknown id get the same 404.
+%% Simplified for the design report: one alt covers both failure cases.
+sequenceDiagram
+    autonumber
+    participant P as parcel-service
+    participant GW as api-gateway
+    participant PS as pricing-service
+    participant RD as Redis
+
+    Note over P: the booking request carries the<br/>quoteId the customer was shown
+    P->>GW: GET /api/v1/pricing/quotes/{quoteId}<br/>Authorization: Bearer ...
+    GW->>PS: validate the token,<br/>then forward
+    PS->>RD: findById(quoteId)
+    RD-->>PS: snapshot, or empty
+    alt found and still valid
+        PS-->>P: 200: the stored snapshot, verbatim<br/>(fee, breakdown, zones, expiresAt)
+    else unknown id, or expired
+        PS-->>P: 404 problem+json<br/>QUOTE_NOT_FOUND
+    end
+    Note over GW,PS: expired and unknown give the same answer,<br/>so expiry cannot be probed

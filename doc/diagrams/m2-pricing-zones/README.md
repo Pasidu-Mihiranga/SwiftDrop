@@ -1,40 +1,23 @@
-# M2 Pricing & Zones diagrams
+# M2 Pricing & Zones: diagrams
 
-Mermaid sources and their exports for the M2 pricing and zones design: who uses the
-service, how a fee is worked out, what is stored, and how it is deployed.
+Design figures for M2 Pricing & Zones (issue #15), owned by sasindu345: pricing-service: zones, rate cards, fee pipeline, quotes, Helm charts.
 
-| View | Source | Export |
-|---|---|---|
-| Use cases | [usecase-m2-pricing.mmd](usecase-m2-pricing.mmd) | [SVG](usecase-m2-pricing.svg), [PNG](usecase-m2-pricing.png) |
-| Service integration | [integration-m2-pricing.mmd](integration-m2-pricing.mmd) | [SVG](integration-m2-pricing.svg), [PNG](integration-m2-pricing.png) |
-| Pricing layers | [architecture-m2-pricing-layers.mmd](architecture-m2-pricing-layers.mmd) | [SVG](architecture-m2-pricing-layers.svg), [PNG](architecture-m2-pricing-layers.png) |
-| Data model | [er-m2-pricing-zones.mmd](er-m2-pricing-zones.mmd) | [SVG](er-m2-pricing-zones.svg), [PNG](er-m2-pricing-zones.png) |
-| Pricing rules | [class-m2-pricing-strategy.mmd](class-m2-pricing-strategy.mmd) | [SVG](class-m2-pricing-strategy.svg), [PNG](class-m2-pricing-strategy.png) |
-| Fee calculation | [activity-m2-fee-calculation.mmd](activity-m2-fee-calculation.mmd) | [SVG](activity-m2-fee-calculation.svg), [PNG](activity-m2-fee-calculation.png) |
-| Rate-card selection | [activity-m2-rate-card-selection.mmd](activity-m2-rate-card-selection.mmd) | [SVG](activity-m2-rate-card-selection.svg), [PNG](activity-m2-rate-card-selection.png) |
-| Fee estimate | [sequence-m2-fee-estimate.mmd](sequence-m2-fee-estimate.mmd) | [SVG](sequence-m2-fee-estimate.svg), [PNG](sequence-m2-fee-estimate.png) |
-| Quote lookup | [sequence-m2-quote-lookup.mmd](sequence-m2-quote-lookup.mmd) | [SVG](sequence-m2-quote-lookup.svg), [PNG](sequence-m2-quote-lookup.png) |
-| Admin rate change | [sequence-m2-admin-rate-change.mmd](sequence-m2-admin-rate-change.mmd) | [SVG](sequence-m2-admin-rate-change.svg), [PNG](sequence-m2-admin-rate-change.png) |
-| Kubernetes deployment | [deployment-m2-kubernetes.mmd](deployment-m2-kubernetes.mmd) | [SVG](deployment-m2-kubernetes.svg), [PNG](deployment-m2-kubernetes.png) |
+Mermaid source (`.mmd`) rendered in the M10 monochrome style with the shared theme in [`../_template/m10-mermaid.json`](../_template/m10-mermaid.json).
 
-[m2-pricing-zones-diagrams.pdf](m2-pricing-zones-diagrams.pdf) collects all eleven
-diagrams: each one gets a page listing its name, file paths and what it shows, followed
-by a full page of the image.
+Files are named `NN-<type>-<topic>`, the M10 convention, so they sort in reading order.
 
-The exports are drawn in the same black-and-white UML style as the other design
-diagrams, so the design PDF reads as one document. Each export shows the same
-participants, steps, guards and relationships as its Mermaid source:
+| # | Figure | Source | Export |
+|---|---|---|---|
+| 01 | Use cases | [mmd](01-use-cases.mmd) | [SVG](01-use-cases.svg), [PNG](01-use-cases.png) |
+| 02 | Data model | [mmd](02-er-diagram.mmd) | [SVG](02-er-diagram.svg), [PNG](02-er-diagram.png) |
+| 03 | Architecture | [mmd](03-architecture.mmd) | [SVG](03-architecture.svg), [PNG](03-architecture.png) |
+| 04 | Integration design | [mmd](04-integration-design.mmd) | [SVG](04-integration-design.svg), [PNG](04-integration-design.png) |
+| 05 | Sequence: fee estimate | [mmd](05-seq-fee-estimate.mmd) | [SVG](05-seq-fee-estimate.svg), [PNG](05-seq-fee-estimate.png) |
+| 06 | Sequence: quote lookup | [mmd](06-seq-quote-lookup.mmd) | [SVG](06-seq-quote-lookup.svg), [PNG](06-seq-quote-lookup.png) |
+| 07 | Sequence: admin rate change | [mmd](07-seq-admin-rate-change.mmd) | [SVG](07-seq-admin-rate-change.svg), [PNG](07-seq-admin-rate-change.png) |
+| 08 | Activity: fee calculation | [mmd](08-activity-fee-calculation.mmd) | [SVG](08-activity-fee-calculation.svg), [PNG](08-activity-fee-calculation.png) |
+| 09 | Activity: rate card selection | [mmd](09-activity-rate-card-selection.mmd) | [SVG](09-activity-rate-card-selection.svg), [PNG](09-activity-rate-card-selection.png) |
+| 10 | Class diagram: pricing strategy | [mmd](10-class-pricing-strategy.mmd) | [SVG](10-class-pricing-strategy.svg), [PNG](10-class-pricing-strategy.png) |
+| 11 | Deployment: kubernetes | [mmd](11-deployment-kubernetes.mmd) | [SVG](11-deployment-kubernetes.svg), [PNG](11-deployment-kubernetes.png) |
 
-- Sequence diagrams: underlined participant names, activation bars, solid calls with filled
-  arrowheads, dashed replies with open arrowheads, `alt` fragments and folded-corner notes.
-- Activity diagrams: a "Use Case" frame with swimlanes, initial and final nodes, decision and
-  merge diamonds with `[guard]` labels, and notes on dotted connectors.
-- Class diagram: realization, generalization, aggregation and composition in UML notation.
-- Data model: crow's-foot lines for foreign keys; dashed lines for values copied into the
-  Redis snapshot.
-- Deployment: boxes with a black title strip are the pricing parts; plain boxes are context.
-
-The detailed ER diagram matches the pricing database, and the cross-service `er-v1.mmd`
-uses the same keys and columns.
-
-The Mermaid files stay the editable source. If one changes, redraw its export to match.
+[All diagrams](../README.md)

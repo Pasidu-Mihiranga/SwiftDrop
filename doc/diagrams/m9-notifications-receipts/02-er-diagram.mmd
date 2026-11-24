@@ -1,0 +1,57 @@
+%%{init: {"theme": "base", "fontFamily": "'Segoe UI', 'Helvetica Neue', Arial, sans-serif", "themeVariables": {"fontFamily": "'Segoe UI', 'Helvetica Neue', Arial, sans-serif", "fontSize": "15px", "background": "#ffffff", "primaryColor": "#ffffff", "primaryTextColor": "#111111", "primaryBorderColor": "#111111", "secondaryColor": "#ffffff", "tertiaryColor": "#ececec", "lineColor": "#111111", "textColor": "#111111", "mainBkg": "#ffffff", "nodeBorder": "#111111", "clusterBkg": "#ececec", "clusterBorder": "#d4d4d4", "titleColor": "#555555", "edgeLabelBackground": "#ffffff", "actorBkg": "#ffffff", "actorBorder": "#111111", "actorTextColor": "#111111", "actorLineColor": "#555555", "signalColor": "#111111", "signalTextColor": "#111111", "labelBoxBkgColor": "#ffffff", "labelBoxBorderColor": "#111111", "labelTextColor": "#111111", "loopTextColor": "#111111", "noteBkgColor": "#ffffff", "noteBorderColor": "#111111", "noteTextColor": "#111111", "activationBkgColor": "#ffffff", "activationBorderColor": "#111111", "sequenceNumberColor": "#ffffff", "altSectionBkgColor": "#ffffff", "stateBkg": "#ffffff", "stateBorder": "#111111", "compositeBackground": "#ececec", "transitionColor": "#111111", "transitionLabelColor": "#111111", "classText": "#111111", "attributeBackgroundColorOdd": "#ffffff", "attributeBackgroundColorEven": "#f5f5f5", "stateLabelColor": "#111111", "nodeTextColor": "#111111", "labelColor": "#111111", "specialStateColor": "#111111", "innerEndBackground": "#111111"}}}%%
+%% M9 data model: MongoDB database notifications (notification-service) and the receipt source in parcels_db.
+erDiagram
+    NOTIFICATIONS {
+        string _id PK
+        string userId "indexed"
+        string parcelId
+        string trackingNumber
+        string type "event type"
+        string title
+        string body
+        boolean read
+        date createdAt
+    }
+    NOTIFICATION_PREFERENCES {
+        string userId PK
+        boolean email
+        boolean sms
+        string[] statuses "alerts opted in"
+        date updatedAt
+    }
+    NOTIFICATION_LOGS {
+        string _id PK
+        string eventId
+        string channel "EMAIL or SMS"
+        string recipientMasked
+        string status "SENT or FAILED"
+        date sentAt
+    }
+    SMS_OUTBOX {
+        string _id PK
+        string phoneMasked
+        string message
+        string trackingNumber
+        date createdAt
+    }
+    CONSUMER_IDEMPOTENCY {
+        string _id PK "consumer:eventId"
+        date processedAt "TTL"
+    }
+    PARCEL_CONTACTS {
+        string parcelId PK
+        string senderEmail
+        string recipientPhone
+        string trackingNumber
+    }
+    PARCEL {
+        uuid id PK "parcels_db"
+        string tracking_number
+        decimal fee
+        string status
+    }
+    PARCEL_CONTACTS ||--o{ NOTIFICATIONS : "addresses"
+    NOTIFICATION_PREFERENCES ||--o{ NOTIFICATIONS : "filters"
+    NOTIFICATIONS ||--o{ NOTIFICATION_LOGS : "sent as"
+    NOTIFICATION_LOGS ||--o| SMS_OUTBOX : "SMS copy"
+    PARCEL ||--o| PARCEL_CONTACTS : "projected from ParcelCreated"

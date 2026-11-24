@@ -6,7 +6,9 @@ import os
 import re
 import fitz
 
-OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "doc", "diagrams", "m9")
+# Superseded: the published M9 figures are the Mermaid sources in doc/diagrams/m9-notifications-receipts,
+# rendered with the shared M10 theme. This script now writes to a git-ignored build folder only.
+OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "build", "m9-generated")
 os.makedirs(OUT_DIR, exist_ok=True)
 
 FONT_FAMILY = "Segoe UI, Helvetica Neue, Helvetica, Arial, sans-serif"
@@ -688,4 +690,4 @@ for filename, func in generators:
     pix.save(png_path)
     print(f"Rendered {png_name}")
 
-print("All 12 SVG and PNG diagrams generated successfully in doc/diagrams/m9/")
+print("All 12 SVG and PNG diagrams generated successfully in build/m9-generated/")
