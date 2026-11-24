@@ -119,7 +119,7 @@ def test_the_factory_builds_a_vertex_provider_from_settings():
     settings = Settings(_env_file=None, llm_provider="vertex", vertex_credentials_json=json.dumps(ACCOUNT),
                         vertex_location="europe-west1")
     config = provider_config(settings)
-    assert config.configured and config.model == "google/gemini-3.8-flash"
+    assert config.configured and config.model == "google/gemini-3.5-flash-lite"
     assert "/projects/demo-project/locations/europe-west1/" in config.base_url
     assert "PRIVATE" not in repr(config)
     assert isinstance(create_provider(config), OpenAICompatibleProvider)

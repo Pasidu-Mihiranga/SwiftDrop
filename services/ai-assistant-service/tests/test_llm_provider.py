@@ -67,6 +67,27 @@ async def test_streams_text_and_assembles_fragmented_tool_calls():
     assert calls[-1].headers["authorization"] == "Bearer secret-key"
 
 
+async def test_gemini_thought_signature_is_kept_and_sent_back():
+    signature = {"google": {"thought_signature": "sig"}}
+    provider, calls = provider_with(streaming(sse(
+        chunk({"tool_calls": [{"index": 0, "id": "call_9", "type": "function",
+                               "function": {"name": "list_service_zones", "arguments": "{}"},
+                               "extra_content": signature}]}),
+    )))
+    events = await collect(provider, [ChatMessage("user", "Which areas do you deliver to?")],
+                           [ToolSpec("list_service_zones", "Zones", {"type": "object"})])
+    assert events == [ToolCall("call_9", "list_service_zones", "{}", signature)]
+
+    provider, calls = provider_with(streaming(sse(chunk({"content": "Western and Central."}))))
+    await collect(provider, [
+        ChatMessage("user", "Which areas do you deliver to?"),
+        ChatMessage("assistant", None, tool_calls=(events[0],)),
+        ChatMessage("tool", '{"zones":["Western"]}', tool_call_id="call_9"),
+    ])
+    sent = json.loads(calls[-1].read())
+    assert sent["messages"][1]["tool_calls"][0]["extra_content"] == signature
+
+
 async def test_without_tools_no_tools_field_is_sent():
     provider, calls = provider_with(streaming(sse(chunk({"content": "Hello"}))))
     assert await collect(provider, [ChatMessage("user", "hi")]) == [TextDelta("Hello")]

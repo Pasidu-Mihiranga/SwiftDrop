@@ -19,6 +19,9 @@ class ToolCall:
     id: str
     name: str
     arguments: str            # raw JSON text exactly as the model wrote it
+    # Gemini 3 requires this blob to be sent back with the tool call. Dropping it makes the next
+    # request fail with 400, which the chat shows as "unavailable".
+    extra_content: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)

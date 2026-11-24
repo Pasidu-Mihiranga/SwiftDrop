@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     gateway_url: str = "http://localhost:8080"
 
     llm_provider: Literal["gemini", "openai", "vertex"] = "gemini"
-    llm_model: str = "gemini-3.8-flash"
+    llm_model: str = "gemini-3.5-flash-lite"
     gemini_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None
     # Gemini on Vertex AI with a Google Cloud service account (LLM_PROVIDER=vertex). The key comes from a

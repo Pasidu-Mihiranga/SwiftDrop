@@ -28,7 +28,7 @@ class OpenAICompatibleProvider:
             request["tools"] = [{"type": "function", "function": {"name": t.name, "description": t.description,
                                                                   "parameters": t.parameters}} for t in tools]
         # Tool calls arrive in fragments keyed by index: the id and name first, the JSON arguments in pieces.
-        partial: dict[int, dict[str, str]] = {}
+        partial: dict[int, dict[str, Any]] = {}
         try:
             stream = await self._client.chat.completions.create(**request)
             async for chunk in stream:
@@ -45,12 +45,19 @@ class OpenAICompatibleProvider:
                         entry["name"] += call.function.name
                     if call.function and call.function.arguments:
                         entry["arguments"] += call.function.arguments
+                    extra = _extra_content(call)
+                    if extra:
+                        entry["extra_content"] = extra
+        except openai.APIStatusError as exc:
+            log.warning("LLM request failed: %s %s", exc.status_code, exc.message)
+            raise LLMUnavailable(type(exc).__name__) from exc
         except openai.OpenAIError as exc:
             log.warning("LLM request failed: %s", type(exc).__name__)
             raise LLMUnavailable(type(exc).__name__) from exc
         for index in sorted(partial):
             entry = partial[index]
-            yield ToolCall(entry["id"] or f"call_{index}", entry["name"], entry["arguments"] or "{}")
+            yield ToolCall(entry["id"] or f"call_{index}", entry["name"], entry["arguments"] or "{}",
+                           entry.get("extra_content"))
 
 
 def _to_openai(message: ChatMessage) -> dict[str, Any]:
@@ -58,6 +65,22 @@ def _to_openai(message: ChatMessage) -> dict[str, Any]:
     if message.tool_call_id:
         out["tool_call_id"] = message.tool_call_id
     if message.tool_calls:
-        out["tool_calls"] = [{"id": c.id, "type": "function", "function": {"name": c.name, "arguments": c.arguments}}
-                             for c in message.tool_calls]
+        calls = []
+        for call in message.tool_calls:
+            item: dict[str, Any] = {"id": call.id, "type": "function",
+                                    "function": {"name": call.name, "arguments": call.arguments}}
+            if call.extra_content:
+                item["extra_content"] = call.extra_content
+            calls.append(item)
+        out["tool_calls"] = calls
     return out
+
+
+def _extra_content(call: Any) -> dict[str, Any] | None:
+    """Gemini attaches a thought signature to a tool-call fragment. Keep the plain dict."""
+    extra = getattr(call, "extra_content", None)
+    if not extra:
+        return None
+    if hasattr(extra, "model_dump"):
+        extra = extra.model_dump(exclude_none=True)
+    return extra if isinstance(extra, dict) else None
