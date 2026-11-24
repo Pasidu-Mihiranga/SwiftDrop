@@ -148,7 +148,7 @@ def build_html(pages):
             ("infra", "Keycloak realm and theme, database init, Kafka topics, observability, Helm charts"),
             ("tests/e2e", "Playwright end-to-end demo suite"),
             ("doc", "Design documentation, diagrams, screenshots, test reports, this report"),
-        ]) + "</table></div>")
+        ]) + "</table>")
     body.append(h(2, "s2-3", "2.3 Setup instructions"))
     body.append("<p>The README gives the full instructions; the essentials are reproduced here.</p>")
     body.append("<table><tr><th>Tool</th><th>Version</th><th>Used for</th></tr>" + "".join(
@@ -179,7 +179,6 @@ def build_html(pages):
                 "image, scans it with Trivy and publishes it to the GitHub Container Registry.</p>")
 
     # ------------------------------------------------------------ 3 design
-    body.append('<div class="page"></div>')
     body.append(h(1, "s3", "3. Design Documentation"))
     body.append("<p>The design documentation is submitted as a PDF, <code>doc/design/SwiftDrop-Design-Documentation.pdf"
                 "</code> (150 pages): the overall system design followed by each of the ten features, each with use "
@@ -205,14 +204,14 @@ def build_html(pages):
                 "gateway, which validates the Keycloak JWT, routes, rate-limits per caller and upgrades WebSockets. "
                 "Each service owns its store and the services integrate through Kafka. Only three services call "
                 "outside systems: e-mail and SMS, signed merchant webhooks, and the LLM provider.</p>")
-    body.append(figure("doc/diagrams/system/system-architecture.png", "Figure 1. System architecture: every service, store and integration"))
+    body.append(figure("doc/diagrams/system/system-architecture.png", "Figure 1. System architecture: every service, store and integration", width="94%"))
     body.append(h(2, "s3-3", "3.3 Event-driven integration"))
     body.append("<p>Seven Kafka topics connect the services. A change and its event are written in one transaction "
                 "(transactional outbox), relayed in key order, and applied by idempotent consumers; each consumer "
                 "has its own dead-letter topic.</p>")
-    body.append(figure("doc/diagrams/system/system-event-flow.png", "Figure 2. Kafka topics, producers and consumers"))
+    body.append(figure("doc/diagrams/system/system-event-flow.png", "Figure 2. Kafka topics, producers and consumers", width="94%"))
     body.append(h(2, "s3-4", "3.4 Deployment"))
-    body.append(figure("doc/diagrams/system/system-deployment.png", "Figure 3. Build, release and run"))
+    body.append(figure("doc/diagrams/system/system-deployment.png", "Figure 3. Build, release and run", width="94%"))
     body.append(h(2, "s3-5", "3.5 Feature designs"))
     folders = {"M1": "m1-identity-access", "M2": "m2-pricing-zones", "M3": "m3-customer-booking", "M4": "m4-courier-operations",
                "M5": "m5-dispatch-workload", "M6": "m6-real-time-tracking", "M7": "m7-merchant-onboarding",
@@ -239,7 +238,6 @@ def build_html(pages):
         f"<tr><td>{a}</td><td>{b}</td></tr>" for a, b in pats) + "</table>")
 
     # ------------------------------------------------------------ 4 tests
-    body.append('<div class="page"></div>')
     body.append(h(1, "s4", "4. Test Reports and Coverage Summary"))
     body.append(h(2, "s4-1", "4.1 Test strategy"))
     body.append("<ul><li><b>Unit tests</b> for domain rules, application services, controllers and UI logic (JUnit 5, "
@@ -274,7 +272,6 @@ def build_html(pages):
             ("no-emoji.yml", "repository policy check")]) + "</table>")
 
     # ------------------------------------------------------------ 5 contribution
-    body.append('<div class="page"></div>')
     body.append(h(1, "s5", "5. Contribution Sheet"))
     body.append("<p>Each member owned one feature end to end: the backend service or module, its web pages, its tests, "
                 "its deployment settings, its Grafana panels and its diagrams, plus one share of the platform work. "
@@ -283,6 +280,10 @@ def build_html(pages):
         f"<tr><td>{mid}</td><td>{e(feat)}</td><td>{e(name) or '-'}</td><td>{e(gh)}</td><td>{idx}</td></tr>"
         for mid, feat, name, gh, idx in MEMBERS) + "</table>")
     body.append(h(2, "s5-1", "5.1 Responsibilities"))
+    body.append("<p class='small'>Shared rules for every member: unit and integration tests for their own code (70% "
+                "or more), their own Kafka topics in <code>contracts/events</code> and OpenAPI contract, feature "
+                "branches named <code>feat/m&lt;N&gt;-&lt;topic&gt;</code>, and their own section in the design "
+                "report. The detailed record of what each member delivered is <code>doc/03-team-contribution.md</code>.</p>")
     for mid, feat, name, gh, idx in MEMBERS:
         backend, frontend, platform, diagrams = split.get(mid, ["", "", "", ""])
         who = f"{name} ({gh})" if name else gh
@@ -293,10 +294,6 @@ def build_html(pages):
                     f"<tr><th>Platform share</th><td>{md_inline(platform)}</td></tr>"
                     f"<tr><th>Diagrams</th><td>{md_inline(diagrams)} (<code>doc/diagrams/{folders[mid]}</code>)</td></tr>"
                     "</table>")
-    body.append("<p class='small'>Shared rules for every member: unit and integration tests for their own code (70% "
-                "or more), their own Kafka topics in <code>contracts/events</code> and OpenAPI contract, feature "
-                "branches named <code>feat/m&lt;N&gt;-&lt;topic&gt;</code>, and their own section in the design "
-                "report. The detailed record of what each member delivered is <code>doc/03-team-contribution.md</code>.</p>")
 
     # ------------------------------------------------------------ appendix
     body.append('<div class="page"></div>')
@@ -337,6 +334,9 @@ def build_html(pages):
 
 def render(pages):
     doc_html, items = build_html(pages)
+    # A first row made only of header cells becomes <thead>, which Chrome repeats on every page a
+    # table runs onto. Key-value tables (a header cell beside data cells) are left alone.
+    doc_html = re.sub(r"<table>(<tr>(?:<th[^>]*>(?:(?!</th>).)*</th>)+</tr>)", lambda m: f"<table><thead>{m.group(1)}</thead>", doc_html)
     BUILD.mkdir(parents=True, exist_ok=True)
     tmp = BUILD / "final-report.html"
     tmp.write_text(doc_html, encoding="utf-8")
