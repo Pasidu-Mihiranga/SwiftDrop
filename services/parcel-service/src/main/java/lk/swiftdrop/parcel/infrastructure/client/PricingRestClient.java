@@ -68,6 +68,11 @@ public class PricingRestClient implements PricingPort, QuotePort {
                 .build());
     }
 
+    /** The circuit breaker's current state, for the metrics gauge. */
+    public CircuitBreaker.State circuitState() {
+        return circuitBreaker.getState();
+    }
+
     @Override
     public Optional<Quote> findQuote(UUID quoteId) {
         try {

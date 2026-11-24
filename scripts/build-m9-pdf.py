@@ -7,8 +7,8 @@ import subprocess
 
 DOC_DIR = os.path.join(os.path.dirname(__file__), "..", "doc")
 HTML_PATH = os.path.join(DOC_DIR, "m9-design-documentation.html")
-PDF_PATH = os.path.join(DOC_DIR, "M9-Design-Documentation.pdf")
-DIAGRAMS_DIR = os.path.join(DOC_DIR, "diagrams", "m9")
+PDF_PATH = os.path.join(DOC_DIR, "design", "m9-notifications-receipts-design.pdf")
+DIAGRAMS_DIR = os.path.join(DOC_DIR, "diagrams", "m9-notifications-receipts")
 
 FONT_STACK = "'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif"
 
@@ -209,7 +209,7 @@ table.clean-table tr:last-child td {{
 def page_shell(page_num, content_html, is_cover=False):
     footer = f"""
     <div class="doc-footer">
-      <div class="note">Diagram sources: doc/diagrams/m9/*.svg in the SwiftDrop repository, with matching PNG exports for the design PDF. Example values (fees, tracking numbers) are illustrative.</div>
+      <div class="note">Diagram sources: doc/diagrams/m9-notifications-receipts/*.svg in the SwiftDrop repository, with matching PNG exports for the design PDF. Example values (fees, tracking numbers) are illustrative.</div>
       <div class="page-num">Page {page_num} of 16</div>
     </div>
     """
@@ -259,7 +259,7 @@ their historical orders and download cryptographically sound PDF delivery receip
 </div>
 <div class="figure-card">
   <div class="figure-heading"><span class="label">FIGURE 1</span> Use cases: notifications, delivery history and receipts</div>
-  <div class="figure-img-wrap"><img src="diagrams/m9/fig1-usecases.svg" class="figure-img"/></div>
+  <div class="figure-img-wrap"><img src="diagrams/m9-notifications-receipts/01-use-cases.svg" class="figure-img"/></div>
   <div class="figure-caption">
     Customers view delivery history, download receipts, and configure preferences; couriers trigger notifications through status updates; admins review demo SMS records.
     «include» points to the use case that is always included; «extend» points to the use case it extends.
@@ -277,7 +277,7 @@ Notifications are stored in MongoDB: notification-service maintains <code>notifi
 </div>
 <div class="figure-card">
   <div class="figure-heading"><span class="label">FIGURE 2</span> Data model: notifications MongoDB and receipt relational source</div>
-  <div class="figure-img-wrap"><img src="diagrams/m9/fig2-datamodel.svg" class="figure-img"/></div>
+  <div class="figure-img-wrap"><img src="diagrams/m9-notifications-receipts/02-er-diagram.svg" class="figure-img"/></div>
   <div class="figure-caption">
     notifications db holds document collections in MongoDB with a 7-day TTL on processed events. Receipts are projected in memory from parcel, status history, and delivery proof in parcels_db.
     Solid line with crow's foot: a real one-to-many relationship. Dashed arrow: records referenced by ID or derived by projection.
@@ -326,7 +326,7 @@ pages.append(page_shell(4, p4))
 p5 = """
 <div class="figure-card" style="height: 100%;">
   <div class="figure-heading"><span class="label">FIGURE 3</span> Architecture: layered microservices with a BFF</div>
-  <div class="figure-img-wrap"><img src="diagrams/m9/fig3-architecture.svg" class="figure-img" style="max-height: 480px;"/></div>
+  <div class="figure-img-wrap"><img src="diagrams/m9-notifications-receipts/03-architecture.svg" class="figure-img" style="max-height: 480px;"/></div>
   <div class="figure-caption">
     Four tiers with unified observability. Sapuni Madhushika's notification-service sits in the application tier consuming Kafka events, while receipt generation is embedded in parcel-service; all services export telemetry to Grafana Alloy.
   </div>
@@ -339,7 +339,7 @@ p6 = """
 <div class="section-title">4 Integration design</div>
 <div class="figure-card">
   <div class="figure-heading"><span class="label">FIGURE 4</span> Integration design: the patterns Sapuni Madhushika's services rely on</div>
-  <div class="figure-img-wrap"><img src="diagrams/m9/fig4-integration.svg" class="figure-img"/></div>
+  <div class="figure-img-wrap"><img src="diagrams/m9-notifications-receipts/04-integration-design.svg" class="figure-img"/></div>
   <div class="figure-caption">
     Numbers match the pattern table. Asynchronous patterns (1-5) ingest events and dispatch notifications; synchronous ones (6-10) serve users browsing history and downloading receipts.
   </div>
@@ -377,7 +377,7 @@ Flow 5 is Sapuni Madhushika's part of the shared courier status update flow. Flo
 </div>
 <div class="figure-card">
   <div class="figure-heading"><span class="label">FIGURE 5</span> Sequence: a courier status update triggers email and SMS notifications</div>
-  <div class="figure-img-wrap"><img src="diagrams/m9/fig5-sequence-notification.svg" class="figure-img"/></div>
+  <div class="figure-img-wrap"><img src="diagrams/m9-notifications-receipts/05-seq-notification.svg" class="figure-img"/></div>
   <div class="figure-caption">
     The event that triggers live tracking and webhooks is consumed independently by notification-service. A duplicate delivery is detected via processed_event and rejected without producing duplicate emails.
   </div>
@@ -389,7 +389,7 @@ pages.append(page_shell(8, p8))
 p9 = """
 <div class="figure-card" style="height: 100%;">
   <div class="figure-heading"><span class="label">FIGURE 6</span> Sequence: a customer downloads a delivery receipt (PDF)</div>
-  <div class="figure-img-wrap"><img src="diagrams/m9/fig6-sequence-receipt.svg" class="figure-img" style="max-height: 480px;"/></div>
+  <div class="figure-img-wrap"><img src="diagrams/m9-notifications-receipts/06-seq-receipt.svg" class="figure-img" style="max-height: 480px;"/></div>
   <div class="figure-caption">
     The browser never holds the access token: the BFF adds it server-side. ParcelAccessPolicy ensures customers cannot download receipts for other customers' parcels; non-delivered parcels return 409 Conflict.
   </div>
@@ -401,7 +401,7 @@ pages.append(page_shell(9, p9))
 p10 = """
 <div class="figure-card" style="height: 100%;">
   <div class="figure-heading"><span class="label">FIGURE 7</span> Sequence: a user configures notification preferences</div>
-  <div class="figure-img-wrap"><img src="diagrams/m9/fig7-sequence-preferences.svg" class="figure-img" style="max-height: 480px;"/></div>
+  <div class="figure-img-wrap"><img src="diagrams/m9-notifications-receipts/07-seq-preferences.svg" class="figure-img" style="max-height: 480px;"/></div>
   <div class="figure-caption">
     User preferences are queried and updated through the Next.js BFF. The notification-service updates MongoDB with upsert semantics, returning an immediate acknowledgment.
   </div>
@@ -413,7 +413,7 @@ pages.append(page_shell(10, p10))
 p11 = """
 <div class="figure-card" style="height: 100%;">
   <div class="figure-heading"><span class="label">FIGURE 8</span> Sequence: in-app notification & live bell update</div>
-  <div class="figure-img-wrap"><img src="diagrams/m9/fig8-sequence-bell.svg" class="figure-img" style="max-height: 480px;"/></div>
+  <div class="figure-img-wrap"><img src="diagrams/m9-notifications-receipts/08-seq-notification-bell.svg" class="figure-img" style="max-height: 480px;"/></div>
   <div class="figure-caption">
     In addition to SMTP email and SMS outbox records, in-app notifications are persisted to MongoDB and broadcast via Redis pub/sub to tracking-service, updating the browser notification bell live.
   </div>
@@ -425,7 +425,7 @@ pages.append(page_shell(11, p11))
 p12 = """
 <div class="figure-card" style="height: 100%;">
   <div class="figure-heading"><span class="label">FIGURE 9</span> Sequence: admin reviews the demo SMS inbox</div>
-  <div class="figure-img-wrap"><img src="diagrams/m9/fig9-sequence-sms-inbox.svg" class="figure-img" style="max-height: 480px;"/></div>
+  <div class="figure-img-wrap"><img src="diagrams/m9-notifications-receipts/09-seq-sms-inbox.svg" class="figure-img" style="max-height: 480px;"/></div>
   <div class="figure-caption">
     The demo SMS inbox gives evaluators and administrators instant visual confirmation of outgoing SMS dispatches. Gateway enforces the ADMIN role; non-admin users receive 403 problem+json.
   </div>
@@ -437,7 +437,7 @@ pages.append(page_shell(12, p12))
 p13 = """
 <div class="figure-card" style="height: 100%;">
   <div class="figure-heading"><span class="label">FIGURE 10</span> Activity: notification dispatch and channel selection loop</div>
-  <div class="figure-img-wrap"><img src="diagrams/m9/fig10-activity-dispatch.svg" class="figure-img" style="max-height: 480px;"/></div>
+  <div class="figure-img-wrap"><img src="diagrams/m9-notifications-receipts/10-activity-dispatch.svg" class="figure-img" style="max-height: 480px;"/></div>
   <div class="figure-caption">
     Every guardrail is a decision in this loop: deduplication check, preference resolution, parallel channel dispatch, audit logging, and dead-letter queue routing on persistent failure.
   </div>
@@ -450,7 +450,7 @@ p14 = """
 <div class="section-title">6 Design patterns and principles</div>
 <div class="figure-card">
   <div class="figure-heading"><span class="label">FIGURE 11</span> Design patterns in notification-service</div>
-  <div class="figure-img-wrap"><img src="diagrams/m9/fig11-patterns-notification.svg" class="figure-img"/></div>
+  <div class="figure-img-wrap"><img src="diagrams/m9-notifications-receipts/11-class-notification.svg" class="figure-img"/></div>
   <div class="figure-caption">
     Strategy for notification channels (Email, Mock SMS, future providers), Facade for channel dispatch, Adapter for SMTP, and Repository for MongoDB access.
     Dashed open arrow: depends on. Solid open arrow: composition. Dashed hollow triangle: implements.
@@ -463,7 +463,7 @@ pages.append(page_shell(14, p14))
 p15 = """
 <div class="figure-card" style="height: 100%;">
   <div class="figure-heading"><span class="label">FIGURE 12</span> Design patterns in parcel-service receipt generation</div>
-  <div class="figure-img-wrap"><img src="diagrams/m9/fig12-patterns-receipt.svg" class="figure-img" style="max-height: 480px;"/></div>
+  <div class="figure-img-wrap"><img src="diagrams/m9-notifications-receipts/12-class-receipt.svg" class="figure-img" style="max-height: 480px;"/></div>
   <div class="figure-caption">
     Layered and hexagonal: controller and OpenPDF generator are adapters around domain policies and application services; access policy ensures strict tenant isolation.
   </div>

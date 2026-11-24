@@ -1,0 +1,55 @@
+%%{init: {"theme": "base", "fontFamily": "'Segoe UI', 'Helvetica Neue', Arial, sans-serif", "themeVariables": {"fontFamily": "'Segoe UI', 'Helvetica Neue', Arial, sans-serif", "fontSize": "15px", "background": "#ffffff", "primaryColor": "#ffffff", "primaryTextColor": "#111111", "primaryBorderColor": "#111111", "secondaryColor": "#ffffff", "tertiaryColor": "#ececec", "lineColor": "#111111", "textColor": "#111111", "mainBkg": "#ffffff", "nodeBorder": "#111111", "clusterBkg": "#ececec", "clusterBorder": "#d4d4d4", "titleColor": "#555555", "edgeLabelBackground": "#ffffff", "actorBkg": "#ffffff", "actorBorder": "#111111", "actorTextColor": "#111111", "actorLineColor": "#555555", "signalColor": "#111111", "signalTextColor": "#111111", "labelBoxBkgColor": "#ffffff", "labelBoxBorderColor": "#111111", "labelTextColor": "#111111", "loopTextColor": "#111111", "noteBkgColor": "#ffffff", "noteBorderColor": "#111111", "noteTextColor": "#111111", "activationBkgColor": "#ffffff", "activationBorderColor": "#111111", "sequenceNumberColor": "#ffffff", "altSectionBkgColor": "#ffffff", "stateBkg": "#ffffff", "stateBorder": "#111111", "compositeBackground": "#ececec", "transitionColor": "#111111", "transitionLabelColor": "#111111", "classText": "#111111", "attributeBackgroundColorOdd": "#ffffff", "attributeBackgroundColorEven": "#f5f5f5", "stateLabelColor": "#111111", "nodeTextColor": "#111111", "labelColor": "#111111", "specialStateColor": "#111111", "innerEndBackground": "#111111"}}}%%
+%% M1 flow: admin creates a courier (or dispatcher) account.
+%% user-service calls the Keycloak Admin REST API through an outbound port (Adapter pattern) using the
+%% user-service-admin service account (client credentials). Endpoint: POST /api/v1/admin/users.
+sequenceDiagram
+    autonumber
+    actor A as Admin (browser)
+    participant W as Admin users page<br/>+ BFF
+    participant GW as api-gateway
+    participant UC as AdminUserController<br/>(api)
+    participant S as AdminUserService<br/>(application)
+    participant KA as KeycloakAdminAdapter<br/>(IdentityAdminPort)
+    participant KC as Keycloak<br/>Admin REST API
+    participant DB as users_db
+    A->>W: fill form: e-mail, full name, phone, role COURIER, vehicle, home zone, daily capacity
+    W->>W: Zod schema validation (same rules as the API)
+    W->>GW: POST /api/v1/admin/users (bearer, via BFF)
+    GW->>UC: forward (JWT valid)
+    UC->>UC: @PreAuthorize("hasRole('ADMIN')") + Bean Validation: e-mail format, phone ^(\+94|0)7[0-9]{8}$, role in COURIER | DISPATCHER | ADMIN
+    alt caller is not ADMIN, or the body is invalid
+        UC-->>W: 403 FORBIDDEN or 400 VALIDATION_FAILED problem+json (field names only, values never echoed)
+    else valid ADMIN request
+        UC->>S: createStaffUser(command)
+        S->>KA: createUser(email, name, role)
+        opt no cached service-account token
+            KA->>KC: POST /realms/swiftdrop/protocol/openid-connect/token grant_type=client_credentials, client user-service-admin
+            KC-->>KA: access token (realm-management: manage-users)
+        end
+        KA->>KC: POST /admin/realms/swiftdrop/users {email, firstName, lastName, enabled}
+        alt e-mail already registered
+            KC-->>KA: 409 Conflict
+            KA-->>S: IdentityConflictException
+            S-->>UC: ConflictException EMAIL_ALREADY_REGISTERED
+            UC-->>W: 409 problem+json
+        else created
+            KC-->>KA: 201 Location: .../users/{keycloakId}
+            KA->>KC: POST /users/{keycloakId}/role-mappings/realm [COURIER]
+            KC-->>KA: 204
+            KA->>KC: PUT /users/{keycloakId}/execute-actions-email [UPDATE_PASSWORD]
+            KC->>KC: send the set-your-password e-mail through realm SMTP (Mailpit locally), no password ever passes through SwiftDrop
+            KC-->>KA: 204
+            KA-->>S: keycloakId
+            S->>DB: INSERT user_profile (id = keycloakId), user_role, courier_profile (one transaction)
+            alt database write fails
+                DB-->>S: error
+                S->>KA: compensate: deleteUser(keycloakId)
+                S-->>UC: ApiException (no half-created account remains)
+            else committed
+                DB-->>S: ok
+                S-->>UC: StaffUser
+                UC-->>W: 201 Created, Location /api/v1/admin/users/{id}
+                W-->>A: courier listed as 'invitation sent'
+            end
+        end
+    end

@@ -18,4 +18,8 @@ interface DistanceBandJpaRepository extends JpaRepository<PricingExtensionEntiti
             ORDER BY b.minKm ASC, b.effectiveFrom DESC
             """)
     List<PricingExtensionEntities.Band> findInForce(@Param("on") LocalDate on);
+
+    List<PricingExtensionEntities.Band> findAllByOrderByEffectiveFromDescMinKmAsc();
+
+    boolean existsByEffectiveFromGreaterThanEqual(LocalDate day);
 }

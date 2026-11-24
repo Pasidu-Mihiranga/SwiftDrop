@@ -86,6 +86,61 @@ redis:
     limits:
       memory: 256Mi
 
+# The datastores the event-driven services need. Off by default so a pricing-only install stays
+# small; values-full.yaml turns them on. Production should use Strimzi or managed Kafka, managed
+# MongoDB and S3, and a real SMTP relay instead.
+kafka:
+  enabled: false
+  image: apache/kafka:4.1.2
+  # The Service the brokers advertise; global.commonConfig.KAFKA_BOOTSTRAP_SERVERS must match.
+  serviceName: kafka
+  # Any fixed base64 UUID works for a single dev node (same value as docker-compose.yml).
+  clusterId: MkU3OEVBNTcwNTJENDM2Qk
+  heapOpts: "-Xms256m -Xmx512m"
+  storage: 2Gi
+  topics:
+    # ConfigMap holding create-topics.sh (scripts/kind-deploy.sh creates it from
+    # infra/kafka/create-topics.sh). Empty: no topic Job, create them yourself.
+    configMapName: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+
+mongodb:
+  enabled: false
+  image: mongo:7.0.45
+  storage: 1Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 768Mi
+
+objectStorage:
+  enabled: false
+  image: rustfs/rustfs:1.0.3
+  storage: 1Gi
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      memory: 512Mi
+
+mailpit:
+  enabled: false
+  image: axllent/mailpit:v1.32.0
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+
 # Road routing for same-day pricing. Off by default: the first start downloads the Sri Lanka
 # extract and builds a routing graph (about 2 minutes, 1.3 GB of memory, 1 GB of disk). To use
 # it, enable this and set pricing-service.config.OSRM_URL to http://osrm:5000. Without it,

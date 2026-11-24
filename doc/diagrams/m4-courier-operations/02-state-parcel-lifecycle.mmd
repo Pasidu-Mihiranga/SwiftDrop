@@ -1,0 +1,20 @@
+%%{init: {"theme": "base", "fontFamily": "'Segoe UI', 'Helvetica Neue', Arial, sans-serif", "themeVariables": {"fontFamily": "'Segoe UI', 'Helvetica Neue', Arial, sans-serif", "fontSize": "15px", "background": "#ffffff", "primaryColor": "#ffffff", "primaryTextColor": "#111111", "primaryBorderColor": "#111111", "secondaryColor": "#ffffff", "tertiaryColor": "#ececec", "lineColor": "#111111", "textColor": "#111111", "mainBkg": "#ffffff", "nodeBorder": "#111111", "clusterBkg": "#ececec", "clusterBorder": "#d4d4d4", "titleColor": "#555555", "edgeLabelBackground": "#ffffff", "actorBkg": "#ffffff", "actorBorder": "#111111", "actorTextColor": "#111111", "actorLineColor": "#555555", "signalColor": "#111111", "signalTextColor": "#111111", "labelBoxBkgColor": "#ffffff", "labelBoxBorderColor": "#111111", "labelTextColor": "#111111", "loopTextColor": "#111111", "noteBkgColor": "#ffffff", "noteBorderColor": "#111111", "noteTextColor": "#111111", "activationBkgColor": "#ffffff", "activationBorderColor": "#111111", "sequenceNumberColor": "#ffffff", "altSectionBkgColor": "#ffffff", "stateBkg": "#ffffff", "stateBorder": "#111111", "compositeBackground": "#ececec", "transitionColor": "#111111", "transitionLabelColor": "#111111", "classText": "#111111", "attributeBackgroundColorOdd": "#ffffff", "attributeBackgroundColorEven": "#f5f5f5", "stateLabelColor": "#111111", "nodeTextColor": "#111111", "labelColor": "#111111", "specialStateColor": "#111111", "innerEndBackground": "#111111"}}}%%
+%% Parcel lifecycle (M4). Source of truth: services/parcel-service/.../domain/state/ParcelStates.java.
+%% Any other transition is refused with 422 INVALID_STATUS_TRANSITION.
+stateDiagram-v2
+  [*] --> CREATED: customer books / merchant order (quote accepted)
+  CREATED --> PICKED_UP: courier collects
+  CREATED --> CANCELLED: customer cancels
+  PICKED_UP --> IN_TRANSIT: courier
+  IN_TRANSIT --> OUT_FOR_DELIVERY: courier
+  OUT_FOR_DELIVERY --> DELIVERED: courier, proof required (name and/or photo)
+  OUT_FOR_DELIVERY --> FAILED: courier, failure reason required
+  FAILED --> OUT_FOR_DELIVERY: dispatcher re-attempts (couriers cannot)
+  DELIVERED --> [*]
+  CANCELLED --> [*]
+
+  note right of OUT_FOR_DELIVERY
+    Every change: parcel row, history row and
+    ParcelStatusChanged (outbox) in one transaction;
+    a concurrent update gets 409 PARCEL_MODIFIED.
+  end note

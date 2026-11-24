@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { MerchantCredentialsForm } from "@/components/merchant-credentials-form";
 import { MerchantNav } from "@/components/merchant-nav";
 import { statusLabel, statusPillClass, type Merchant } from "@/lib/merchant";
@@ -46,6 +47,16 @@ export default async function MerchantCredentialsPage() {
             {merchant.status === "SUSPENDED"
               ? "This merchant account is suspended, so new secrets cannot be issued and API orders are refused. Contact SwiftDrop support."
               : "API credentials are available once your business is approved."}
+          </p>
+        ) : null}
+
+        {!loadError && !merchant ? (
+          <p className="notice-info">
+            There is no merchant application for this account yet, so there are no API credentials to issue.{" "}
+            <Link href="/merchant/register" className="font-medium text-brand-700 hover:underline">
+              Register your business
+            </Link>{" "}
+            and they become available here once SwiftDrop approves it.
           </p>
         ) : null}
 

@@ -5,6 +5,12 @@ name: CI · Kubernetes end to end
 # everything it creates, secrets included, disappears with the runner.
 on:
   workflow_dispatch:
+    inputs:
+      profile:
+        description: "dev: the pricing slice; full: every service with Kafka, MongoDB, RustFS and Mailpit"
+        type: choice
+        options: [dev, full]
+        default: dev
   pull_request:
     paths:
       - "infra/helm/**"
@@ -25,7 +31,10 @@ jobs:
   kind:
     name: install · demo
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
+    env:
+      # Pull requests run the dev slice; the full stack is a manual run (Actions, Run workflow).
+      SWIFTDROP_PROFILE: ${{ inputs.profile || 'dev' }}
     steps:
       - uses: actions/checkout@v5
       - uses: azure/setup-helm@v4

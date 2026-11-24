@@ -518,6 +518,7 @@ const PRICING_ERROR_MESSAGES: Record<string, string> = {
   VEHICLE_NOT_OFFERED: "That vehicle is not available for same-day delivery just now.",
   TOO_MANY_SPECIAL_HANDLING: "Choose fewer handling options and try again.",
   DISTANCE_UNAVAILABLE: "We could not measure that route just now. Please try again shortly.",
+  SAME_DAY_CUTOFF_PASSED: "Same-day orders for today have closed. Choose express or standard, or book same-day tomorrow.",
 };
 
 /** A customer-safe message for a pricing error code, or undefined when the code is not one of these. */
@@ -719,4 +720,285 @@ export function laneLabel(fromZone: string, toZone: string): string {
  */
 export function isoDate(date: Date = new Date()): string {
   return date.toLocaleDateString("en-CA", { timeZone: "Asia/Colombo" });
+}
+
+/**
+ * Serializes the pricing calculator form and optional quote reference into a `/customer/book?...`
+ * URL so a customer moving from "Get a price" to "Book a Delivery" keeps every pricing choice.
+ */
+export function quoteToBookingHref(values: QuoteFormValues, quote?: Quote): string {
+  const params = new URLSearchParams();
+  const fromDistrict = values.fromDistrict.trim() || quote?.fromDistrict || "";
+  const toDistrict = values.toDistrict.trim() || quote?.toDistrict || "";
+  const weightKg = values.weightKg.trim() || (quote?.weightKg ? String(quote.weightKg) : "");
+
+  if (quote?.quoteId) params.set("quoteId", quote.quoteId);
+  if (fromDistrict) params.set("fromDistrict", fromDistrict);
+  if (toDistrict) params.set("toDistrict", toDistrict);
+  if (values.fromAddress.trim()) params.set("fromAddress", values.fromAddress.trim());
+  if (values.toAddress.trim()) params.set("toAddress", values.toAddress.trim());
+  if (weightKg) params.set("weightKg", weightKg);
+  if (values.sizeClass && isSizeClass(values.sizeClass)) params.set("sizeClass", values.sizeClass);
+  if (values.serviceLevel && isServiceLevel(values.serviceLevel)) params.set("serviceLevel", values.serviceLevel);
+  if (values.serviceLevel === "SAME_DAY" && values.vehicleType && isVehicleType(values.vehicleType)) {
+    params.set("vehicleType", values.vehicleType);
+  }
+  if (values.codAmount.trim()) params.set("codAmount", values.codAmount.trim());
+  if (values.declaredValue.trim()) params.set("declaredValue", values.declaredValue.trim());
+  if (values.lengthCm.trim()) params.set("lengthCm", values.lengthCm.trim());
+  if (values.widthCm.trim()) params.set("widthCm", values.widthCm.trim());
+  if (values.heightCm.trim()) params.set("heightCm", values.heightCm.trim());
+  if (values.specialHandling.length > 0) params.set("specialHandling", values.specialHandling.join(","));
+
+  if (values.fromPoint) {
+    params.set("fromLat", String(roundCoordinate(values.fromPoint.latitude)));
+    params.set("fromLng", String(roundCoordinate(values.fromPoint.longitude)));
+  }
+  if (values.toPoint) {
+    params.set("toLat", String(roundCoordinate(values.toPoint.latitude)));
+    params.set("toLng", String(roundCoordinate(values.toPoint.longitude)));
+  }
+
+  const query = params.toString();
+  return query ? `/customer/book?${query}` : "/customer/book";
+}
+
+function firstParam(value: string | string[] | undefined): string | undefined {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const trimmed = raw?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function parseFiniteNumberString(raw: string | undefined, allowZero: boolean): string | undefined {
+  if (!raw) return undefined;
+  const num = Number(raw);
+  if (!Number.isFinite(num)) return undefined;
+  if (allowZero ? num < 0 : num <= 0) return undefined;
+  return raw;
+}
+
+function parseGeoPick(latRaw: string | undefined, lngRaw: string | undefined): GeoPick | undefined {
+  if (!latRaw || !lngRaw) return undefined;
+  const lat = Number(latRaw);
+  const lng = Number(lngRaw);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return undefined;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return undefined;
+  return { latitude: roundCoordinate(lat), longitude: roundCoordinate(lng) };
+}
+
+/**
+ * Restores initial pricing values passed from `/quote` query params so `/customer/book` opens with
+ * consistent districts, pinned map coordinates, dimensions, and add-on options.
+ */
+export function quoteFromSearchParams(
+  params: Record<string, string | string[] | undefined>,
+): Partial<QuoteFormValues> {
+  const result: Partial<QuoteFormValues> = {};
+
+  const fromDistrict = firstParam(params.fromDistrict);
+  const toDistrict = firstParam(params.toDistrict);
+  const fromAddress = firstParam(params.fromAddress);
+  const toAddress = firstParam(params.toAddress);
+  const weightKg = parseFiniteNumberString(firstParam(params.weightKg), false);
+  const sizeClass = firstParam(params.sizeClass);
+  const serviceLevel = firstParam(params.serviceLevel);
+  const vehicleType = firstParam(params.vehicleType);
+  const codAmount = parseFiniteNumberString(firstParam(params.codAmount), true);
+  const declaredValue = parseFiniteNumberString(firstParam(params.declaredValue), true);
+  const lengthCm = parseFiniteNumberString(firstParam(params.lengthCm), false);
+  const widthCm = parseFiniteNumberString(firstParam(params.widthCm), false);
+  const heightCm = parseFiniteNumberString(firstParam(params.heightCm), false);
+  const handlingRaw = firstParam(params.specialHandling);
+  const fromPoint = parseGeoPick(firstParam(params.fromLat), firstParam(params.fromLng));
+  const toPoint = parseGeoPick(firstParam(params.toLat), firstParam(params.toLng));
+
+  if (fromDistrict) result.fromDistrict = fromDistrict;
+  if (toDistrict) result.toDistrict = toDistrict;
+  if (fromAddress) result.fromAddress = fromAddress;
+  if (toAddress) result.toAddress = toAddress;
+  if (weightKg) result.weightKg = weightKg;
+  if (sizeClass && isSizeClass(sizeClass)) result.sizeClass = sizeClass;
+  if (serviceLevel && isServiceLevel(serviceLevel)) result.serviceLevel = serviceLevel;
+  if (vehicleType && isVehicleType(vehicleType)) result.vehicleType = vehicleType;
+  if (codAmount) result.codAmount = codAmount;
+  if (declaredValue) result.declaredValue = declaredValue;
+  if (lengthCm) result.lengthCm = lengthCm;
+  if (widthCm) result.widthCm = widthCm;
+  if (heightCm) result.heightCm = heightCm;
+  if (handlingRaw) {
+    const items = handlingRaw
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, MAX_SPECIAL_HANDLING);
+    if (items.length > 0) result.specialHandling = items;
+  }
+  if (fromPoint) result.fromPoint = fromPoint;
+  if (toPoint) result.toPoint = toPoint;
+
+  return result;
+}
+
+/** The quote id `/quote` hands to `/customer/book`, if it is a well-formed UUID. */
+export function quoteIdFromSearchParams(params: Record<string, string | string[] | undefined>): string | undefined {
+  const value = firstParam(params.quoteId)?.trim();
+  return value && isUuid(value) ? value : undefined;
+}
+
+/**
+ * Whether a carried quote can stand for the current form: it must still be valid and the form must
+ * ask for exactly the same pricing request it was issued for. Anything else needs a fresh quote.
+ */
+export function canReuseQuote(
+  carried: { quote: Quote; request: QuoteRequestBody } | null | undefined,
+  request: QuoteRequestBody,
+  now: Date,
+): boolean {
+  if (!carried) return false;
+  if (quoteLifetime(carried.quote.expiresAt, now).expired) return false;
+  return JSON.stringify(carried.request) === JSON.stringify(request);
+}
+
+// ------------------------------------------------------------------ fee settings (admin)
+
+/** One published version of the fee-wide settings. Percentages are fractions, as the API sends them. */
+export interface PricingSettingsVersion {
+  id: string;
+  fuelSurchargePct: number;
+  taxPct: number;
+  minimumCharge: number;
+  /** "HH:mm:ss" local time from which same-day is refused for today, or null for no cut-off. */
+  sameDayCutoff: string | null;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+}
+
+export interface DistanceBandVersion {
+  id: string;
+  minKm: number;
+  maxKm: number | null;
+  lineHaulFee: number;
+  standardTransitDays: number;
+  expressTransitDays: number;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+}
+
+export interface SpecialHandlingConfig {
+  code: string;
+  label: string;
+  fee: number;
+  active: boolean;
+  sortOrder: number;
+}
+
+export interface SameDayVehicleConfig {
+  code: VehicleType;
+  label: string;
+  maxWeightKg: number;
+  maxDistanceKm: number;
+  rateMultiplier: number;
+  active: boolean;
+}
+
+export interface DistanceBandInput {
+  minKm: number;
+  maxKm: number | null;
+  lineHaulFee: number;
+  standardTransitDays: number;
+  expressTransitDays: number;
+}
+
+/**
+ * A percentage typed by an administrator ("18" or "18.5") as the fraction the API takes. Returns
+ * undefined for anything that is not a percentage from 0 up to, not including, 100.
+ */
+export function percentToFraction(text: string): number | undefined {
+  const trimmed = text.trim();
+  if (trimmed === "") return undefined;
+  const value = Number(trimmed);
+  if (!Number.isFinite(value) || value < 0 || value >= 100) return undefined;
+  // Rounded to the four places the API keeps, so 7.25 is 0.0725 and not 0.07250000000000001.
+  return Math.round(value * 100) / 10000;
+}
+
+/** The fraction shown back in the percentage field, without float noise. */
+export function fractionToPercentText(fraction: number): string {
+  return String(Math.round(fraction * 1000000) / 10000);
+}
+
+/** "14:00:00" as "14:00"; "No cut-off" when there is none. */
+export function formatCutoff(cutoff: string | null | undefined): string {
+  if (!cutoff) return "No cut-off";
+  return cutoff.slice(0, 5);
+}
+
+/** The settings version that governs quotes on a day, if any. */
+export function settingsInForce(
+  versions: readonly PricingSettingsVersion[],
+  on: string,
+): PricingSettingsVersion | undefined {
+  return versions.find((version) => isInForceOn(version, on));
+}
+
+/** Bands grouped into the sets they were published in, newest set first, each set by distance. */
+export function bandSets(bands: readonly DistanceBandVersion[]): { effectiveFrom: string; effectiveTo?: string | null; bands: DistanceBandVersion[] }[] {
+  const byStart = new Map<string, DistanceBandVersion[]>();
+  for (const band of bands) {
+    byStart.set(band.effectiveFrom, [...(byStart.get(band.effectiveFrom) ?? []), band]);
+  }
+  return [...byStart.entries()]
+    .sort(([left], [right]) => (left < right ? 1 : left > right ? -1 : 0))
+    .map(([effectiveFrom, members]) => ({
+      effectiveFrom,
+      effectiveTo: members[0]?.effectiveTo ?? null,
+      bands: [...members].sort((left, right) => left.minKm - right.minKm),
+    }));
+}
+
+/** "0 to 30 km", or "300 km and over" for the open-ended band. */
+export function describeBandRange(band: { minKm: number; maxKm: number | null }): string {
+  return band.maxKm === null ? `${band.minKm} km and over` : `${band.minKm} to ${band.maxKm} km`;
+}
+
+/**
+ * The band rows of the admin form as a complete set. Each row gives where its band ends; a band
+ * starts where the previous one ended, so the set has no gaps by construction, and the last filled
+ * row must leave its end blank so every distance is priced.
+ */
+export function parseDistanceBands(
+  rows: readonly { upToKm: string; lineHaulFee: string; standardDays: string; expressDays: string }[],
+): { ok: true; bands: DistanceBandInput[] } | { ok: false; message: string } {
+  const filled = rows.filter((row) => Object.values(row).some((value) => value.trim() !== ""));
+  if (filled.length === 0) return { ok: false, message: "Add at least one distance band." };
+
+  const bands: DistanceBandInput[] = [];
+  let start = 0;
+  for (const [index, row] of filled.entries()) {
+    const last = index === filled.length - 1;
+    const upTo = row.upToKm.trim();
+    if (last && upTo !== "") {
+      return { ok: false, message: "Leave the last band's end blank so every longer distance is priced." };
+    }
+    if (!last && upTo === "") return { ok: false, message: "Only the last band may be left without an end." };
+    const maxKm = last ? null : Number(upTo);
+    if (maxKm !== null && (!Number.isFinite(maxKm) || maxKm <= start)) {
+      return { ok: false, message: `Each band must end after it starts (${start} km), and the ends must go up.` };
+    }
+    const lineHaulFee = Number(row.lineHaulFee.trim());
+    const standardTransitDays = Number(row.standardDays.trim());
+    const expressTransitDays = Number(row.expressDays.trim());
+    if (row.lineHaulFee.trim() === "" || !Number.isFinite(lineHaulFee) || lineHaulFee < 0) {
+      return { ok: false, message: "Each band needs a line-haul fee of 0 or more." };
+    }
+    if (![standardTransitDays, expressTransitDays].every((days) => Number.isInteger(days) && days >= 1 && days <= 30)) {
+      return { ok: false, message: "Transit days are whole numbers from 1 to 30." };
+    }
+    if (expressTransitDays > standardTransitDays) {
+      return { ok: false, message: "Express cannot take longer than standard." };
+    }
+    bands.push({ minKm: start, maxKm, lineHaulFee, standardTransitDays, expressTransitDays });
+    if (maxKm !== null) start = maxKm;
+  }
+  return { ok: true, bands };
 }

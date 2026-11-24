@@ -15,7 +15,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import lk.swiftdrop.user.domain.model.ProfileStatus;
 import lk.swiftdrop.user.domain.model.UserRole;
-import lk.swiftdrop.user.infrastructure.crypto.EncryptedStringConverter;
+import lk.swiftdrop.common.pii.EncryptedStringConverter;
 
 import java.time.Instant;
 import java.util.EnumSet;

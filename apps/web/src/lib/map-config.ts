@@ -6,6 +6,11 @@ export interface MapConfig {
   tileUrl: string;
   /** The attribution the tile provider requires, shown on the map. */
   attribution: string;
+  /**
+   * Present when pricing-service has a geocoder (ADDRESS_SEARCH_ENABLED=true), with the attribution
+   * its data requires. Absent leaves the map as the only way to pin a point.
+   */
+  addressSearch?: { attribution: string };
 }
 
 /**
@@ -20,5 +25,11 @@ export function mapConfig(env: Env = process.env): MapConfig | undefined {
     return undefined;
   }
   const attribution = env.MAP_TILE_ATTRIBUTION?.trim() || "Map data © OpenStreetMap contributors";
-  return { tileUrl, attribution };
+  const config: MapConfig = { tileUrl, attribution };
+  if (env.ADDRESS_SEARCH_ENABLED?.trim().toLowerCase() === "true") {
+    config.addressSearch = {
+      attribution: env.ADDRESS_SEARCH_ATTRIBUTION?.trim() || "Address search data © OpenStreetMap contributors",
+    };
+  }
+  return config;
 }

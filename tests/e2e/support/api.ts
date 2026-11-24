@@ -22,6 +22,16 @@ export async function tokenFor(user: DemoUser): Promise<string> {
   return ((await response.json()) as { access_token: string }).access_token;
 }
 
+/**
+ * A demo user's id as the services see it: the token's subject. The realm file gives the demo users
+ * fixed ids, but Keycloak never re-imports a realm it already has, so a local Keycloak created
+ * before those ids existed keeps its own. Reading the subject works in both cases.
+ */
+export async function userIdOf(user: DemoUser): Promise<string> {
+  const payload = (await tokenFor(user)).split(".")[1];
+  return (JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { sub: string }).sub;
+}
+
 /** The gateway as one user (or anonymous): every call goes through routing, JWT checks and roles. */
 export async function gatewayAs(user?: DemoUser): Promise<APIRequestContext> {
   const headers: Record<string, string> = { accept: "application/json" };

@@ -1,0 +1,60 @@
+/* Print style matching the team's design report: Times, justified, bold numbered headings. */
+@page { size: Letter; }
+html { font-family: "Times New Roman", Times, serif; font-size: 12pt; color: #000; }
+body { margin: 0; line-height: 1.6; }
+h1, h2, h3, h4 { font-family: "Times New Roman", Times, serif; color: #000; page-break-after: avoid; break-after: avoid; }
+h1 { font-size: 15pt; font-weight: bold; text-transform: uppercase; margin: 0 0 14pt; }
+h2 { font-size: 13pt; font-weight: bold; text-transform: uppercase; margin: 22pt 0 10pt; }
+h3 { font-size: 12pt; font-weight: bold; margin: 18pt 0 8pt; }
+h4 { font-size: 12pt; font-weight: bold; font-style: italic; margin: 14pt 0 6pt; }
+p, li { text-align: justify; }
+p { margin: 0 0 10pt; }
+ul, ol { margin: 0 0 10pt 0; padding-left: 22pt; }
+li { margin-bottom: 3pt; }
+a { color: #000; text-decoration: underline; }
+code { font-family: Consolas, "Courier New", monospace; font-size: 10pt; }
+pre { font-family: Consolas, "Courier New", monospace; font-size: 9.5pt; line-height: 1.35; background: #f4f4f4; border: 1px solid #ccc;
+      padding: 8pt 10pt; white-space: pre-wrap; word-break: break-word; page-break-inside: avoid; margin: 0 0 12pt; }
+/* 1px narrower than the column: with collapsed borders half of the outer border lies outside the table box,
+   and Chrome clips everything past the page margin, which removed the right-hand border of every table. */
+table { border-collapse: collapse; width: calc(100% - 1px); margin: 6pt 0 14pt; font-size: 10.5pt; page-break-inside: auto; }
+th, td { border: 1px solid #000; padding: 4pt 6pt; vertical-align: top; text-align: left; }
+th { font-weight: bold; background: #fff; }
+tr { page-break-inside: avoid; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+figure { margin: 8pt 0 12pt; text-align: center; page-break-inside: avoid; }
+figure img { max-width: 100%; max-height: 7.2in; border: 0; }
+figcaption { font-size: 10pt; font-style: italic; margin-top: 4pt; text-align: center; }
+img { max-width: 100%; }
+.page { page-break-before: always; break-before: page; }
+.cover { text-align: center; padding-top: 0.2in; height: 8.6in; position: relative; }
+.cover .title { font-size: 20pt; margin: 0 0 18pt; letter-spacing: 0.5pt; }
+.cover .subtitle { font-size: 12.5pt; font-weight: bold; margin: 0 0 22pt; }
+.cover .doc { font-size: 13pt; margin: 0 0 14pt; }
+.cover .group { font-size: 12.5pt; margin: 0 0 16pt; }
+.cover table { width: 4.6in; margin: 0 auto; font-size: 11pt; }
+.cover th { text-align: center; }
+.cover .faculty { position: absolute; bottom: 0.4in; left: 0; right: 0; font-size: 12.5pt; line-height: 1.7; }
+.toc h1 { text-align: center; font-size: 12pt; }
+.toc ol { list-style: none; padding: 0; margin: 0; }
+.toc li { display: flex; align-items: baseline; text-align: left; margin: 0 0 5pt; }
+.toc li .t { white-space: nowrap; }
+.toc li .dots { flex: 1; border-bottom: 1px dotted #000; margin: 0 4pt; transform: translateY(-3pt); }
+.toc li.l2 { padding-left: 22pt; }
+.toc li.l3 { padding-left: 44pt; }
+.toc li.l1 .t { font-weight: bold; }
+.note { font-size: 10.5pt; border-left: 3px solid #000; padding: 2pt 0 2pt 10pt; margin: 0 0 12pt; }
+.small { font-size: 10pt; }
+.shots { display: grid; grid-template-columns: 1fr 1fr; gap: 10pt; }
+.shots figure { margin: 0; }
+.shots img { border: 1px solid #999; }
+.keep { break-inside: avoid; page-break-inside: avoid; }
+figure.shot { margin: 8pt 0 18pt; }
+figure.shot img { max-height: 3.7in; border: 1px solid #999; }
+/* Long identifiers in a cell may wrap anywhere, so they never widen a table past the margin. */
+td code, th code { overflow-wrap: anywhere; }
+/* Sections flow on, as in the design report: a main heading starts a new page only after the
+   contents page and for the appendix (the .page breaks), so no section leaves a part-empty page. */
+h1 { margin-top: 28pt; }
+.page > h1:first-child, .page + h1 { margin-top: 0; }
+p, li { orphans: 3; widows: 3; }

@@ -66,6 +66,8 @@ web:
     # Map on /quote: set to a tile service licensed for production traffic. Blank hides the map.
     MAP_TILE_URL: ""
     MAP_TILE_ATTRIBUTION: ""
+    # Address search on the maps: "true" once pricing-service has a geocoder licensed for production.
+    ADDRESS_SEARCH_ENABLED: "false"
 api-gateway:
   enabled: true
   config:
@@ -83,6 +85,9 @@ pricing-service:
   replicaCount: 3
   config:
     OSRM_URL: http://osrm:5000
+    # A geocoder whose terms allow production use (the public Nominatim does not). Blank keeps
+    # address search off.
+    GEOCODER_URL: ""
 parcel-service:
   enabled: true
 dispatch-service:

@@ -10,6 +10,7 @@ import lk.swiftdrop.events.common.Types.Location;
 import lk.swiftdrop.events.common.Types.ParcelStatus;
 import lk.swiftdrop.events.parcel.ParcelStatusChanged;
 import lk.swiftdrop.outbox.OutboxWriter;
+import lk.swiftdrop.parcel.application.port.out.ParcelMetrics;
 import lk.swiftdrop.parcel.application.port.out.DeliveryProofStore;
 import lk.swiftdrop.parcel.application.port.out.ParcelRepository;
 import lk.swiftdrop.parcel.domain.exception.InvalidStatusTransitionException;
@@ -36,6 +37,8 @@ import java.util.UUID;
 @Service
 public class UpdateParcelStatusUseCase {
 
+    private final ParcelMetrics metrics;
+
     private static final Logger log = LoggerFactory.getLogger(UpdateParcelStatusUseCase.class);
 
     private final ParcelRepository parcels;
@@ -44,7 +47,8 @@ public class UpdateParcelStatusUseCase {
     private final Clock clock;
 
     public UpdateParcelStatusUseCase(ParcelRepository parcels, DeliveryProofStore proofs, OutboxWriter outbox,
-                                     Clock clock) {
+                                     Clock clock, ParcelMetrics metrics) {
+        this.metrics = metrics;
         this.parcels = parcels;
         this.proofs = proofs;
         this.outbox = outbox;
@@ -115,6 +119,7 @@ public class UpdateParcelStatusUseCase {
                 changed.merchantId(), changed.courierId(), parcel.status(), changed.status(), update.note(),
                 changed.status() == ParcelStatus.FAILED ? update.failureReason() : null, eventProof(proof),
                 publicLocation(changed), new Actor(caller.id(), role), changed.updatedAt()));
+        metrics.statusChanged(changed.status(), update.failureReason());
         return changed;
     }
 

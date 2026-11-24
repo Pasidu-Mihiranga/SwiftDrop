@@ -17,7 +17,7 @@ import lk.swiftdrop.events.common.Types.ServiceLevel;
 import lk.swiftdrop.events.common.Types.SizeClass;
 import lk.swiftdrop.parcel.domain.model.Address;
 import lk.swiftdrop.parcel.infrastructure.crypto.EncryptedAddressConverter;
-import lk.swiftdrop.parcel.infrastructure.crypto.EncryptedStringConverter;
+import lk.swiftdrop.common.pii.EncryptedStringConverter;
 
 import java.math.BigDecimal;
 import java.time.Instant;

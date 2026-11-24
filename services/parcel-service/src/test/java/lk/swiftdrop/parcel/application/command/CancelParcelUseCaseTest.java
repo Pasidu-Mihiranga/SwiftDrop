@@ -1,5 +1,7 @@
 package lk.swiftdrop.parcel.application.command;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import lk.swiftdrop.parcel.infrastructure.metrics.MicrometerParcelMetrics;
 import lk.swiftdrop.common.web.error.ResourceNotFoundException;
 import lk.swiftdrop.events.common.Types.ActorRole;
 import lk.swiftdrop.events.common.Types.ParcelStatus;
@@ -34,6 +36,12 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class CancelParcelUseCaseTest {
+    private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
+
+    private double count(String name, String tag, String value) {
+        return registry.get(name).tag(tag, value).counter().count();
+    }
+
 
     private static final Instant LATER = ParcelFixtures.NOW.plusSeconds(900);
 
@@ -47,7 +55,7 @@ class CancelParcelUseCaseTest {
 
     @BeforeEach
     void setUp() {
-        useCase = new CancelParcelUseCase(parcels, outbox, Clock.fixed(LATER, ZoneOffset.UTC));
+        useCase = new CancelParcelUseCase(parcels, outbox, Clock.fixed(LATER, ZoneOffset.UTC), new MicrometerParcelMetrics(registry));
         created = ParcelFixtures.bookedBy("cust-1");
         lenient().when(parcels.findById(created.id())).thenReturn(Optional.of(created));
         lenient().when(parcels.save(any())).thenAnswer(call -> call.getArgument(0));
@@ -60,6 +68,7 @@ class CancelParcelUseCaseTest {
         assertThat(cancelled.status()).isEqualTo(ParcelStatus.CANCELLED);
         assertThat(cancelled.history()).hasSize(2);
         verify(parcels).save(cancelled);
+        assertThat(count("parcel.status.changes", "status", "cancelled")).isEqualTo(1);
     }
 
     @Test

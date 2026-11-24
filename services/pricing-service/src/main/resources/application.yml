@@ -50,6 +50,7 @@ swiftdrop:
       - /api/v1/pricing/zones
       - /api/v1/pricing/special-handling
       - /api/v1/pricing/locate
+      - /api/v1/pricing/address-search
   pricing:
     quote-ttl: ${PRICING_QUOTE_TTL:PT15M}
     quote-zone-id: ${PRICING_QUOTE_ZONE_ID:Asia/Colombo}
@@ -61,6 +62,21 @@ swiftdrop:
       read-timeout: ${OSRM_READ_TIMEOUT:PT1S}
       cache-ttl: ${OSRM_CACHE_TTL:PT24H}
       breaker-open-for: ${OSRM_BREAKER_OPEN_FOR:PT30S}
+    # A Nominatim-compatible geocoder for the address search on the quote and booking maps.
+    # Blank turns search off (the endpoint answers 503), so no typed address leaves the service
+    # unless an operator chose a geocoder whose terms and data handling suit the deployment.
+    geocoding:
+      url: ${GEOCODER_URL:}
+      user-agent: ${GEOCODER_USER_AGENT:SwiftDrop-pricing/1.0}
+      email: ${GEOCODER_EMAIL:}
+      country-codes: ${GEOCODER_COUNTRY_CODES:lk}
+      connect-timeout: ${GEOCODER_CONNECT_TIMEOUT:PT0.5S}
+      read-timeout: ${GEOCODER_READ_TIMEOUT:PT3S}
+      cache-ttl: ${GEOCODER_CACHE_TTL:PT24H}
+      # Public Nominatim allows one request a second per application.
+      min-interval: ${GEOCODER_MIN_INTERVAL:PT1S}
+      max-wait: ${GEOCODER_MAX_WAIT:PT2S}
+      breaker-open-for: ${GEOCODER_BREAKER_OPEN_FOR:PT30S}
 
 server:
   port: ${PORT:8083}

@@ -29,6 +29,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import lk.swiftdrop.parcel.application.port.out.ParcelMetrics;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
@@ -87,6 +88,8 @@ class CourierParcelControllerTest {
     private ProofStorage storage;
     @MockitoBean
     private OutboxWriter outbox;
+    @MockitoBean
+    private ParcelMetrics metrics;
 
     private Parcel assigned;
 

@@ -25,6 +25,7 @@ export default auth((request) => {
 });
 
 export const config = {
-  // Pages only: skip Next.js assets, Auth.js endpoints and the BFF (which forwards the gateway's 401/403).
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/).*)"],
+  // Pages only: skip Next.js assets, the public brand and landing images (a visitor who is not signed
+  // in must still see the logo), Auth.js endpoints and the BFF (which forwards the gateway's 401/403).
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|brand/|landing/|api/).*)"],
 };

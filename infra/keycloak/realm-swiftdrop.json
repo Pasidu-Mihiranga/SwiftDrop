@@ -1,6 +1,7 @@
 {
   "realm": "swiftdrop",
   "displayName": "SwiftDrop",
+  "loginTheme": "swiftdrop",
   "enabled": true,
   "sslRequired": "none",
   "registrationAllowed": true,
@@ -9,7 +10,7 @@
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": true,
   "rememberMe": true,
-  "verifyEmail": false,
+  "verifyEmail": true,
   "bruteForceProtected": true,
   "failureFactor": 5,
   "accessTokenLifespan": 300,

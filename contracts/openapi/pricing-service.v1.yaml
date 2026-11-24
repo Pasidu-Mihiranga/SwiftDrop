@@ -81,6 +81,8 @@ tags:
     description: Size-class administration (ADMIN).
   - name: admin-pricing
     description: Remote-area charges and merchant agreements (ADMIN).
+  - name: admin-pricing-settings
+    description: Fee settings, line-haul bands, special handling and same-day vehicles (ADMIN)
 paths:
   /api/v1/pricing/quotes:
     post:
@@ -111,7 +113,9 @@ paths:
             the lane cannot be measured (DISTANCE_UNAVAILABLE); an unknown or retired handling
             option (UNKNOWN_SPECIAL_HANDLING) or more than five (TOO_MANY_SPECIAL_HANDLING); and,
             for SAME_DAY, a vehicle that is not offered (VEHICLE_NOT_OFFERED), a parcel too heavy
-            for it (SAME_DAY_TOO_HEAVY) or a trip beyond its range (SAME_DAY_OUT_OF_RANGE).
+            for it (SAME_DAY_TOO_HEAVY), a trip beyond its range (SAME_DAY_OUT_OF_RANGE) or a
+            request at or after the same-day cut-off in the settings in force, in the quote
+            zone's local time (SAME_DAY_CUTOFF_PASSED).
           content:
             application/problem+json:
               schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
@@ -193,6 +197,39 @@ paths:
               schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
         "422":
           description: The point is outside every district SwiftDrop serves (OUTSIDE_COVERAGE)
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
+  /api/v1/pricing/address-search:
+    get:
+      tags: [zones]
+      operationId: searchAddress
+      summary: Places matching a typed address, inside the service area, with their district (public)
+      description: |
+        For the quote and booking maps. Run when the customer asks, not as they type. Each
+        place is checked against the same district boundaries the quote endpoint uses, so the
+        district named is the one a quote will accept for that point; places outside the service
+        area are left out. Answered with Cache-Control no-store. Off unless the deployment
+        configures a geocoder (GEOCODER_URL), in which case it answers 503.
+      security: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 3, maxLength: 120, example: "45 Galle Road, Colombo" }
+      responses:
+        "200":
+          description: Up to five places, best first. Empty when nothing in the service area matches.
+          content:
+            application/json:
+              schema: { type: array, maxItems: 5, items: { $ref: "#/components/schemas/AddressSuggestion" } }
+        "400":
+          description: The query is missing, shorter than 3 or longer than 120 characters (INVALID_ADDRESS_QUERY)
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
+        "503":
+          description: Address search is off, or the geocoder is down, slow or busy (ADDRESS_SEARCH_UNAVAILABLE)
           content:
             application/problem+json:
               schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
@@ -505,6 +542,201 @@ paths:
               schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
         "422":
           description: The same lane is listed twice (DUPLICATE_LANE_OVERRIDE)
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
+  /api/v1/admin/pricing/settings:
+    get:
+      tags: [admin-pricing-settings]
+      operationId: listPricingSettings
+      summary: Every published version of the fee settings, newest first (ADMIN)
+      responses:
+        "200":
+          description: Versions, including superseded ones
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/PricingSettings" } }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+    post:
+      tags: [admin-pricing-settings]
+      operationId: publishPricingSettings
+      summary: Publish fuel, tax, minimum charge and the same-day cut-off from a date (ADMIN)
+      description: |
+        Closes the version in force on that date. The date may not be in the past and must
+        follow every version already published, so a mistake is corrected from a later date.
+        Quotes already issued keep their fee.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PricingSettingsRequest" }
+      responses:
+        "201":
+          description: Published
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PricingSettings" }
+        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "409":
+          description: A version already starts on or after that date (PRICING_SETTINGS_PERIOD_CONFLICT)
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
+        "422":
+          description: The date is in the past (EFFECTIVE_DATE_IN_PAST) or a value is out of range (INVALID_PRICING_SETTINGS)
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
+  /api/v1/admin/pricing/distance-bands:
+    get:
+      tags: [admin-pricing-settings]
+      operationId: listDistanceBands
+      summary: Every published line-haul band, newest set first (ADMIN)
+      responses:
+        "200":
+          description: Bands, including superseded sets
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/DistanceBand" } }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+    post:
+      tags: [admin-pricing-settings]
+      operationId: publishDistanceBands
+      summary: Replace the whole set of line-haul bands from a date (ADMIN)
+      description: |
+        The set must start at 0 km, each band must end where the next starts, and only the last
+        may be open ended, so every distance falls in exactly one band. Closes every band in
+        force on that date. Same date rules as the fee settings.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DistanceBandSetRequest" }
+      responses:
+        "201":
+          description: Published
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/DistanceBand" } }
+        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "409":
+          description: A set already starts on or after that date (DISTANCE_BAND_PERIOD_CONFLICT)
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
+        "422":
+          description: The date is in the past (EFFECTIVE_DATE_IN_PAST) or the set leaves a gap, overlaps or is not open ended (INVALID_DISTANCE_BANDS)
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
+  /api/v1/admin/pricing/special-handling:
+    get:
+      tags: [admin-pricing-settings]
+      operationId: listSpecialHandlingConfig
+      summary: Every handling option with its fee, including retired ones (ADMIN)
+      responses:
+        "200":
+          description: Options in display order
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/SpecialHandlingConfig" } }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+    post:
+      tags: [admin-pricing-settings]
+      operationId: addSpecialHandling
+      summary: Add a handling option, offered on new quotes at once (ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SpecialHandlingCreateRequest" }
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SpecialHandlingConfig" }
+        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "409":
+          description: The code is taken (SPECIAL_HANDLING_EXISTS)
+          content:
+            application/problem+json:
+              schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
+  /api/v1/admin/pricing/special-handling/{code}:
+    parameters:
+      - name: code
+        in: path
+        required: true
+        schema: { type: string, example: FRAGILE }
+    put:
+      tags: [admin-pricing-settings]
+      operationId: updateSpecialHandling
+      summary: Change a handling option's label, fee or order, or retire it (ADMIN)
+      description: A retired option is hidden from new quotes and kept on record. Quotes already issued keep their fee.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SpecialHandlingUpdateRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SpecialHandlingConfig" }
+        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
+  /api/v1/admin/pricing/vehicles:
+    get:
+      tags: [admin-pricing-settings]
+      operationId: listSameDayVehicles
+      summary: The same-day vehicles and their limits (ADMIN)
+      responses:
+        "200":
+          description: Vehicles
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/SameDayVehicle" } }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+  /api/v1/admin/pricing/vehicles/{code}:
+    parameters:
+      - name: code
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/VehicleType" }
+    put:
+      tags: [admin-pricing-settings]
+      operationId: updateSameDayVehicle
+      summary: Change a vehicle's limits, or stop offering it (ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SameDayVehicleUpdateRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SameDayVehicle" }
+        "400": { $ref: "common.v1.yaml#/components/responses/BadRequest" }
+        "401": { $ref: "common.v1.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.v1.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.v1.yaml#/components/responses/NotFound" }
+        "422":
+          description: A limit is out of range (INVALID_SAME_DAY_VEHICLE)
           content:
             application/problem+json:
               schema: { $ref: "common.v1.yaml#/components/schemas/ProblemDetail" }
@@ -886,3 +1118,110 @@ components:
             The class the customer selected. Sent only when measurements put the parcel in a
             different class from the one they chose, so sizeClass is what they are charged for
             and this is what they asked for.
+    PricingSettingsRequest:
+      type: object
+      required: [fuelSurchargePct, taxPct, minimumCharge, effectiveFrom]
+      properties:
+        fuelSurchargePct: { type: number, minimum: 0, exclusiveMaximum: 1, example: 0.05, description: Fraction of the transport charge }
+        taxPct: { type: number, minimum: 0, exclusiveMaximum: 1, example: 0.18, description: Fraction of the finished fee }
+        minimumCharge: { type: number, minimum: 0, example: 350 }
+        sameDayCutoff:
+          type: [string, "null"]
+          pattern: "^([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$"
+          example: "14:00"
+          description: Local time (quote zone) from which SAME_DAY is refused for today. Null for no cut-off.
+        effectiveFrom: { type: string, format: date, example: "2027-01-01" }
+    PricingSettings:
+      allOf:
+        - $ref: "#/components/schemas/PricingSettingsRequest"
+        - type: object
+          required: [id]
+          properties:
+            id: { type: string, format: uuid }
+            effectiveTo:
+              type: [string, "null"]
+              format: date
+              description: Exclusive end date. Null while the version is still open.
+    DistanceBandInput:
+      type: object
+      required: [minKm, lineHaulFee, standardTransitDays, expressTransitDays]
+      properties:
+        minKm: { type: number, minimum: 0, example: 0 }
+        maxKm:
+          type: [number, "null"]
+          exclusiveMinimum: 0
+          description: Exclusive end. Null for the open-ended last band.
+        lineHaulFee: { type: number, minimum: 0, example: 150 }
+        standardTransitDays: { type: integer, minimum: 1, maximum: 30, example: 2 }
+        expressTransitDays: { type: integer, minimum: 1, maximum: 30, example: 1, description: No more than standardTransitDays }
+    DistanceBandSetRequest:
+      type: object
+      required: [effectiveFrom, bands]
+      properties:
+        effectiveFrom: { type: string, format: date, example: "2027-01-01" }
+        bands:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items: { $ref: "#/components/schemas/DistanceBandInput" }
+    DistanceBand:
+      allOf:
+        - $ref: "#/components/schemas/DistanceBandInput"
+        - type: object
+          required: [id, effectiveFrom]
+          properties:
+            id: { type: string, format: uuid }
+            effectiveFrom: { type: string, format: date, example: "2027-01-01" }
+            effectiveTo:
+              type: [string, "null"]
+              format: date
+    SpecialHandlingCreateRequest:
+      type: object
+      required: [code, label, fee]
+      properties:
+        code: { type: string, pattern: "^[A-Za-z][A-Za-z0-9_]{0,31}$", example: OVERSIZE, description: Stored in capitals }
+        label: { type: string, maxLength: 100, example: Oversize item }
+        fee: { type: number, minimum: 0, example: 500 }
+        sortOrder: { type: integer, minimum: 0, maximum: 9999, default: 0 }
+    SpecialHandlingUpdateRequest:
+      type: object
+      required: [label, fee, active]
+      properties:
+        label: { type: string, maxLength: 100 }
+        fee: { type: number, minimum: 0 }
+        active: { type: boolean, description: False retires the option }
+        sortOrder: { type: integer, minimum: 0, maximum: 9999, default: 0 }
+    SpecialHandlingConfig:
+      type: object
+      required: [code, label, fee, active, sortOrder]
+      properties:
+        code: { type: string, example: FRAGILE }
+        label: { type: string, example: Fragile }
+        fee: { type: number, minimum: 0, example: 250 }
+        active: { type: boolean }
+        sortOrder: { type: integer }
+    SameDayVehicleUpdateRequest:
+      type: object
+      required: [label, maxWeightKg, maxDistanceKm, rateMultiplier, active]
+      properties:
+        label: { type: string, maxLength: 60, example: Van }
+        maxWeightKg: { type: number, exclusiveMinimum: 0, maximum: 100, example: 100, description: At most the 100 kg a quote accepts }
+        maxDistanceKm: { type: number, exclusiveMinimum: 0, example: 120 }
+        rateMultiplier: { type: number, exclusiveMinimum: 0, maximum: 99, example: 1.8 }
+        active: { type: boolean, description: False stops offering the vehicle }
+    SameDayVehicle:
+      allOf:
+        - $ref: "#/components/schemas/SameDayVehicleUpdateRequest"
+        - type: object
+          required: [code]
+          properties:
+            code: { $ref: "#/components/schemas/VehicleType" }
+    AddressSuggestion:
+      type: object
+      required: [label, latitude, longitude, district, zone]
+      properties:
+        label: { type: string, example: "45, Galle Road, Colombo 03, Sri Lanka" }
+        latitude: { type: number, minimum: -90, maximum: 90, example: 6.91 }
+        longitude: { type: number, minimum: -180, maximum: 180, example: 79.851 }
+        district: { type: string, example: Colombo }
+        zone: { $ref: "#/components/schemas/ZoneCode" }

@@ -21,6 +21,7 @@ import {
   formatMoney,
   distanceNotice,
   quoteLifetime,
+  quoteToBookingHref,
   sizeClassLabel,
   sizeClassNotice,
   serviceLevelLabel,
@@ -221,9 +222,16 @@ export function FeeEstimateWidget({
       </div>
 
       {coverageError ? (
-        <p role="alert" className="notice-warning">
-          {coverageError}
-        </p>
+        <div role="alert" className="notice-warning flex items-center justify-between gap-2">
+          <span>{coverageError}</span>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="text-xs font-semibold underline hover:text-slate-900"
+          >
+            Retry
+          </button>
+        </div>
       ) : null}
 
       <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.8fr)_minmax(0,1.2fr)] items-start">
@@ -342,7 +350,7 @@ export function FeeEstimateWidget({
                                 : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
                             }`}
                           >
-                            <span className="h-2 w-2 rounded-full bg-blue-300" />
+                            <span className="h-2 w-2 rounded-full bg-brand-300" />
                             <span>Pickup (From)</span>
                             {values.fromPoint ? <span className="text-[10px]">&#10003;</span> : null}
                           </button>
@@ -372,6 +380,7 @@ export function FeeEstimateWidget({
                             purpose={activeMapSide === "from" ? "collection" : "delivery"}
                             tileUrl={map.tileUrl}
                             attribution={map.attribution}
+                            search={map.addressSearch}
                             point={activeMapSide === "from" ? values.fromPoint : values.toPoint}
                             onPick={(point, located) => pickPoint(activeMapSide, point, located)}
                             heightClass="h-full min-h-[50vh]"
@@ -392,7 +401,7 @@ export function FeeEstimateWidget({
                                 : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
                             }`}
                           >
-                            <span className="h-2 w-2 rounded-full bg-blue-300" />
+                            <span className="h-2 w-2 rounded-full bg-brand-300" />
                             <span>Pickup (From)</span>
                             {values.fromPoint ? <span className="text-[10px]">&#10003;</span> : null}
                           </button>
@@ -442,6 +451,7 @@ export function FeeEstimateWidget({
                         purpose={activeMapSide === "from" ? "collection" : "delivery"}
                         tileUrl={map.tileUrl}
                         attribution={map.attribution}
+                        search={map.addressSearch}
                         point={activeMapSide === "from" ? values.fromPoint : values.toPoint}
                         onPick={(point, located) => pickPoint(activeMapSide, point, located)}
                       />
@@ -604,7 +614,7 @@ export function FeeEstimateWidget({
                   <select
                     id="sizeClass"
                     name="sizeClass"
-                    className="input bg-white text-sm"
+                    className="input text-sm"
                     value={values.sizeClass}
                     onChange={(event) => update("sizeClass", event.target.value)}
                     aria-invalid={Boolean(errors.sizeClass)}
@@ -682,7 +692,7 @@ export function FeeEstimateWidget({
                   <select
                     id="serviceLevel"
                     name="serviceLevel"
-                    className="input bg-white text-sm"
+                    className="input text-sm"
                     value={values.serviceLevel}
                     onChange={(event) => update("serviceLevel", event.target.value)}
                     aria-invalid={Boolean(errors.serviceLevel)}
@@ -772,7 +782,7 @@ export function FeeEstimateWidget({
                     <select
                       id="vehicleType"
                       name="vehicleType"
-                      className="input bg-white text-sm"
+                      className="input text-sm"
                       value={values.vehicleType}
                       onChange={(event) => update("vehicleType", event.target.value)}
                       aria-invalid={Boolean(errors.vehicleType)}
@@ -936,15 +946,15 @@ export function FeeEstimateWidget({
               <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 space-y-0">
                 {/* Dark Navy Hero Header matching reference screenshot */}
                 <div className="relative overflow-hidden bg-brand-950 p-6 text-white">
-                  <div className="pointer-events-none absolute right-4 top-4 text-blue-400/20">
+                  <div className="pointer-events-none absolute right-4 top-4 text-brand-300/20">
                     <IsometricBoxIcon className="h-24 w-24" />
                   </div>
                   <div className="relative">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-blue-200/80">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-brand-100/80">
                         Estimated fee
                       </p>
-                      <span className="rounded-full bg-blue-500/20 px-2.5 py-0.5 text-[11px] font-semibold text-blue-200">
+                      <span className="rounded-full bg-brand-500/20 px-2.5 py-0.5 text-[11px] font-semibold text-brand-100">
                         Awaiting details
                       </span>
                     </div>
@@ -1000,7 +1010,7 @@ export function FeeEstimateWidget({
                   </div>
 
                   {/* Highlighted Total Bar matching reference screenshot */}
-                  <div className="flex items-center justify-between rounded-xl bg-blue-50/80 px-4 py-3 ring-1 ring-blue-100/70">
+                  <div className="flex items-center justify-between rounded-xl bg-brand-50/80 px-4 py-3 ring-1 ring-brand-100/70">
                     <span className="font-semibold text-slate-900 text-sm">Total (estimated)</span>
                     <span className="font-bold text-brand-700 text-lg tabular-nums">
                       LKR &mdash;.&mdash;
@@ -1008,7 +1018,7 @@ export function FeeEstimateWidget({
                   </div>
 
                   {/* Estimated Delivery Time Box matching reference screenshot */}
-                  <div className="flex items-center gap-3 rounded-xl border border-blue-100 bg-blue-50/40 p-3.5">
+                  <div className="flex items-center gap-3 rounded-xl border border-brand-100 bg-brand-50/40 p-3.5">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-brand-700">
                       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path
@@ -1068,6 +1078,7 @@ export function FeeEstimateWidget({
             {quote && lifetime ? (
               <QuoteSummary
                 quote={quote}
+                values={values}
                 expired={expired}
                 remaining={lifetime.label}
                 quantity={values.numberOfParcels}
@@ -1082,11 +1093,13 @@ export function FeeEstimateWidget({
 
 function QuoteSummary({
   quote,
+  values,
   expired,
   remaining,
   quantity,
 }: {
   quote: Quote;
+  values: QuoteFormValues;
   expired: boolean;
   remaining: string;
   quantity: number;
@@ -1105,13 +1118,13 @@ function QuoteSummary({
     <div className="overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-slate-200/90 space-y-0">
       {/* Dark Navy Hero Header matching reference UI */}
       <div className="relative overflow-hidden bg-brand-950 p-6 text-white">
-        <div className="pointer-events-none absolute right-4 top-4 text-blue-400/25">
+        <div className="pointer-events-none absolute right-4 top-4 text-brand-300/25">
           <IsometricBoxIcon className="h-24 w-24" />
         </div>
 
         <div className="relative">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wider text-blue-200/80">
+            <p className="text-xs font-semibold uppercase tracking-wider text-brand-100/80">
               Estimated fee
             </p>
             <span
@@ -1164,7 +1177,7 @@ function QuoteSummary({
         </div>
 
         {/* Highlighted Total Bar matching reference screenshot */}
-        <div className="flex items-center justify-between rounded-xl bg-blue-50/80 px-4 py-3 ring-1 ring-blue-100/70">
+        <div className="flex items-center justify-between rounded-xl bg-brand-50/80 px-4 py-3 ring-1 ring-brand-100/70">
           <span className="font-semibold text-slate-900 text-sm">Total (estimated)</span>
           <span className="font-bold text-brand-700 text-lg tabular-nums">
             {formatMoney(totalFee, quote.fee.currency)}
@@ -1172,7 +1185,7 @@ function QuoteSummary({
         </div>
 
         {/* Estimated Delivery Time Box matching reference screenshot */}
-        <div className="flex items-center gap-3 rounded-xl border border-blue-100 bg-blue-50/40 p-3.5">
+        <div className="flex items-center gap-3 rounded-xl border border-brand-100 bg-brand-50/40 p-3.5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-brand-700">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
@@ -1247,13 +1260,14 @@ function QuoteSummary({
         </p>
 
         {/* Direct Action to Booking */}
-        <div className="pt-2 border-t border-slate-100">
+        <div className="space-y-2 border-t border-slate-100 pt-2">
+          {quantity > 1 ? (
+            <p className="text-[11px] text-slate-500">
+              Each booking creates one parcel per quote. Proceeding will pre-fill details for a single parcel.
+            </p>
+          ) : null}
           <Link
-            href={`/customer/book?quoteId=${quote.quoteId}&fromDistrict=${encodeURIComponent(
-              quote.fromDistrict || "",
-            )}&toDistrict=${encodeURIComponent(quote.toDistrict || "")}&weightKg=${quote.weightKg}&sizeClass=${
-              quote.sizeClass
-            }&serviceLevel=${quote.serviceLevel}`}
+            href={quoteToBookingHref(values, quote)}
             className="btn-primary w-full py-2.5 text-center text-xs font-semibold shadow-xs"
           >
             Book this delivery &rarr;

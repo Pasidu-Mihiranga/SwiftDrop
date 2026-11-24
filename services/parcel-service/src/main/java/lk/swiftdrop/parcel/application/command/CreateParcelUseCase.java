@@ -4,6 +4,9 @@ import lk.swiftdrop.common.security.AuthenticatedUser;
 import lk.swiftdrop.events.common.Types.Location;
 import lk.swiftdrop.events.parcel.ParcelCreated;
 import lk.swiftdrop.outbox.OutboxWriter;
+import lk.swiftdrop.parcel.application.port.out.ParcelMetrics;
+import lk.swiftdrop.events.common.Types.ParcelSource;
+import lk.swiftdrop.parcel.application.exception.PricingUnavailableException;
 import lk.swiftdrop.parcel.application.model.Quote;
 import lk.swiftdrop.parcel.application.port.out.ParcelRepository;
 import lk.swiftdrop.parcel.application.port.out.PricingPort;
@@ -30,6 +33,8 @@ import java.time.Clock;
 @Service
 public class CreateParcelUseCase {
 
+    private final ParcelMetrics metrics;
+
     private final PricingPort pricing;
     private final ParcelRepository parcels;
     private final TrackingNumberFactory trackingNumbers;
@@ -38,7 +43,9 @@ public class CreateParcelUseCase {
     private final Clock clock;
 
     public CreateParcelUseCase(PricingPort pricing, ParcelRepository parcels, TrackingNumberFactory trackingNumbers,
-                               OutboxWriter outbox, TransactionOperations transaction, Clock clock) {
+                               OutboxWriter outbox, TransactionOperations transaction, Clock clock,
+                               ParcelMetrics metrics) {
+        this.metrics = metrics;
         this.pricing = pricing;
         this.parcels = parcels;
         this.trackingNumbers = trackingNumbers;
@@ -48,13 +55,27 @@ public class CreateParcelUseCase {
     }
 
     public Parcel create(AuthenticatedUser customer, CreateParcelCommand command) {
-        Quote quote = pricing.findQuote(command.quoteId())
-                .filter(found -> clock.instant().isBefore(found.expiresAt()))
-                .orElseThrow(QuoteExpiredException::new);
+        Quote quote;
+        try {
+            quote = pricing.findQuote(command.quoteId())
+                    .filter(found -> clock.instant().isBefore(found.expiresAt()))
+                    .orElse(null);
+        } catch (PricingUnavailableException unavailable) {
+            metrics.quoteRejected(ParcelMetrics.QuoteRejection.PRICING_UNAVAILABLE);
+            throw unavailable;
+        }
+        if (quote == null) {
+            metrics.quoteRejected(ParcelMetrics.QuoteRejection.EXPIRED);
+            throw new QuoteExpiredException();
+        }
         if (!pricedForRoute(quote, command)) {
+            metrics.quoteRejected(ParcelMetrics.QuoteRejection.MISMATCH);
             throw new QuoteMismatchException();
         }
-        return transaction.execute(status -> book(customer, command, quote));
+        Quote accepted = quote;
+        Parcel parcel = transaction.execute(status -> book(customer, command, accepted));
+        metrics.parcelBooked(ParcelSource.CUSTOMER);
+        return parcel;
     }
 
     private Parcel book(AuthenticatedUser customer, CreateParcelCommand command, Quote quote) {

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   contractExample,
+  createTopicsWhenReady,
   type EventEnvelope,
   MongoIdempotencyStore,
   publishEvent,
@@ -83,7 +84,7 @@ describe("parcel events to timeline (Kafka and MongoDB)", () => {
 
     const admin = kafka.admin();
     await admin.connect();
-    await admin.createTopics({ topics: [{ topic: Topics.TRACKING_DEAD_LETTER }] });
+    await createTopicsWhenReady(admin, { topics: [{ topic: Topics.TRACKING_DEAD_LETTER }] });
     await admin.disconnect();
 
     const idempotency = new MongoIdempotencyStore(connection.collection("processed_event"));
