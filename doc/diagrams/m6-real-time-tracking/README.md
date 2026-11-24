@@ -12,19 +12,19 @@ changes, redraw its SVG and PNG to match.
 
 | Figure | Diagram | Source | Export |
 |---|---|---|---|
-| 1 | Use cases: who can track what | [usecase-m6-tracking.mmd](usecase-m6-tracking.mmd) | [SVG](usecase-m6-tracking.svg), [PNG](usecase-m6-tracking.png) |
-| 2 | Data model: timeline documents and references | [er-m6-tracking-timeline.mmd](er-m6-tracking-timeline.mmd) | [SVG](er-m6-tracking-timeline.svg), [PNG](er-m6-tracking-timeline.png) |
-| 3 | Architecture: four tiers | [architecture-m6-tracking-module.mmd](architecture-m6-tracking-module.mmd) | [SVG](architecture-m6-tracking-module.svg), [PNG](architecture-m6-tracking-module.png) |
-| 4 | Integration design: numbered patterns | [integration-m6-tracking.mmd](integration-m6-tracking.mmd) | [SVG](integration-m6-tracking.svg), [PNG](integration-m6-tracking.png) |
-| 5 | Sequence: courier update to live browser (required) | [sequence-m6-status-event-to-live-update.mmd](sequence-m6-status-event-to-live-update.mmd) | [SVG](sequence-m6-status-event-to-live-update.svg), [PNG](sequence-m6-status-event-to-live-update.png) |
-| 6 | Sequence: public tracking page (guest, masked) | [sequence-m6-public-tracking-page.mmd](sequence-m6-public-tracking-page.mmd) | [SVG](sequence-m6-public-tracking-page.svg), [PNG](sequence-m6-public-tracking-page.png) |
-| 7 | Sequence: socket handshake and room authorisation | [sequence-m6-socket-handshake-rooms.mmd](sequence-m6-socket-handshake-rooms.mmd) | [SVG](sequence-m6-socket-handshake-rooms.svg), [PNG](sequence-m6-socket-handshake-rooms.png) |
-| 8 | Sequence: owner timeline (404 for other users) | [sequence-m6-owner-timeline.mmd](sequence-m6-owner-timeline.mmd) | [SVG](sequence-m6-owner-timeline.svg), [PNG](sequence-m6-owner-timeline.png) |
-| 9 | Activity: processing one parcel event | [activity-m6-event-processing.mmd](activity-m6-event-processing.mmd) | [SVG](activity-m6-event-processing.svg), [PNG](activity-m6-event-processing.png) |
-| 10 | Activity: join a socket room | [activity-m6-room-subscription.mmd](activity-m6-room-subscription.mmd) | [SVG](activity-m6-room-subscription.svg), [PNG](activity-m6-room-subscription.png) |
-| 11 | Class design: tracking-service | [class-m6-tracking-module.mmd](class-m6-tracking-module.mmd) | [SVG](class-m6-tracking-module.svg), [PNG](class-m6-tracking-module.png) |
-| 12 | Class design: shared library (platform share) | [class-m6-common-lib.mmd](class-m6-common-lib.mmd) | [SVG](class-m6-common-lib.svg), [PNG](class-m6-common-lib.png) |
-| 13 | Deployment and scaling | [deployment-m6-scaling.mmd](deployment-m6-scaling.mmd) | [SVG](deployment-m6-scaling.svg), [PNG](deployment-m6-scaling.png) |
+| 1 | Use cases: who can track what | [01-use-cases.mmd](01-use-cases.mmd) | [SVG](01-use-cases.svg), [PNG](01-use-cases.png) |
+| 2 | Data model: timeline documents and references | [02-er-diagram.mmd](02-er-diagram.mmd) | [SVG](02-er-diagram.svg), [PNG](02-er-diagram.png) |
+| 3 | Architecture: four tiers | [03-architecture.mmd](03-architecture.mmd) | [SVG](03-architecture.svg), [PNG](03-architecture.png) |
+| 4 | Integration design: numbered patterns | [04-integration-design.mmd](04-integration-design.mmd) | [SVG](04-integration-design.svg), [PNG](04-integration-design.png) |
+| 5 | Sequence: courier update to live browser (required) | [06-seq-status-event-to-live-update.mmd](06-seq-status-event-to-live-update.mmd) | [SVG](06-seq-status-event-to-live-update.svg), [PNG](06-seq-status-event-to-live-update.png) |
+| 6 | Sequence: public tracking page (guest, masked) | [07-seq-public-tracking-page.mmd](07-seq-public-tracking-page.mmd) | [SVG](07-seq-public-tracking-page.svg), [PNG](07-seq-public-tracking-page.png) |
+| 7 | Sequence: socket handshake and room authorisation | [05-seq-socket-handshake-rooms.mmd](05-seq-socket-handshake-rooms.mmd) | [SVG](05-seq-socket-handshake-rooms.svg), [PNG](05-seq-socket-handshake-rooms.png) |
+| 8 | Sequence: owner timeline (404 for other users) | [08-seq-owner-timeline.mmd](08-seq-owner-timeline.mmd) | [SVG](08-seq-owner-timeline.svg), [PNG](08-seq-owner-timeline.png) |
+| 9 | Activity: processing one parcel event | [09-activity-event-processing.mmd](09-activity-event-processing.mmd) | [SVG](09-activity-event-processing.svg), [PNG](09-activity-event-processing.png) |
+| 10 | Activity: join a socket room | [10-activity-room-subscription.mmd](10-activity-room-subscription.mmd) | [SVG](10-activity-room-subscription.svg), [PNG](10-activity-room-subscription.png) |
+| 11 | Class design: tracking-service | [11-class-tracking-module.mmd](11-class-tracking-module.mmd) | [SVG](11-class-tracking-module.svg), [PNG](11-class-tracking-module.png) |
+| 12 | Class design: shared library (platform share) | [12-class-common-lib.mmd](12-class-common-lib.mmd) | [SVG](12-class-common-lib.svg), [PNG](12-class-common-lib.png) |
+| 13 | Deployment and scaling | [13-deployment-scaling.mmd](13-deployment-scaling.mmd) | [SVG](13-deployment-scaling.svg), [PNG](13-deployment-scaling.png) |
 
 ## 1 Use cases
 

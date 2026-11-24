@@ -108,6 +108,20 @@ seeded demo user; all data shown is demo data. The landing page's testimonials a
 
 ![Become a merchant (registration form)](16-customer-merchant-register.png)
 
+## AI delivery assistant
+
+### A guest asks for a delivery price
+
+`/` (chat widget, signed out)
+
+![AI assistant: guest price](17-ai-assistant-guest-price.png)
+
+### A signed-in customer asks where their parcel is
+
+`/customer` (chat widget)
+
+![AI assistant: customer tracking](18-ai-assistant-customer-tracking.png)
+
 ## Merchant
 
 ### Merchant dashboard

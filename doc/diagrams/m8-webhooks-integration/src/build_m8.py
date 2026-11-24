@@ -11,7 +11,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 OUT = HERE.parent
-sys.path.insert(0, str(HERE.parent.parent / "m10" / "src"))
+sys.path.insert(0, str(HERE.parent.parent / "m10-reporting-ai-assistant" / "src"))
 
 from draw import (BLACK, FILL, GREY, Sequence, band, container, cylinder, label, node, path,  # noqa: E402
                   shape_rect, stickman, svg, text)
@@ -35,7 +35,7 @@ KC = "Keycloak"
 PS = "parcel-service"
 
 SEQ = {
-    "sequence-m8-endpoint-registration": ("M8 sequence: register an endpoint and send a test ping", [("Merchant", True), (BFF, False), (GW, False), (WH, False), (MDB, False), (RDS, False)], [
+    "06-seq-endpoint-registration": ("M8 sequence: register an endpoint and send a test ping", [("Merchant", True), (BFF, False), (GW, False), (WH, False), (MDB, False), (RDS, False)], [
         ("m", "Merchant", BFF, "enter https URL and event types"),
         ("m", BFF, GW, "POST /api/v1/webhooks/endpoints (bearer, via BFF)"),
         ("m", GW, WH, "forward (JWT valid)"),
@@ -62,7 +62,7 @@ SEQ = {
         ("r", WH, BFF, "202 Queued; the worker sends the signed ping"),
         ("end",),
     ]),
-    "sequence-m8-signed-delivery": ("M8 sequence: parcel event to signed webhook", [(PS, False), (KFK, False), (WH, False), (MDB, False), (RDS, False), (EP, False)], [
+    "07-seq-signed-delivery": ("M8 sequence: parcel event to signed webhook", [(PS, False), (KFK, False), (WH, False), (MDB, False), (RDS, False), (EP, False)], [
         ("m", PS, KFK, "outbox relay publishes ParcelStatusChanged (key parcelId)"),
         ("m", KFK, WH, "deliver to group webhook-service"),
         ("m", WH, MDB, "markIfFirst(eventId, consumer): atomic insert"),
@@ -88,7 +88,7 @@ SEQ = {
         ("m", WH, MDB, "append attempt (status code, latency); status DELIVERED"),
         ("end",),
     ]),
-    "sequence-m8-retry-dead-letter-replay": ("M8 sequence: retries, dead letter and admin replay", [(RDS, False), (WH, False), (EP, False), (MDB, False), (KFK, False), (ADM, False), ("Admin", True)], [
+    "08-seq-retry-dead-letter-replay": ("M8 sequence: retries, dead letter and admin replay", [(RDS, False), (WH, False), (EP, False), (MDB, False), (KFK, False), (ADM, False), ("Admin", True)], [
         ("m", RDS, WH, "worker takes the job (attempt 1)"),
         ("m", WH, EP, "signed POST"),
         ("r", EP, WH, "503 or timeout after 10 s"),
@@ -122,14 +122,14 @@ SEQ = {
         ("m", WH, MDB, "status DELIVERED"),
         ("end",),
     ]),
-    "sequence-m8-simulator-demo": ("M8 sequence: merchant simulator demo", [("Presenter", True), (SIM, False), (KC, False), (GW, False), (PS, False), (WH, False)], [
+    "09-seq-simulator-demo": ("M8 sequence: merchant simulator demo", [("Presenter", True), (SIM, False), (KC, False), (GW, False), (PS, False), (WH, False)], [
         ("m", "Presenter", SIM, "click Create order"),
         ("m", SIM, KC, "POST /token grant_type=client_credentials, client merchant-demo"),
         ("r", KC, SIM, "access token with merchant_id claim"),
         ("m", SIM, GW, "POST /api/v1/merchant/orders, bearer + Idempotency-Key"),
         ("m", GW, PS, "forward (JWT valid, rate limit per client)"),
         ("r", PS, SIM, "201 parcel; the same key returns the same parcel"),
-        ("note", PS, WH, "ParcelCreated reaches webhook-service over Kafka (see sequence-m8-signed-delivery)"),
+        ("note", PS, WH, "ParcelCreated reaches webhook-service over Kafka (see 07-seq-signed-delivery)"),
         ("m", WH, SIM, "POST /webhooks, signed parcel.created"),
         ("alt", "fail mode is on"),
         ("r", SIM, WH, "503: webhook-service retries, then dead-letters"),
@@ -790,14 +790,14 @@ flowchart TB
     DEP -. "metrics, logs and traces" .-> OBS
 """
 
-STATIC_MMD = {"class-m8-webhooks": CLASS_MMD, "deployment-m8-webhooks": DEPLOYMENT_MMD}
+STATIC_MMD = {"11-class-webhooks": CLASS_MMD, "12-deployment-webhooks": DEPLOYMENT_MMD}
 
 
 def build_all():
     figs = {name: (lambda v=v: seq_svg(*v)) for name, v in SEQ.items()}
-    figs.update({"usecase-m8-webhooks": uc_webhooks, "usecase-m8-merchant-simulator": uc_simulator, "er-m8-webhooks": er,
-                 "architecture-m8-webhooks": architecture, "integration-m8-patterns": integration, "activity-m8-webhook-retry": activity,
-                 "class-m8-webhooks": class_diagram, "deployment-m8-webhooks": deployment})
+    figs.update({"01-use-cases-webhooks": uc_webhooks, "02-use-cases-merchant-simulator": uc_simulator, "03-er-diagram": er,
+                 "04-architecture": architecture, "05-integration-design": integration, "10-activity-webhook-retry": activity,
+                 "11-class-webhooks": class_diagram, "12-deployment-webhooks": deployment})
     return figs
 
 

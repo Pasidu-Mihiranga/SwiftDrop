@@ -7,6 +7,7 @@ export * from "./events/validation";
 export * from "./http/problem";
 export * from "./kafka/consumer";
 export * from "./kafka/mongo-idempotency-store";
+export * from "./kafka/topics";
 export * from "./logging/logger";
 export * from "./logging/pii";
 export type { Logger } from "pino";

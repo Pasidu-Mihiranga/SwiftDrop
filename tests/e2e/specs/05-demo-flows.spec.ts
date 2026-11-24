@@ -1,5 +1,5 @@
 import { type APIRequestContext, expect, test } from "@playwright/test";
-import { businessToday, deployed, gatewayAs, quote } from "../support/api";
+import { businessToday, deployed, gatewayAs, quote, userIdOf } from "../support/api";
 import { env, users } from "../support/env";
 
 /**
@@ -54,7 +54,7 @@ test("3. a dispatcher assigns the parcel to a courier", async () => {
   const dispatcher = await gatewayAs(users.dispatcher);
   test.skip(!(await deployed(dispatcher, "/api/v1/dispatch/unassigned")), "dispatch-service (M5) is not deployed.");
   const response = await dispatcher.post("/api/v1/dispatch/assignments", {
-    data: { parcelId: parcel!.id, courierId: users.courier.id },
+    data: { parcelId: parcel!.id, courierId: await userIdOf(users.courier) },
   });
   expect([201, 409], await response.text()).toContain(response.status());
 });
@@ -62,10 +62,15 @@ test("3. a dispatcher assigns the parcel to a courier", async () => {
 test("4. the courier picks it up and takes it out for delivery", async () => {
   test.skip(!parcel, "No parcel was booked.");
   const courier = await gatewayAs(users.courier);
-  const probe = await courier.patch(`/api/v1/courier/parcels/${parcel!.id}/status`, {
-    data: { toStatus: "PICKED_UP" },
-    failOnStatusCode: false,
-  });
+  // parcel-service learns the courier from the ParcelAssigned event, a moment after step 3, and
+  // answers 404 to the courier until then.
+  const pickUp = () =>
+    courier.patch(`/api/v1/courier/parcels/${parcel!.id}/status`, { data: { toStatus: "PICKED_UP" }, failOnStatusCode: false });
+  let probe = await pickUp();
+  for (let waited = 0; probe.status() === 404 && waited < 30_000; waited += 1_000) {
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+    probe = await pickUp();
+  }
   test.skip([404, 405, 502, 503].includes(probe.status()), "Courier status updates (M4) are not deployed or the parcel is not assigned.");
   expect(probe.status(), await probe.text()).toBe(200);
   for (const toStatus of ["IN_TRANSIT", "OUT_FOR_DELIVERY"]) {

@@ -8,7 +8,7 @@ by calling SwiftDrop's own APIs. The same tools are served over MCP for external
 | Port | `8095` |
 | API base | `/api/v1/assistant` (through the gateway), MCP at `/mcp` |
 | Contract | [contracts/openapi/ai-assistant-service.v1.yaml](../../contracts/openapi/ai-assistant-service.v1.yaml) |
-| Design | `doc/diagrams/m10/` figures 07-11 and `doc/m10-design.pdf` |
+| Design | `doc/diagrams/m10-reporting-ai-assistant/` figures 07-11 and `doc/design/m10-reporting-ai-assistant-design.pdf` |
 | Owner | M10, see [doc/03-team-contribution.md](../../doc/03-team-contribution.md) |
 
 ## How a message is answered
