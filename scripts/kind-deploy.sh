@@ -87,6 +87,13 @@ kubectl -n "${namespace}" create configmap swiftdrop-realm \
   --from-file=realm-swiftdrop.json=infra/keycloak/realm-swiftdrop.json \
   --dry-run=client -o yaml | kubectl apply -f -
 
+# Login theme: the chart mounts this ConfigMap. Without it Keycloak cannot start.
+kubectl -n "${namespace}" create configmap swiftdrop-keycloak-theme \
+  --from-file=theme.properties=infra/keycloak/themes/swiftdrop/login/theme.properties \
+  --from-file=swiftdrop.css=infra/keycloak/themes/swiftdrop/login/resources/css/swiftdrop.css \
+  --from-file=swiftdrop-logo-light.avif=infra/keycloak/themes/swiftdrop/login/resources/img/swiftdrop-logo-light.avif \
+  --dry-run=client -o yaml | kubectl apply -f -
+
 # Builds "--from-literal=KEY=value" arguments, skipping anything unset in .env.
 literals=()
 add() {

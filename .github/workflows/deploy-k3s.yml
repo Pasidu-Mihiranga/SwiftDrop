@@ -15,10 +15,62 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
+  gate:
+    name: Wait for CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    outputs:
+      deploy: ${{ steps.check.outputs.deploy }}
+    steps:
+      - name: Deploy only after CI for this commit succeeds
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sha="${{ github.sha }}"
+          deploy=false
+          for _ in $(seq 1 120); do
+            json="$(gh run list --commit "$sha" --limit 50 --json name,status,conclusion,event)"
+            result="$(printf '%s' "$json" | python3 -c '
+          import json, sys
+          runs = [r for r in json.load(sys.stdin) if r.get("event") == "push" and r.get("name") != "CD · deploy changed services"]
+          if not runs:
+              print("waiting")
+              raise SystemExit
+          bad = [r["name"] for r in runs if r.get("conclusion") in ("failure", "cancelled", "timed_out", "startup_failure")]
+          if bad:
+              print("failed")
+              print("\n".join(bad), file=sys.stderr)
+              raise SystemExit
+          if any(r.get("status") != "completed" for r in runs):
+              print("waiting")
+          else:
+              print("success")
+          ')"
+            echo "CI status: ${result}"
+            if [ "$result" = "failed" ]; then
+              echo "CI failed, so this deploy is skipped."
+              break
+            fi
+            if [ "$result" = "success" ]; then
+              deploy=true
+              break
+            fi
+            sleep 30
+          done
+          if [ "$deploy" = "false" ]; then
+            echo "CI did not succeed, so this deploy is skipped."
+          fi
+          echo "deploy=${deploy}" >> "$GITHUB_OUTPUT"
+
   deploy:
     name: Update changed containers
+    needs: gate
+    if: needs.gate.outputs.deploy == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Deploy over SSH
