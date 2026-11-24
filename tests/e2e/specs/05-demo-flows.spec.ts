@@ -1,5 +1,5 @@
 import { type APIRequestContext, expect, test } from "@playwright/test";
-import { businessToday, deployed, gatewayAs, quote } from "../support/api";
+import { businessToday, deployed, gatewayAs, quote, userIdOf } from "../support/api";
 import { env, users } from "../support/env";
 
 /**
@@ -54,7 +54,7 @@ test("3. a dispatcher assigns the parcel to a courier", async () => {
   const dispatcher = await gatewayAs(users.dispatcher);
   test.skip(!(await deployed(dispatcher, "/api/v1/dispatch/unassigned")), "dispatch-service (M5) is not deployed.");
   const response = await dispatcher.post("/api/v1/dispatch/assignments", {
-    data: { parcelId: parcel!.id, courierId: users.courier.id },
+    data: { parcelId: parcel!.id, courierId: await userIdOf(users.courier) },
   });
   expect([201, 409], await response.text()).toContain(response.status());
 });
