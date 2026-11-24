@@ -4,9 +4,14 @@ Owner: M1 (Warsavithana T.M., 234219R). Scope: Keycloak realm `swiftdrop`, `api-
 `user-service`, and sign-in, profile and admin user pages in `apps/web`.
 
 Diagrams (in `doc/diagrams/m1-identity-access/`):
-- `sequence-m1-google-login`: OAuth 2.0 / Google sign-in sequence
-- `er-m1-users-roles`: users, roles, addresses and courier profiles
-- `usecase-m1-customer`: customer use cases
+
+- `01-use-cases-customer` and `02-use-cases-identity-admin`: customer and identity-admin use cases
+- `03-er-diagram`: users, roles, addresses and courier profiles
+- `04-architecture`: Keycloak, gateway, user-service and the web BFF
+- `05-seq-google-login`: OAuth 2.0 / Google sign-in sequence
+- `06-seq-first-profile-jwt-chain`: first API call, JWT chain and just-in-time profile
+- `07-seq-admin-create-courier`: admin creates a courier account
+- `08-activity-route-guard`: role-based page guard
 
 ## 1. One identity provider: Keycloak
 
