@@ -1,6 +1,6 @@
 # SwiftDrop — Parcel-service booking (M3)
 
-Design documentation for the booking slice of `parcel-service`. The diagrams in `diagrams/m3/` are the source of this document. Neighbouring milestones appear only where this service calls them or stores a table they own.
+Design documentation for the booking slice of `parcel-service`. The diagrams in `../diagrams/m3-customer-booking/` are the source of this document. Neighbouring milestones appear only where this service calls them or stores a table they own.
 
 **Service:** `parcel-service`  
 **Runtime:** Spring Boot, port `8084`  
@@ -22,7 +22,7 @@ M3 owns the customer booking path and the read and cancel rules that sit on the 
 
 A courier or a merchant cannot create a booking. An assignee or a member of staff may open a parcel; any other caller receives `404`.
 
-![Use cases](diagrams/m3/01-use-cases.png)
+![Use cases](../diagrams/m3-customer-booking/01-use-cases.png)
 
 ## 2. Place in the platform
 
@@ -56,11 +56,11 @@ pricing-service (M2)         PostgreSQL parcels_db
                               parcel.created.v1
 ```
 
-![Architecture](diagrams/m3/03-architecture.png)
+![Architecture](../diagrams/m3-customer-booking/03-architecture.png)
 
 The customer path is synchronous until the tracking number is returned. Everything after the database commit is asynchronous: the outbox relay publishes to Kafka, and dispatch, tracking, and notify subscribe.
 
-![Integration](diagrams/m3/04-integration-design.png)
+![Integration](../diagrams/m3-customer-booking/04-integration-design.png)
 
 | Step | Path | What happens |
 | --- | --- | --- |
@@ -97,13 +97,13 @@ Pricing answers `GET /api/v1/pricing/quotes/{quoteId}` with fee, zones, weight, 
 
 The tracking number is `SD` + date + base32 + a check character. If that value already exists, the factory retries.
 
-![Create sequence](diagrams/m3/05-seq-create-delivery.png)
+![Create sequence](../diagrams/m3-customer-booking/05-seq-create-delivery.png)
 
-![Create activity](diagrams/m3/09-activity-create-delivery.png)
+![Create activity](../diagrams/m3-customer-booking/09-activity-create-delivery.png)
 
-![Rejected booking](diagrams/m3/06-seq-quote-rejected.png)
+![Rejected booking](../diagrams/m3-customer-booking/06-seq-quote-rejected.png)
 
-![Rejected booking activity](diagrams/m3/11-activity-booking-rejected.png)
+![Rejected booking activity](../diagrams/m3-customer-booking/11-activity-booking-rejected.png)
 
 Success path, in order:
 
@@ -136,9 +136,9 @@ The gateway forwards the JWT. The service loads the row, then applies `ParcelAcc
 
 A refusal is the same `404` as a missing parcel. Decryption runs only after the policy allows the view.
 
-![Read sequence](diagrams/m3/08-seq-read-parcel.png)
+![Read sequence](../diagrams/m3-customer-booking/08-seq-read-parcel.png)
 
-![Who may open a parcel](diagrams/m3/13-activity-read-parcel.png)
+![Who may open a parcel](../diagrams/m3-customer-booking/13-activity-read-parcel.png)
 
 ### 3.4 Cancel a parcel that has not been picked up
 
@@ -153,15 +153,15 @@ Actor: the customer who owns the parcel.
 
 After commit, the relay publishes `status-changed.v1`.
 
-![Cancel sequence](diagrams/m3/07-seq-cancel.png)
+![Cancel sequence](../diagrams/m3-customer-booking/07-seq-cancel.png)
 
-![Cancel activity](diagrams/m3/12-activity-cancel.png)
+![Cancel activity](../diagrams/m3-customer-booking/12-activity-cancel.png)
 
 ## 4. Application structure
 
 `ParcelController` is the API adapter. It delegates create to `CreateParcelUseCase` and cancel to `CancelParcelUseCase`. Reads go through `ParcelQueryService`, which asks `ParcelAccessPolicy` before returning a parcel. A refused read is a `404`.
 
-![Class diagram](diagrams/m3/10-class-booking.png)
+![Class diagram](../diagrams/m3-customer-booking/10-class-booking.png)
 
 | Type | Name | Responsibility |
 | --- | --- | --- |
@@ -182,7 +182,7 @@ After commit, the relay publishes `status-changed.v1`.
 
 ## 5. Data model — `parcels_db`
 
-![ER diagram](diagrams/m3/02-er-diagram.png)
+![ER diagram](../diagrams/m3-customer-booking/02-er-diagram.png)
 
 ### 5.1 `parcel`
 
@@ -262,16 +262,16 @@ This table lives in `parcels_db`. Milestone M7 (merchant replay) writes it. The 
 
 | File | Diagram |
 | --- | --- |
-| `diagrams/m3/01-use-cases.png` | Use cases for booking |
-| `diagrams/m3/02-er-diagram.png` | `parcels_db` |
-| `diagrams/m3/03-architecture.png` | Tiers from the booking UI to Kafka |
-| `diagrams/m3/04-integration-design.png` | Synchronous reply and asynchronous publish |
-| `diagrams/m3/05-seq-create-delivery.png` | Create delivery sequence |
-| `diagrams/m3/06-seq-quote-rejected.png` | Quote expired or pricing unavailable |
-| `diagrams/m3/07-seq-cancel.png` | Cancel sequence |
-| `diagrams/m3/08-seq-read-parcel.png` | Read one parcel |
-| `diagrams/m3/09-activity-create-delivery.png` | Create activity |
-| `diagrams/m3/10-class-booking.png` | Booking classes, ports, and adapters |
-| `diagrams/m3/11-activity-booking-rejected.png` | Booking that must not be saved |
-| `diagrams/m3/12-activity-cancel.png` | Cancel activity |
-| `diagrams/m3/13-activity-read-parcel.png` | Who may open a parcel |
+| `../diagrams/m3-customer-booking/01-use-cases.png` | Use cases for booking |
+| `../diagrams/m3-customer-booking/02-er-diagram.png` | `parcels_db` |
+| `../diagrams/m3-customer-booking/03-architecture.png` | Tiers from the booking UI to Kafka |
+| `../diagrams/m3-customer-booking/04-integration-design.png` | Synchronous reply and asynchronous publish |
+| `../diagrams/m3-customer-booking/05-seq-create-delivery.png` | Create delivery sequence |
+| `../diagrams/m3-customer-booking/06-seq-quote-rejected.png` | Quote expired or pricing unavailable |
+| `../diagrams/m3-customer-booking/07-seq-cancel.png` | Cancel sequence |
+| `../diagrams/m3-customer-booking/08-seq-read-parcel.png` | Read one parcel |
+| `../diagrams/m3-customer-booking/09-activity-create-delivery.png` | Create activity |
+| `../diagrams/m3-customer-booking/10-class-booking.png` | Booking classes, ports, and adapters |
+| `../diagrams/m3-customer-booking/11-activity-booking-rejected.png` | Booking that must not be saved |
+| `../diagrams/m3-customer-booking/12-activity-cancel.png` | Cancel activity |
+| `../diagrams/m3-customer-booking/13-activity-read-parcel.png` | Who may open a parcel |

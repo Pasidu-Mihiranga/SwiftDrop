@@ -76,7 +76,7 @@ All done by the owner in #110 (merged 24 Nov):
 - [x] One security test per entry in `swiftdrop.gateway.public-paths`.
 - [x] Email verification on in the realm; branded `swiftdrop` login theme.
 - [x] One shared PII library, `libs/java/swiftdrop-pii`, used by user-, merchant- and parcel-service.
-- [x] Design section `doc/m1-identity-access-design.md`; Grafana dashboard `identity-access.json`.
+- [x] Design section `doc/design/m1-identity-access-design.md`; Grafana dashboard `identity-access.json`.
 
 ## #15 M2 Pricing & Zones
 
@@ -112,7 +112,7 @@ All done by the owner in #110 (merged 24 Nov):
 
 - [x] Courier screens: status stepper with only the valid next steps, proof capture with photo upload and
       progress, failed-delivery form, optimistic updates; linked from the run sheet (#108).
-- [x] Diagrams: parcel lifecycle, courier use case, status-update sequence in `doc/diagrams/m4-courier-ops` (#117).
+- [x] Diagrams: parcel lifecycle, courier use case, status-update sequence in `doc/diagrams/m4-courier-operations` (#117).
 - [x] Grafana panels: status changes per hour, failed deliveries by reason (#118).
 - [x] Presigned URLs tested against a real RustFS container: upload, download, signed content type, expiry (#120).
 - [ ] Design-PDF section, contribution row.
@@ -155,7 +155,7 @@ All done by the owner in #110 (merged 24 Nov):
 - [x] Event-flow integration test on Kafka, MongoDB and Mailpit: ParcelCreated and ParcelStatusChanged become
       emails, a redelivered event sends no second email (#116).
 - [x] "How to debug with Grafana" guide in the README (already on `dev`; the 22 Nov audit missed it).
-- [x] Observability diagram `doc/diagrams/m9/architecture-m9-observability` (#116).
+- [x] Observability diagram `doc/diagrams/m9-notifications-receipts/13-architecture-observability` (#116).
 - [x] Demo 1 on a phone is possible with the courier screens (#108).
 - [ ] **Contribution sheet row** is empty.
 

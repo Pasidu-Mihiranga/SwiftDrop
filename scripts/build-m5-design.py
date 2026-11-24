@@ -119,6 +119,6 @@ def main():
         canvas.setFont('Helvetica',8);canvas.setFillColor(INK)
         canvas.drawString(42,24,'SwiftDrop | M5 dispatch-service | Issue 18')
         canvas.drawRightString(553,24,str(doc.page))
-    SimpleDocTemplate(str(ROOT/'doc/m5-dispatch-design.pdf'),pagesize=(595,842),rightMargin=42,leftMargin=42,topMargin=42,bottomMargin=42).build(story,onFirstPage=footer,onLaterPages=footer)
+    SimpleDocTemplate(str(ROOT/'doc/design/m5-dispatch-workload-design.pdf'),pagesize=(595,842),rightMargin=42,leftMargin=42,topMargin=42,bottomMargin=42).build(story,onFirstPage=footer,onLaterPages=footer)
 
 if __name__ == '__main__': main()
