@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element -- AVIF screenshots at fixed sizes need no optimisation */
 import Link from "next/link";
-import { SOCIAL_MARKS, TECH_MARKS, type BrandMark } from "@/lib/brand-marks";
+import { SOCIAL_MARKS } from "@/lib/brand-marks";
 import {
   FAQS,
   FEATURES,
@@ -27,7 +27,6 @@ export default function HomePage() {
   return (
     <>
       <Hero />
-      <RunsOn />
       <Features />
       <Process />
       <Testimonials />
@@ -122,43 +121,11 @@ function BrowserFrame({ url, children }: { url: string; children: React.ReactNod
   );
 }
 
-// ---------------------------------------------------------------- 3. logo row
-
-function Mark({ mark, className }: { mark: BrandMark; className: string }) {
-  return (
-    <svg role="img" aria-label={mark.name} viewBox="0 0 24 24" className={className} fill="currentColor">
-      <path d={mark.path} />
-    </svg>
-  );
-}
-
-function RunsOn() {
-  return (
-    <section aria-labelledby="runs-on" className="bg-ground py-16 md:py-20">
-      <div className={WRAP}>
-        <h2 id="runs-on" className="text-center text-sm font-medium text-ink-2">
-          Runs on open, proven infrastructure
-        </h2>
-        <ul className="mt-9 grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3 lg:grid-cols-6">
-          {TECH_MARKS.map((mark) => (
-            <li key={mark.name} className="flex items-center justify-center gap-2.5 text-ink-2">
-              <Mark mark={mark} className="h-6 w-6 shrink-0" />
-              <span className="whitespace-nowrap text-[17px] font-semibold tracking-[-0.01em]" aria-hidden="true">
-                {mark.name}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </section>
-  );
-}
-
 // ---------------------------------------------------------------- 4. features
 
 function Features() {
   return (
-    <section id="stores" aria-labelledby="features-title" className={`scroll-mt-6 bg-ground-alt ${BAND}`}>
+    <section id="stores" aria-labelledby="features-title" className={`scroll-mt-6 bg-ground ${BAND}`}>
       <div className={WRAP}>
         <div className="mx-auto max-w-[760px] text-center">
           <h2 id="features-title" className={H2}>
@@ -247,7 +214,7 @@ function Stage({ feature, className }: { feature: Feature; className: string }) 
 
 function Process() {
   return (
-    <section aria-labelledby="process-title" className={`bg-ground ${BAND}`}>
+    <section aria-labelledby="process-title" className={`bg-ground-alt ${BAND}`}>
       <div className={`${WRAP} grid gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-[88px]`}>
         <div>
           <h2 id="process-title" className={H2}>
@@ -282,7 +249,7 @@ function Process() {
 
 function Avatar({ initials }: { initials: string }) {
   return (
-    <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-ground text-sm font-bold text-ink ring-1 ring-hairline">
+    <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-ground-alt text-sm font-bold text-ink ring-1 ring-hairline">
       {initials}
     </span>
   );
@@ -291,7 +258,7 @@ function Avatar({ initials }: { initials: string }) {
 function Testimonials() {
   const [lead, ...rest] = SAMPLE_QUOTES;
   return (
-    <section aria-labelledby="quotes-title" className={`bg-ground-alt ${BAND}`}>
+    <section aria-labelledby="quotes-title" className={`bg-ground ${BAND}`}>
       <div className={WRAP}>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <h2 id="quotes-title" className={H2}>
@@ -339,7 +306,7 @@ function Testimonials() {
 
 function Pricing() {
   return (
-    <section id="pricing" aria-labelledby="pricing-title" className={`scroll-mt-6 bg-ground ${BAND}`}>
+    <section id="pricing" aria-labelledby="pricing-title" className={`scroll-mt-6 bg-ground-alt ${BAND}`}>
       <div className={WRAP}>
         <div className="mx-auto max-w-[720px] text-center">
           <h2 id="pricing-title" className={H2}>
@@ -399,7 +366,7 @@ function Check() {
 
 function Questions() {
   return (
-    <section id="help" aria-labelledby="faq-title" className={`scroll-mt-6 bg-ground-alt ${BAND}`}>
+    <section id="help" aria-labelledby="faq-title" className={`scroll-mt-6 bg-ground ${BAND}`}>
       <div className={`${WRAP} grid gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-[88px]`}>
         <div className="lg:sticky lg:top-10 lg:self-start">
           <h2 id="faq-title" className={H2}>
@@ -422,7 +389,7 @@ function Questions() {
                 {faq.question}
                 <span
                   aria-hidden="true"
-                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-hairline bg-ground text-ink transition-transform duration-200 group-open:rotate-45 motion-reduce:transition-none"
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-hairline bg-ground-alt text-ink transition-transform duration-200 group-open:rotate-45 motion-reduce:transition-none"
                 >
                   <svg viewBox="0 0 16 16" className="h-3.5 w-3.5">
                     <path d="M8 2v12M2 8h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
