@@ -29,7 +29,7 @@
         <springdoc.version>3.2.0</springdoc.version>
         <archunit.version>1.5.1</archunit.version>
         <mapstruct.version>1.6.3</mapstruct.version>
-        <json-schema-validator.version>1.5.9</json-schema-validator.version>
+        <json-schema-validator.version>3.0.9</json-schema-validator.version>
         <jacoco.version>0.8.16</jacoco.version>
 
         <!-- Security override of Spring Boot's managed Tomcat: 11.0.24 has CVE-2026-65182 (critical, security
