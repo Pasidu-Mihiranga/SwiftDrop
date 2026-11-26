@@ -28,7 +28,7 @@ const AREAS: AreaRule[] = [
   { prefix: "/account", roles: "any-authenticated" },
 ];
 
-const PUBLIC_PREFIXES = ["/", "/login", "/track", "/quote", "/forbidden"];
+const PUBLIC_PREFIXES = ["/", "/login", "/track", "/quote", "/forbidden", "/privacy", "/terms"];
 
 export type Access = "public" | "allowed" | "login-required" | "forbidden";
 

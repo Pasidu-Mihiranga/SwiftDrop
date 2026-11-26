@@ -92,5 +92,5 @@ jobs:
           ssh -i ~/.ssh/swiftdrop.pem \
             -o StrictHostKeyChecking=accept-new \
             -o ConnectTimeout=20 \
-            ubuntu@3.111.117.223 \
+            ubuntu@52.62.242.130 \
             "sudo SWIFTDROP_BRANCH='${branch}' /usr/local/bin/swiftdrop-watch-deploy.sh"

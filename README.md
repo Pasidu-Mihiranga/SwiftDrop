@@ -81,20 +81,22 @@ More system figures: [data model of every database](doc/diagrams/system/system-e
 
 ### Running cluster
 
-The live demo is [k3s](https://docs.k3s.io/) (Kubernetes 1.37) on two EC2 instances in `ap-south-1`, in one availability zone. It is not EKS. Terraform in `infra/terraform` creates the instances, and Helm release `swiftdrop` in namespace `swiftdrop` installs the platform. The layout, ports, and scheduling rules are written out in [doc/deploy/01-two-node-architecture.md](doc/deploy/01-two-node-architecture.md).
+The recorded demo is [k3s](https://docs.k3s.io/) (Kubernetes 1.37) on two EC2 instances. It is not EKS. That cluster was in `ap-south-1` on an account that is now suspended. The next build uses the same two-node layout in `ap-southeast-2`. Terraform in `infra/terraform` creates the instances, and Helm release `swiftdrop` in namespace `swiftdrop` installs the platform. The layout, ports, and scheduling rules are written out in [doc/deploy/01-two-node-architecture.md](doc/deploy/01-two-node-architecture.md).
 
 | Node | Machine | Kubernetes | What runs there |
 |---|---|---|---|
-| Apps | `m7i-flex.large` (2 vCPU, 8 GiB), Elastic IP `3.111.117.223` | server, label `role=apps` | web, the gateway, all ten services, ingress-nginx |
-| Data | `m7i-flex.large`, Elastic IP `3.109.169.81` | agent, label `role=data` | Postgres, Redis, Kafka, MongoDB, RustFS, Keycloak, Mailpit, cert-manager |
+| Apps | `m7i-flex.large` (2 vCPU, 8 GiB), Elastic IP `52.62.242.130` | server, label `role=apps` | web, the gateway, all ten services, ingress-nginx |
+| Data | `m7i-flex.large`, Elastic IP `3.107.221.0` | agent, label `role=data` | Postgres, Redis, Kafka, MongoDB, RustFS, Keycloak, Mailpit, cert-manager |
 
 A browser opens an `sslip.io` name, which resolves to the apps Elastic IP. ingress-nginx terminates HTTPS with a Let's Encrypt certificate and sends the request to a Service. The Service forwards to a ready pod. Pods call each other by Service name on the cluster network. Databases are not published on the internet.
 
 | What | URL |
 |---|---|
-| Web | https://swiftdrop.3.111.117.223.sslip.io |
-| API | https://api.3.111.117.223.sslip.io |
-| Keycloak | https://auth.3.111.117.223.sslip.io |
+| Web | https://swiftdrop.sapunipathirana.me |
+| API | https://api.swiftdrop.sapunipathirana.me |
+| Keycloak | https://auth.swiftdrop.sapunipathirana.me |
+
+In Namecheap, on `sapunipathirana.me`, these three A records must point at the apps Elastic IP `52.62.242.130`: `swiftdrop`, `api.swiftdrop`, and `auth.swiftdrop`. The certificate is issued only after those records resolve. Until that switch is applied on the cluster, the previous `sslip.io` addresses still open the demo.
 
 `pricing-service` runs 2 replicas. A quote is stored in Redis, so either pod can answer, which is the load-balancing demonstration. Every other app runs 1 replica. Postgres, Redis, Kafka, MongoDB, RustFS, Keycloak, and Mailpit stay at 1. The chart's autoscaler is turned off on this cluster (`parcel-service` and `tracking-service` would otherwise start at 2 and are allowed to reach 5). `values-prod.yaml` is not applied. Two copies of one stateless app is the most this apps machine should run during a demo.
 

@@ -6,7 +6,9 @@ The chart this follows is `infra/helm/swiftdrop` on current `main`. Dev install:
 
 Terraform for the two machines is in `infra/terraform`. Use Elastic IPs, not the auto-assigned public address.
 
-The running demo uses these addresses. They stay the same after stop and start:
+The addresses below belong to the suspended Mumbai account. They do not exist in the new account. After the Sydney apply, replace them with the new Elastic IPs.
+
+The old demo used these addresses:
 
 - apps `i-086968a678385696b` — `3.111.117.223` (private `10.20.1.62`)
 - data `i-0b7aa17aa88fcdd93` — `3.109.169.81` (private `10.20.1.160`)
@@ -17,69 +19,79 @@ The IAM user is the person who runs Terraform from a laptop. It is not a role on
 
 - [ ] In Billing, add alerts at $50 and $150 of credits. Left for later; not required to launch.
 - [ ] Create an IAM user with access keys for the AWS CLI, and attach only the policy below. The existing `developer` user already applied this Terraform, so the sample policy was not attached.
-- [x] Confirm the account can launch two `m7i-flex.large` (4 vCPU) in `ap-south-1`. Both instances are running, which is the proof.
+- [ ] Confirm the new account can launch two `m7i-flex.large` (4 vCPU) in `ap-southeast-2`. The checked launch below was the suspended Mumbai account.
 
-The policy is the VPC example and the EC2 `RunInstances` example from the AWS docs, narrowed to this region and this instance type. `RunInstances` has to be allowed on the image, instance, volume, subnet, network interface, security group, and key pair. Allowing it only on instances makes the launch fail.
+Paste this policy as `SwiftDropTerraform`. It allows every EC2 action Terraform uses in Sydney, including creating and attaching the two Elastic IPs. It also allows this user to open Billing and create budget alerts. A launch of any size other than `m7i-flex.large` is denied. EC2 calls outside `ap-southeast-2` are denied.
+
+Before Billing will open for this user, sign in with the Google account, open **Billing**, then **Billing preferences**, and turn on **IAM user/role access to Billing information**.
 
 ```json
 {
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "OnlyMumbai",
-      "Effect": "Deny",
-      "Action": "ec2:*",
-      "Resource": "*",
-      "Condition": { "StringNotEquals": { "aws:RequestedRegion": "ap-south-1" } }
-    },
-    {
-      "Sid": "Describe",
+      "Sid": "Ec2InSydney",
       "Effect": "Allow",
-      "Action": "ec2:Describe*",
+      "Action": "ec2:*",
       "Resource": "*"
     },
     {
-      "Sid": "NetworkAndLifecycle",
+      "Sid": "ElasticIp",
       "Effect": "Allow",
       "Action": [
-        "ec2:CreateVpc", "ec2:DeleteVpc", "ec2:ModifyVpcAttribute",
-        "ec2:CreateSubnet", "ec2:DeleteSubnet",
-        "ec2:CreateRouteTable", "ec2:DeleteRouteTable",
-        "ec2:CreateRoute", "ec2:DeleteRoute",
-        "ec2:AssociateRouteTable", "ec2:DisassociateRouteTable",
-        "ec2:CreateInternetGateway", "ec2:DeleteInternetGateway",
-        "ec2:AttachInternetGateway", "ec2:DetachInternetGateway",
-        "ec2:CreateSecurityGroup", "ec2:DeleteSecurityGroup",
-        "ec2:AuthorizeSecurityGroupIngress", "ec2:AuthorizeSecurityGroupEgress",
-        "ec2:RevokeSecurityGroupIngress", "ec2:RevokeSecurityGroupEgress",
-        "ec2:CreateTags", "ec2:DeleteTags",
-        "ec2:CreateKeyPair", "ec2:DeleteKeyPair", "ec2:ImportKeyPair",
-        "ec2:AllocateAddress", "ec2:ReleaseAddress",
-        "ec2:AssociateAddress", "ec2:DisassociateAddress",
-        "ec2:StartInstances", "ec2:StopInstances", "ec2:TerminateInstances",
-        "ec2:ModifyInstanceAttribute"
+        "ec2:AllocateAddress",
+        "ec2:ReleaseAddress",
+        "ec2:AssociateAddress",
+        "ec2:DisassociateAddress",
+        "ec2:DescribeAddresses",
+        "ec2:DescribeAddressesAttribute",
+        "ec2:CreateTags",
+        "ec2:DeleteTags"
       ],
       "Resource": "*"
     },
     {
-      "Sid": "RunOnlyThisSize",
+      "Sid": "BillingAndBudgets",
       "Effect": "Allow",
-      "Action": "ec2:RunInstances",
-      "Resource": "arn:aws:ec2:ap-south-1:*:instance/*",
-      "Condition": { "StringEquals": { "ec2:InstanceType": "m7i-flex.large" } }
+      "Action": [
+        "aws-portal:ViewBilling",
+        "aws-portal:ViewUsage",
+        "aws-portal:ViewAccount",
+        "aws-portal:ViewPaymentMethods",
+        "billing:Get*",
+        "billing:List*",
+        "budgets:ViewBudget",
+        "budgets:ModifyBudget",
+        "budgets:Describe*",
+        "budgets:List*",
+        "ce:Get*",
+        "ce:List*",
+        "ce:Describe*",
+        "account:GetAccountInformation",
+        "invoicing:GetInvoicePDF",
+        "invoicing:ListInvoiceSummaries",
+        "freetier:GetFreeTierUsage",
+        "payments:ListPaymentPreferences"
+      ],
+      "Resource": "*"
     },
     {
-      "Sid": "RunSupportingResources",
-      "Effect": "Allow",
+      "Sid": "DenyEc2OutsideSydney",
+      "Effect": "Deny",
+      "Action": "ec2:*",
+      "Resource": "*",
+      "Condition": {
+        "StringNotEquals": { "aws:RequestedRegion": "ap-southeast-2" }
+      }
+    },
+    {
+      "Sid": "DenyOtherInstanceSizes",
+      "Effect": "Deny",
       "Action": "ec2:RunInstances",
-      "Resource": [
-        "arn:aws:ec2:ap-south-1::image/*",
-        "arn:aws:ec2:ap-south-1:*:volume/*",
-        "arn:aws:ec2:ap-south-1:*:subnet/*",
-        "arn:aws:ec2:ap-south-1:*:network-interface/*",
-        "arn:aws:ec2:ap-south-1:*:security-group/*",
-        "arn:aws:ec2:ap-south-1:*:key-pair/*"
-      ]
+      "Resource": "arn:aws:ec2:ap-southeast-2:*:instance/*",
+      "Condition": {
+        "StringNotEquals": { "ec2:InstanceType": "m7i-flex.large" }
+      }
     }
   ]
 }
@@ -87,7 +99,7 @@ The policy is the VPC example and the EC2 `RunInstances` example from the AWS do
 
 Do not attach `AdministratorAccess`. Do not add `iam:PassRole` until an instance role is actually required (for example ECR).
 
-**Check:** the user can call `aws ec2 describe-vpcs --region ap-south-1`, and a dry-run launch of any other instance type is denied.
+**Check:** the user can call `aws ec2 describe-vpcs --region ap-southeast-2 --profile swiftdrop`, and a dry-run launch of any other instance type is denied.
 
 ## Phase 2 — Network, instances, Elastic IPs
 

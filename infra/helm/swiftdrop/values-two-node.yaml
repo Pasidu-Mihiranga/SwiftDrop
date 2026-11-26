@@ -3,12 +3,12 @@
 # App pods stay on the apps node. Datastores stay on the data node. The library chart
 # already reads nodeSelector; the datastore templates read the same field.
 #
-# Public names come from sslip.io, which turns the apps Elastic IP into a hostname
-# anyone can open. No hosts-file edit and no purchased domain.
+# Public names are under sapunipathirana.me. Each one is an A record at Namecheap
+# pointing at the apps Elastic IP 52.62.242.130.
 
 global:
   commonConfig:
-    KEYCLOAK_ISSUER: https://auth.3.111.117.223.sslip.io/realms/swiftdrop
+    KEYCLOAK_ISSUER: https://auth.swiftdrop.sapunipathirana.me/realms/swiftdrop
 
 ingress:
   annotations:
@@ -19,24 +19,24 @@ ingress:
     enabled: true
     secretName: swiftdrop-tls
   hosts:
-    web: swiftdrop.3.111.117.223.sslip.io
-    api: api.3.111.117.223.sslip.io
-    auth: auth.3.111.117.223.sslip.io
-    grafana: grafana.3.111.117.223.sslip.io
+    web: swiftdrop.sapunipathirana.me
+    api: api.swiftdrop.sapunipathirana.me
+    auth: auth.swiftdrop.sapunipathirana.me
+    grafana: grafana.swiftdrop.sapunipathirana.me
 
 web:
   nodeSelector:
     role: apps
   config:
-    AUTH_URL: https://swiftdrop.3.111.117.223.sslip.io
-    AUTH_KEYCLOAK_ISSUER: https://auth.3.111.117.223.sslip.io/realms/swiftdrop
+    AUTH_URL: https://swiftdrop.sapunipathirana.me
+    AUTH_KEYCLOAK_ISSUER: https://auth.swiftdrop.sapunipathirana.me/realms/swiftdrop
     AUTH_KEYCLOAK_INTERNAL_URL: http://keycloak:8080/realms/swiftdrop
-    KEYCLOAK_PUBLIC_URL: https://auth.3.111.117.223.sslip.io
+    KEYCLOAK_PUBLIC_URL: https://auth.swiftdrop.sapunipathirana.me
 api-gateway:
   nodeSelector:
     role: apps
   config:
-    WEB_ORIGIN: https://swiftdrop.3.111.117.223.sslip.io
+    WEB_ORIGIN: https://swiftdrop.sapunipathirana.me
 pricing-service:
   nodeSelector:
     role: apps
@@ -68,7 +68,7 @@ notification-service:
   nodeSelector:
     role: apps
   config:
-    FRONTEND_URL: https://swiftdrop.3.111.117.223.sslip.io
+    FRONTEND_URL: https://swiftdrop.sapunipathirana.me
 webhook-service:
   nodeSelector:
     role: apps

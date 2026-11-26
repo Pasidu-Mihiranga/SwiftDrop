@@ -1,7 +1,13 @@
 variable "region" {
   description = "AWS region. Both instances stay in one zone of this region."
   type        = string
-  default     = "ap-south-1"
+  default     = "ap-southeast-2"
+}
+
+variable "aws_profile" {
+  description = "Named AWS CLI profile for the new account. Do not use the suspended account's default keys."
+  type        = string
+  default     = "swiftdrop"
 }
 
 variable "admin_cidr" {

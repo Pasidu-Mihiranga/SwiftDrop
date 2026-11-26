@@ -246,6 +246,8 @@ export const FOOTER_COLUMNS: readonly FooterColumn[] = [
     title: "Help",
     links: [
       { href: "/#help", label: "Questions & answers" },
+      { href: "/privacy", label: "Privacy policy" },
+      { href: "/terms", label: "Terms of service" },
       { href: "mailto:hello@swiftdrop.lk", label: "hello@swiftdrop.lk" },
       { href: "/login", label: "Sign in" },
       { href: "/account", label: "Your account" },

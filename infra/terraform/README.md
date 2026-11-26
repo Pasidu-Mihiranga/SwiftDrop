@@ -4,22 +4,24 @@ Creates the two-node network from `doc/deploy/01-two-node-architecture.md`: one 
 
 `terraform apply` starts billing. Two running instances are about $0.20 per hour. Each Elastic IP costs about $3.65 per month while its instance is stopped. Do not apply until the manual steps below are done.
 
-## What the AWS CLI can already do
+## Account
 
-Checked with the `developer` user in account `866409326665`, region `ap-south-1`:
+The first build used account `866409326665` in `ap-south-1`. That account is suspended. Build again in the new account, region `ap-southeast-2` (Sydney). Terraform uses the AWS CLI profile `swiftdrop`, not the default keys from the old account.
 
-- `aws sts get-caller-identity` succeeds.
-- Creating a VPC, allocating an Elastic IP, and launching `m7i-flex.large` are allowed (dry-run only; nothing was created).
-- Ubuntu 24.04 amd64 is available. `m7i-flex.large` is free-tier eligible, 2 vCPU, 8 GiB.
-- A default VPC already exists (`172.31.0.0/16`). This Terraform creates a separate VPC, `10.20.0.0/16`, so a later destroy does not touch the default one.
+The old state, key, and `terraform.tfvars` are in `suspended-mumbai/`. Do not copy them back. A new apply creates a new key and new Elastic IPs.
 
-## Manual steps this user cannot do
+## Before apply
 
-The `developer` user is denied these calls. Do them in the AWS console while signed in as the account root or an admin:
+Sign in to the new account in the console with the Google login. Create an IAM user named `swiftdrop-deploy` and attach the policy in `doc/deploy/02-phase-checklist.md`. Create an access key for that user and run `aws configure --profile swiftdrop` with region `ap-southeast-2`. Do not create an access key for the root user.
 
-1. Billing alerts at $50 and $150 of credits. Budgets is denied for `developer`.
-2. Confirm the vCPU quota can run two `m7i-flex.large` at once (4 vCPU). Service Quotas is denied for `developer`. In the console open Service Quotas, Amazon EC2, "Running On-Demand Standard (A, C, D, H, I, M, R, T, Z) instances" in `ap-south-1`. The number must be at least 4.
-3. Attaching the tighter IAM policy from `doc/deploy/02-phase-checklist.md` is optional. IAM is denied for `developer`, and that user can already launch what this Terraform creates. Do not switch the CLI to a weaker user until an admin has attached that policy.
+Then confirm the caller and the instance type:
+
+```sh
+aws sts get-caller-identity --profile swiftdrop
+aws ec2 describe-instance-types --region ap-southeast-2 --profile swiftdrop --instance-types m7i-flex.large
+```
+
+The account id in the first command must not be `866409326665`. In the console, Service Quotas, Amazon EC2, "Running On-Demand Standard (A, C, D, H, I, M, R, T, Z) instances" for `ap-southeast-2` must be at least 4. Add billing alerts before a long run.
 
 ## Apply
 
@@ -28,7 +30,7 @@ cd infra/terraform
 cp terraform.tfvars.example terraform.tfvars
 ```
 
-Edit `terraform.tfvars` and set `admin_cidr` to your public IP and `/32`. Find the IP with `curl -4 ifconfig.me`.
+Edit `terraform.tfvars`. Set `admin_cidr` to your public IP and `/32`. Find the IP with `curl -4 ifconfig.me`. Leave `region` as `ap-southeast-2` and `aws_profile` as `swiftdrop`.
 
 ```sh
 terraform init
@@ -45,5 +47,5 @@ ssh -i swiftdrop-key.pem ubuntu@<apps_elastic_ip>
 Stop the instances when you are finished for the day. Do not release the Elastic IPs if you want the same addresses next time.
 
 ```sh
-aws ec2 stop-instances --region ap-south-1 --instance-ids <apps-id> <data-id>
+aws ec2 stop-instances --region ap-southeast-2 --profile swiftdrop --instance-ids <apps-id> <data-id>
 ```

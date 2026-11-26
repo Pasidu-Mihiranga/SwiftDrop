@@ -2,7 +2,8 @@
 # Find it with: curl -4 ifconfig.me
 admin_cidr = "203.0.113.10/32"
 
-region        = "ap-south-1"
+region        = "ap-southeast-2"
+aws_profile   = "swiftdrop"
 instance_type = "m7i-flex.large"
 
 # Leave false until the Grafana / Loki / Tempo / Argo CD phase.

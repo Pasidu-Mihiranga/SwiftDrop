@@ -8,6 +8,8 @@ describe("accessFor", () => {
     expect(accessFor("/", undefined)).toBe("public");
     expect(accessFor("/track/SD261020ABCDEFG", undefined)).toBe("public");
     expect(accessFor("/login", undefined)).toBe("public");
+    expect(accessFor("/privacy", undefined)).toBe("public");
+    expect(accessFor("/terms", undefined)).toBe("public");
   });
 
   it("requires login for role areas and unknown pages", () => {

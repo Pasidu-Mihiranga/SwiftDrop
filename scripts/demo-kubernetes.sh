@@ -17,13 +17,13 @@
 #
 # Optional:
 #   DEMO_DEPLOYMENT=web ./scripts/demo-kubernetes.sh
-#   SWIFTDROP_SSH_HOST=3.111.117.223 SWIFTDROP_SSH_KEY=infra/terraform/swiftdrop-key.pem
+#   SWIFTDROP_SSH_HOST=52.62.242.130 SWIFTDROP_SSH_KEY=infra/terraform/swiftdrop-key.pem
 
 set -euo pipefail
 
 if [[ "${1:-}" != "--on-node" ]]; then
   root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-  host="${SWIFTDROP_SSH_HOST:-3.111.117.223}"
+  host="${SWIFTDROP_SSH_HOST:-52.62.242.130}"
   key="${SWIFTDROP_SSH_KEY:-${root}/infra/terraform/swiftdrop-key.pem}"
   if [[ ! -f "${key}" ]]; then
     echo "SSH key not found at ${key}" >&2

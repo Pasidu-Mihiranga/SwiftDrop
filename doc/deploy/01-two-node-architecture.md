@@ -6,7 +6,7 @@ This is the demo layout for SwiftDrop on AWS. It uses two EC2 instances, k3s, an
 
 ## Instances
 
-Both machines are the same size. Launch them in `ap-south-1`, in one availability zone (for example `ap-south-1a`), in one public subnet. Do not create a NAT gateway. Do not use EKS.
+Both machines are the same size. Launch them in `ap-southeast-2` (Sydney), in one availability zone (for example `ap-southeast-2a`), in one public subnet. Do not create a NAT gateway. Do not use EKS. The earlier Mumbai deployment was on an account that is now suspended. Build this layout again in the new account.
 
 | Node | Type | Disk | k3s | What runs there |
 |---|---|---|---|---|

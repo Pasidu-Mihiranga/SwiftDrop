@@ -3,7 +3,7 @@ set -euo pipefail
 KEY=/Users/oneionei/Documents/MyProjects/EAD/SwiftDrop/infra/terraform/swiftdrop-key.pem
 ROOT=/Users/oneionei/Documents/MyProjects/EAD/SwiftDrop
 RSH="ssh -i ${KEY} -o StrictHostKeyChecking=accept-new"
-HOST=ubuntu@3.111.117.223
+HOST=ubuntu@52.62.242.130
 
 $RSH "$HOST" 'mkdir -p ~/SwiftDrop/infra ~/SwiftDrop/scripts ~/SwiftDrop/apps ~/SwiftDrop/libs'
 
