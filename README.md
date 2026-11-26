@@ -470,6 +470,11 @@ ghcr.io/pasidu-mihiranga/swiftdrop-<service>:1.2.3             # on a v1.2.3 tag
 - **Release gate:** an image with a *critical* vulnerability that already has a fix is not published. Fix it by bumping the
   base image or the dependency; if that is impossible for now, record the CVE with a reason in [`.trivyignore`](.trivyignore).
   Pull requests that change a Dockerfile run the same build and scan without publishing.
+- **CI gate:** [`trivy.yml`](.github/workflows/trivy.yml) runs on every push and pull request. It scans the lockfiles for
+  fixable critical vulnerabilities, scans the tree for committed secrets, and scans the runtime base images plus the
+  pinned Postgres, Redis, Kafka, MongoDB, file storage, Mailpit and Keycloak images. A failure blocks the k3s deploy.
+  The built application images are still scanned by the release workflow above, which is the scan that sees the
+  finished image rather than only its lockfile and base.
 - **Supply chain:** published images carry OCI labels linking them to this repository, a provenance attestation and an SBOM.
 - **Pulling:** GHCR creates new packages as private. After the first release, set each `swiftdrop-*` package to public
   (Package settings, Change visibility) so kind/minikube can pull without credentials, or create an image pull secret.

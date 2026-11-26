@@ -40,6 +40,8 @@ api-gateway:
 pricing-service:
   nodeSelector:
     role: apps
+  config:
+    MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT: http://alloy.observability.svc.cluster.local:4318/v1/traces
 user-service:
   nodeSelector:
     role: apps

@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: swiftdrop
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Pasidu-Mihiranga/SwiftDrop.git
+    targetRevision: deploy/k3s-two-node
+    path: infra/helm/swiftdrop
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-dev.yaml
+        - values-full.yaml
+        - values-two-node.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: swiftdrop
+  # Manual only. An automatic sync would replace the live install with whatever
+  # is on the git branch, including before that branch is pushed.
+  syncPolicy: {}

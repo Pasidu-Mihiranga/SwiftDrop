@@ -1,0 +1,30 @@
+# Argo CD watches the Helm chart. It does not sync by itself, so it cannot
+# overwrite the running demo until someone presses Sync.
+global:
+  nodeSelector:
+    role: platform
+
+dex:
+  enabled: false
+
+notifications:
+  enabled: false
+
+applicationSet:
+  enabled: false
+
+controller:
+  nodeSelector:
+    role: platform
+
+server:
+  nodeSelector:
+    role: platform
+
+repoServer:
+  nodeSelector:
+    role: platform
+
+redis:
+  nodeSelector:
+    role: platform

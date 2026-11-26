@@ -1,0 +1,44 @@
+# Grafana on the platform node. The password is passed at install time, not stored here.
+nodeSelector:
+  role: platform
+
+service:
+  port: 3000
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+    limits:
+      memory: 384Mi
+
+# Loads every JSON file in a ConfigMap labeled grafana_dashboard=1.
+# The files live in infra/observability/grafana/dashboards.
+sidecar:
+  dashboards:
+    enabled: true
+    label: grafana_dashboard
+    labelValue: "1"
+    searchNamespace: observability
+    folderAnnotation: grafana_folder
+
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus-server.observability.svc.cluster.local
+        isDefault: true
+      - name: Loki
+        uid: loki
+        type: loki
+        access: proxy
+        url: http://loki.observability.svc.cluster.local:3100
+      - name: Tempo
+        uid: tempo
+        type: tempo
+        access: proxy
+        url: http://tempo.observability.svc.cluster.local:3200

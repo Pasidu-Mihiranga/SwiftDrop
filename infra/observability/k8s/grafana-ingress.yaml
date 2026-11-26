@@ -1,0 +1,27 @@
+# Public Grafana page. Its own certificate, so the site certificate is left alone.
+# DNS: grafana.swiftdrop.sapunipathirana.me A 52.62.242.130 (the apps machine).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+  namespace: observability
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - grafana.swiftdrop.sapunipathirana.me
+      secretName: grafana-tls
+  rules:
+    - host: grafana.swiftdrop.sapunipathirana.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 3000

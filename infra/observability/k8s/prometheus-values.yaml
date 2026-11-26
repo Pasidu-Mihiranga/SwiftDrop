@@ -1,0 +1,47 @@
+# Prometheus on the platform node. It reads the metrics the services already expose.
+alertmanager:
+  enabled: false
+kube-state-metrics:
+  enabled: false
+prometheus-node-exporter:
+  enabled: false
+prometheus-pushgateway:
+  enabled: false
+
+server:
+  nodeSelector:
+    role: platform
+  retention: 1d
+  persistentVolume:
+    size: 8Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+extraScrapeConfigs: |
+  - job_name: java-services
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - api-gateway.swiftdrop.svc.cluster.local:8080
+          - user-service.swiftdrop.svc.cluster.local:8081
+          - merchant-service.swiftdrop.svc.cluster.local:8082
+          - pricing-service.swiftdrop.svc.cluster.local:8083
+          - parcel-service.swiftdrop.svc.cluster.local:8084
+          - dispatch-service.swiftdrop.svc.cluster.local:8085
+          - reporting-service.swiftdrop.svc.cluster.local:8086
+  - job_name: keycloak
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["keycloak.swiftdrop.svc.cluster.local:9000"]
+  - job_name: node-python-services
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - tracking-service.swiftdrop.svc.cluster.local:8090
+          - notification-service.swiftdrop.svc.cluster.local:8091
+          - webhook-service.swiftdrop.svc.cluster.local:8092
+          - ai-assistant-service.swiftdrop.svc.cluster.local:8095
