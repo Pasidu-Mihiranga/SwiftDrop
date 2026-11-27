@@ -34,8 +34,9 @@ jobs:
 
       # Trivy reads Java dependencies from the local Maven cache. Without this step it asks
       # Maven Central for every POM and the scan fails when that host rate-limits the runner.
+      # install, not dependency:resolve: later modules need the jars this reactor just built.
       - name: Fill the Maven cache
-        run: mvn -B -ntp -DskipTests dependency:resolve
+        run: mvn -B -ntp -DskipTests install
 
       - name: Fixable critical vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0

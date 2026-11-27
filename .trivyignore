@@ -5,3 +5,19 @@
 #
 #   # libfoo in eclipse-temurin:21-jre; no patched base image yet. Owner: M10. Review: 2026-12-01
 #   CVE-2026-12345
+#
+# Pinned cluster images. The published tags below have no rebuilt release yet.
+# Owner: platform. Review: 2026-12-27
+# brotli in apache/kafka:4.1.2 and rustfs/rustfs:1.0.3
+CVE-2026-111497
+# gnutls in apache/kafka:4.1.2
+CVE-2026-33845
+CVE-2026-42010
+# openssl in apache/kafka:4.1.2 and node:22.20.0-alpine; the overflow is on 32-bit builds
+CVE-2026-31789
+# node-tar inside node:22.20.0-alpine
+CVE-2026-59873
+# OpenJDK inside quay.io/keycloak/keycloak:26.8.1
+CVE-2026-114938
+# Go stdlib inside mongo:7.0.45 and postgres:16.15-alpine
+CVE-2025-68121
