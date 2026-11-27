@@ -59,11 +59,17 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "redirectUris": ["http://localhost:3000/api/auth/callback/keycloak"],
-      "webOrigins": ["http://localhost:3000"],
+      "redirectUris": [
+        "http://localhost:3000/api/auth/callback/keycloak",
+        "https://swiftdrop.sapunipathirana.me/api/auth/callback/keycloak"
+      ],
+      "webOrigins": [
+        "http://localhost:3000",
+        "https://swiftdrop.sapunipathirana.me"
+      ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:3000/*"
+        "post.logout.redirect.uris": "http://localhost:3000/*##https://swiftdrop.sapunipathirana.me/*"
       },
       "protocolMappers": [
         {

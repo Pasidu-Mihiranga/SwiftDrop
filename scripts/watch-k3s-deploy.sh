@@ -26,6 +26,8 @@ fi
 
 cd "${dir}"
 git fetch --prune origin "${branch}"
+# Drop files copied onto the server by hand. Ignored files such as .env stay.
+git clean -fd
 git checkout --force "origin/${branch}"
 new="$(git rev-parse HEAD)"
 old=""
